@@ -10,6 +10,15 @@ import {
   Add as AddIcon,
   MergeType as MergeIcon,
   BorderAll as SplitIcon,
+  BorderAll as BorderAllIcon,
+  BorderTop as BorderTopIcon,
+  BorderBottom as BorderBottomIcon,
+  BorderLeft as BorderLeftIcon,
+  BorderRight as BorderRightIcon,
+  BorderOuter as BorderOutsideIcon,
+  BorderInner as BorderInsideIcon,
+  BorderClear as BorderClearIcon,
+  ArrowDropDown as ArrowDropDownIcon,
   FormatBold as BoldIcon,
   FormatItalic as ItalicIcon,
   FormatUnderlined as UnderlineIcon,
@@ -46,6 +55,9 @@ function roundVal(val, decimals) {
   return Math.round(val * factor) / factor;
 }
 
+const CELL_BORDER_STYLE = "0.02px solid #757679";
+const CELL_BORDER_KEYS = ["borderTop", "borderRight", "borderBottom", "borderLeft"];
+
 export default function ObservationBuilder() {
   // View states: 'list' | 'builder'
   const [view, setView] = useState("list");
@@ -62,13 +74,14 @@ export default function ObservationBuilder() {
 
   const [templateName, setTemplateName] = useState("New Lab Observation Template");
   const [version, setVersion] = useState("1.0.0");
-  
+
   // Drag Selection states for proper Excel range merges
   const [selectedCell, setSelectedCell] = useState({ row: 0, col: 0 });
   const [selectionStart, setSelectionStart] = useState({ row: 0, col: 0 });
   const [selectionEnd, setSelectionEnd] = useState({ row: 0, col: 0 });
   const [isSelecting, setIsSelecting] = useState(false);
   const [isEditing, setIsEditing] = useState(false); // Excel double-click edit mode
+  const [borderMenuOpen, setBorderMenuOpen] = useState(false);
 
   // Test Scopes from API
   const [scopes, setScopes] = useState([]);
@@ -93,22 +106,6 @@ export default function ObservationBuilder() {
   const [activeSheetId, setActiveSheetId] = useState("sheet1");
   const [sheets, setSheets] = useState([{ id: "sheet1", name: "Sheet 1" }]);
   const [sheetsData, setSheetsData] = useState({
-    sheet1: {
-      "A1": { value: "Specimen ID", type: "label", style: { fontWeight: "bold", backgroundColor: "#f1f5f9" } },
-      "B1": { value: "Crushing Load (kN)", type: "label", style: { fontWeight: "bold", backgroundColor: "#f1f5f9" } },
-      "C1": { value: "Cross Section Area (mm²)", type: "label", style: { fontWeight: "bold", backgroundColor: "#f1f5f9" } },
-      "D1": { value: "Compressive Strength (N/mm²)", type: "label", style: { fontWeight: "bold", backgroundColor: "#f1f5f9" } },
-
-      "A2": { value: "CUBE_01", type: "textbox" },
-      "B2": { value: "380", type: "number" },
-      "C2": { value: "22500", type: "number" },
-      "D2": { value: "16.89", type: "formula", formula: "=B2*1000/C2", style: { backgroundColor: "#f0fdf4", color: "#166534" } },
-
-      "A3": { value: "CUBE_02", type: "textbox" },
-      "B3": { value: "410", type: "number" },
-      "C3": { value: "22500", type: "number" },
-      "D3": { value: "18.22", type: "formula", formula: "=B3*1000/C3", style: { backgroundColor: "#f0fdf4", color: "#166534" } },
-    }
   });
 
   const cells = sheetsData[activeSheetId] || {};
@@ -226,6 +223,89 @@ export default function ObservationBuilder() {
       return { ...prev, [activeLabel]: updated };
     });
   };
+
+  const getBorderUpdates = (borderType, row, col) => {
+    if (borderType === "none") {
+      return CELL_BORDER_KEYS.reduce((updates, key) => ({ ...updates, [key]: undefined }), {});
+    }
+
+    const updates = {};
+    const addBorder = (key) => {
+      updates[key] = CELL_BORDER_STYLE;
+    };
+
+    if (borderType === "all") {
+      CELL_BORDER_KEYS.forEach(addBorder);
+    } else if (borderType === "inside") {
+      if (col < maxCol) addBorder("borderRight");
+      if (row < maxRow) addBorder("borderBottom");
+    } else if (borderType === "outside") {
+      if (row === minRow) addBorder("borderTop");
+      if (row === maxRow) addBorder("borderBottom");
+      if (col === minCol) addBorder("borderLeft");
+      if (col === maxCol) addBorder("borderRight");
+    } else if (borderType === "top" && row === minRow) {
+      addBorder("borderTop");
+    } else if (borderType === "bottom" && row === maxRow) {
+      addBorder("borderBottom");
+    } else if (borderType === "left" && col === minCol) {
+      addBorder("borderLeft");
+    } else if (borderType === "right" && col === maxCol) {
+      addBorder("borderRight");
+    }
+
+    return updates;
+  };
+
+  const applyBorderToSelection = (borderType) => {
+    setCells((prev) => {
+      const next = { ...prev };
+
+      for (let row = minRow; row <= maxRow; row += 1) {
+        for (let col = minCol; col <= maxCol; col += 1) {
+          const label = getCellLabel(row, col);
+          const current = next[label] || { value: "", type: "label", style: {}, validation: {} };
+          const nextStyle = { ...(current.style || {}) };
+          const borderUpdates = getBorderUpdates(borderType, row, col);
+
+          Object.entries(borderUpdates).forEach(([key, value]) => {
+            if (value === undefined) {
+              delete nextStyle[key];
+            } else {
+              nextStyle[key] = value;
+            }
+          });
+
+          next[label] = { ...current, style: nextStyle };
+        }
+      }
+
+      return next;
+    });
+
+    setBorderMenuOpen(false);
+    toast.success(`Applied ${borderType} border to selected cells`);
+  };
+
+  const borderMenuItems = [
+    { type: "all", label: "All Borders", icon: BorderAllIcon },
+    { type: "bottom", label: "Bottom", icon: BorderBottomIcon },
+    { type: "top", label: "Top", icon: BorderTopIcon },
+    { type: "left", label: "Left", icon: BorderLeftIcon },
+    { type: "right", label: "Right", icon: BorderRightIcon },
+    { type: "outside", label: "Outside", icon: BorderOutsideIcon },
+    { type: "inside", label: "Inside", icon: BorderInsideIcon },
+    { type: "none", label: "No Border", icon: BorderClearIcon },
+  ];
+
+  const renderCellBorderOverlay = (cellStyle) => (
+    <div className="pointer-events-none absolute inset-0 z-20">
+      {cellStyle.borderTop && <span className="absolute left-0 top-0 h-px w-full bg-slate-900" />}
+      {cellStyle.borderRight && <span className="absolute right-0 top-0 h-full w-px bg-slate-900" />}
+      {cellStyle.borderBottom && <span className="absolute bottom-0 left-0 h-px w-full bg-slate-900" />}
+      {cellStyle.borderLeft && <span className="absolute left-0 top-0 h-full w-px bg-slate-900" />}
+    </div>
+  );
 
   // Perform dynamic Excel merge on selected grid range
   const handleRangeMerge = () => {
@@ -390,11 +470,11 @@ export default function ObservationBuilder() {
       setSelectedScope(scopes[0].scope_test_id);
     }
     setSheetsData({
-      sheet1: {
-        "A1": { value: "Observations Entry", type: "label", style: { fontWeight: "bold", backgroundColor: "#f1f5f9" } },
-        "B1": { value: "100", type: "number" },
-        "C1": { value: "200", type: "formula", formula: "=B1*2", style: { backgroundColor: "#f0fdf4" } },
-      }
+      // sheet1: {
+      //   "A1": { value: "Observations Entry", type: "label", style: { fontWeight: "bold", backgroundColor: "#f1f5f9" } },
+      //   "B1": { value: "100", type: "number" },
+      //   "C1": { value: "200", type: "formula", formula: "=B1*2", style: { backgroundColor: "#f0fdf4" } },
+      // }
     });
     setSheets([{ id: "sheet1", name: "Sheet 1" }]);
     setActiveSheetId("sheet1");
@@ -503,11 +583,10 @@ export default function ObservationBuilder() {
                       <td className="px-5 text-slate-500 font-bold">{tmpl.test_method || "N/A"}</td>
                       <td className="px-4 text-center">{tmpl.version}</td>
                       <td className="px-4 text-center">
-                        <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider ${
-                          tmpl.status === "Published"
+                        <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider ${tmpl.status === "Published"
                             ? "bg-emerald-50 text-emerald-700 border border-emerald-100"
                             : "bg-amber-50 text-amber-700 border border-amber-100"
-                        }`}>
+                          }`}>
                           {tmpl.status}
                         </span>
                       </td>
@@ -537,7 +616,7 @@ export default function ObservationBuilder() {
       ) : (
         /* 2. Full-Width Spreadsheet Form Builder */
         <div className="flex flex-col h-[calc(100vh-64px)] overflow-hidden bg-[#F8FAFC]">
-          
+
           {/* Top Header Toolbar */}
           <div className="flex items-center justify-between px-6 py-3 bg-white border-b border-slate-200/80 gap-4 shrink-0 shadow-xs z-10">
             <div className="flex items-center gap-3">
@@ -643,13 +722,48 @@ export default function ObservationBuilder() {
               <button onClick={() => updateActiveCellProp("style", "fontWeight", "bold")} className="w-7 h-7 hover:bg-slate-100 rounded flex items-center justify-center font-bold">B</button>
               <button onClick={() => updateActiveCellProp("style", "fontStyle", "italic")} className="w-7 h-7 hover:bg-slate-100 rounded flex items-center justify-center italic">I</button>
               <button onClick={() => updateActiveCellProp("style", "textDecoration", "underline")} className="w-7 h-7 hover:bg-slate-100 rounded flex items-center justify-center underline font-semibold">U</button>
-              
+
               <div className="h-4 w-px bg-slate-200 mx-1" />
 
               <button onClick={() => updateActiveCellProp("style", "alignment", "left")} className="p-1.5 hover:bg-slate-100 rounded"><AlignLeftIcon style={{ fontSize: 15 }} /></button>
               <button onClick={() => updateActiveCellProp("style", "alignment", "center")} className="p-1.5 hover:bg-slate-100 rounded"><AlignCenterIcon style={{ fontSize: 15 }} /></button>
               <button onClick={() => updateActiveCellProp("style", "alignment", "right")} className="p-1.5 hover:bg-slate-100 rounded"><AlignRightIcon style={{ fontSize: 15 }} /></button>
-              
+
+              <div className="h-4 w-px bg-slate-200 mx-1" />
+
+              <div className="relative flex items-center" onMouseLeave={() => setBorderMenuOpen(false)}>
+                <button
+                  onClick={() => applyBorderToSelection("all")}
+                  className="h-7 px-2 hover:bg-slate-100 rounded-l flex items-center gap-1 text-[11px] font-bold text-slate-600"
+                  title="All Borders"
+                >
+                  <BorderAllIcon style={{ fontSize: 15 }} />
+                  All Borders
+                </button>
+                <button
+                  onClick={() => setBorderMenuOpen((open) => !open)}
+                  className="h-7 w-6 hover:bg-slate-100 rounded-r flex items-center justify-center border-l border-slate-200"
+                  title="Border options"
+                >
+                  <ArrowDropDownIcon style={{ fontSize: 17 }} />
+                </button>
+
+                {borderMenuOpen && (
+                  <div className="absolute left-0 top-8 z-50 w-40 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
+                    {borderMenuItems.map(({ type, label, icon: Icon }) => (
+                      <button
+                        key={type}
+                        onClick={() => applyBorderToSelection(type)}
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-[11px] font-bold text-slate-600 hover:bg-blue-50 hover:text-[#2562AA]"
+                      >
+                        <Icon style={{ fontSize: 15 }} />
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <div className="h-4 w-px bg-slate-200 mx-1" />
 
               {/* Color Fill picker */}
@@ -676,7 +790,7 @@ export default function ObservationBuilder() {
                 />
               </div>
             </div>
-            
+
             <div className="flex items-center gap-1 text-[10px] text-slate-400 font-bold">
               <span>Zoom</span>
               <button onClick={() => setZoomLevel(Math.max(50, zoomLevel - 10))} className="p-1 hover:bg-slate-100 rounded"><ZoomOutIcon style={{ fontSize: 13 }} /></button>
@@ -727,7 +841,7 @@ export default function ObservationBuilder() {
           {/* Central canvas workspace */}
           <div className="flex-1 overflow-y-auto p-6 bg-[#F8FAFC]" onMouseUp={() => setIsSelecting(false)}>
             <div className="max-w-[1100px] mx-auto space-y-5">
-              
+
               {/* [1] PREVIEW MODE ONLY: HEADER TEMPLATE */}
               {mode === "preview" && (
                 <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 select-none relative overflow-hidden transition-all duration-200 animate-fade-in">
@@ -761,7 +875,7 @@ export default function ObservationBuilder() {
                   <span>Spreadsheet Observations Grid Matrix</span>
                   <span className="text-slate-400 normal-case font-bold text-[9px]">Click & drag to select multiple cells for range merging</span>
                 </div>
-                
+
                 <div className="flex-1 overflow-auto">
                   <table className="w-full border-collapse border-spacing-0 text-left bg-white text-xs select-none">
                     <thead>
@@ -820,19 +934,22 @@ export default function ObservationBuilder() {
                                 onDoubleClick={() => {
                                   if (mode === "design") setIsEditing(true);
                                 }}
-                                className={`p-0 border-r border-b border-slate-200 cursor-cell transition-all relative ${
-                                  isCellInSelection ? "bg-blue-50/60" : ""
-                                } ${
-                                  isSelected ? "ring-2 ring-inset ring-blue-600 z-10" : ""
-                                }`}
+                                className={`p-0 border-r border-b border-slate-200 cursor-cell transition-all relative ${isCellInSelection ? "bg-blue-50/60" : ""
+                                  } ${isSelected ? "ring-2 ring-inset ring-blue-600 z-10" : ""
+                                  }`}
                                 style={{
                                   fontWeight: cellStyle.fontWeight || "normal",
                                   fontStyle: cellStyle.fontStyle || "normal",
                                   textDecoration: cellStyle.textDecoration || "none",
                                   backgroundColor: cellStyle.backgroundColor || (isCellInSelection ? "#eff6ff" : "transparent"),
                                   color: cellStyle.color || "inherit",
+                                  borderTop: cellStyle.borderTop,
+                                  borderRight: cellStyle.borderRight,
+                                  borderBottom: cellStyle.borderBottom,
+                                  borderLeft: cellStyle.borderLeft,
                                 }}
                               >
+                                {renderCellBorderOverlay(cellStyle)}
                                 {isSelected && mode === "design" && isEditing ? (
                                   <input
                                     type="text"
@@ -892,11 +1009,10 @@ export default function ObservationBuilder() {
                     <button
                       key={s.id}
                       onClick={() => setActiveSheetId(s.id)}
-                      className={`px-3.5 py-1.5 rounded-lg transition-all ${
-                        activeSheetId === s.id
+                      className={`px-3.5 py-1.5 rounded-lg transition-all ${activeSheetId === s.id
                           ? "bg-white text-[#2562AA] shadow-xs"
                           : "hover:bg-slate-200 hover:text-slate-700 text-slate-500"
-                      }`}
+                        }`}
                     >
                       {s.name}
                     </button>

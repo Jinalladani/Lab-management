@@ -19,7 +19,9 @@ import ProjectPreview from "./pages/projects/ProjectPreview";
 
 
 import SampleEntry from "./pages/samples/SampleEntry";
+import SamplesList from "./pages/samples/SamplesList";
 import SampleMasterList from "./pages/samples/SampleMasterList";
+import TestAssignmentsList from "./pages/testAssignments/TestAssignmentsList";
 
 // import SampleView from "./pages/samples/SampleView";
 import LabClientsList from "./pages/labClients/LabClientsList";
@@ -167,7 +169,7 @@ function App() {
       />
 
       {/* Sample Routes */}
-      {/* <Route
+      <Route
         path="/samples"
         element={
           <ProtectedRoute>
@@ -175,6 +177,7 @@ function App() {
           </ProtectedRoute>
         }
       />
+      {/*
       <Route
         path="/samples/add"
         element={
@@ -212,6 +215,15 @@ function App() {
         element={
           <ProtectedRoute>
             <SampleMasterList />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/test-assignments"
+        element={
+          <ProtectedRoute>
+            <TestAssignmentsList />
           </ProtectedRoute>
         }
       />

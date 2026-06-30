@@ -13,6 +13,15 @@ import {
   FormatColorText as ColorTextIcon,
   MergeType as MergeIcon,
   BorderAll as SplitIcon,
+  BorderAll as BorderAllIcon,
+  BorderTop as BorderTopIcon,
+  BorderBottom as BorderBottomIcon,
+  BorderLeft as BorderLeftIcon,
+  BorderRight as BorderRightIcon,
+  BorderOuter as BorderOutsideIcon,
+  BorderInner as BorderInsideIcon,
+  BorderClear as BorderClearIcon,
+  ArrowDropDown as ArrowDropDownIcon,
   Add as PlusIcon,
   Search as SearchIcon,
   ArrowBack as ArrowBackIcon,
@@ -40,6 +49,9 @@ function roundVal(val, decimals) {
   const factor = Math.pow(10, decimals);
   return Math.round(val * factor) / factor;
 }
+
+const CELL_BORDER_STYLE = "0.02px solid #757679";
+const CELL_BORDER_KEYS = ["borderTop", "borderRight", "borderBottom", "borderLeft"];
 
 function getCellLabel(row, col) {
   const letter = String.fromCharCode(65 + col);
@@ -86,6 +98,7 @@ export default function ObservationEntry() {
   const [selectionStart, setSelectionStart] = useState({ row: 0, col: 0 });
   const [selectionEnd, setSelectionEnd] = useState({ row: 0, col: 0 });
   const [isSelecting, setIsSelecting] = useState(false);
+  const [borderMenuOpen, setBorderMenuOpen] = useState(false);
 
   // Grid dimensions
   const colsCount = 12;
@@ -458,6 +471,92 @@ export default function ObservationEntry() {
     });
   };
 
+  const getBorderUpdates = (borderType, row, col) => {
+    if (borderType === "none") {
+      return CELL_BORDER_KEYS.reduce((updates, key) => ({ ...updates, [key]: undefined }), {});
+    }
+
+    const updates = {};
+    const addBorder = (key) => {
+      updates[key] = CELL_BORDER_STYLE;
+    };
+
+    if (borderType === "all") {
+      CELL_BORDER_KEYS.forEach(addBorder);
+    } else if (borderType === "inside") {
+      if (col < maxCol) addBorder("borderRight");
+      if (row < maxRow) addBorder("borderBottom");
+    } else if (borderType === "outside") {
+      if (row === minRow) addBorder("borderTop");
+      if (row === maxRow) addBorder("borderBottom");
+      if (col === minCol) addBorder("borderLeft");
+      if (col === maxCol) addBorder("borderRight");
+    } else if (borderType === "top" && row === minRow) {
+      addBorder("borderTop");
+    } else if (borderType === "bottom" && row === maxRow) {
+      addBorder("borderBottom");
+    } else if (borderType === "left" && col === minCol) {
+      addBorder("borderLeft");
+    } else if (borderType === "right" && col === maxCol) {
+      addBorder("borderRight");
+    }
+
+    return updates;
+  };
+
+  const applyBorderToSelection = (borderType) => {
+    setSheetsData((prev) => {
+      const currentCells = prev[activeSheetId] || {};
+      const nextCells = { ...currentCells };
+
+      for (let row = minRow; row <= maxRow; row += 1) {
+        for (let col = minCol; col <= maxCol; col += 1) {
+          const label = getCellLabel(row, col);
+          const current = nextCells[label] || { value: "", type: "label", style: {}, validation: {} };
+          const nextStyle = { ...(current.style || {}) };
+          const borderUpdates = getBorderUpdates(borderType, row, col);
+
+          Object.entries(borderUpdates).forEach(([key, value]) => {
+            if (value === undefined) {
+              delete nextStyle[key];
+            } else {
+              nextStyle[key] = value;
+            }
+          });
+
+          nextCells[label] = { ...current, style: nextStyle };
+        }
+      }
+
+      const nextSheetsData = { ...prev, [activeSheetId]: nextCells };
+      pushHistory(nextSheetsData, merges);
+      return nextSheetsData;
+    });
+
+    setBorderMenuOpen(false);
+    toast.success(`Applied ${borderType} border to selected cells`);
+  };
+
+  const borderMenuItems = [
+    { type: "all", label: "All Borders", icon: BorderAllIcon },
+    { type: "bottom", label: "Bottom", icon: BorderBottomIcon },
+    { type: "top", label: "Top", icon: BorderTopIcon },
+    { type: "left", label: "Left", icon: BorderLeftIcon },
+    { type: "right", label: "Right", icon: BorderRightIcon },
+    { type: "outside", label: "Outside", icon: BorderOutsideIcon },
+    { type: "inside", label: "Inside", icon: BorderInsideIcon },
+    { type: "none", label: "No Border", icon: BorderClearIcon },
+  ];
+
+  const renderCellBorderOverlay = (cellStyle) => (
+    <div className="pointer-events-none absolute inset-0 z-20">
+      {cellStyle.borderTop && <span className="absolute left-0 top-0 h-px w-full bg-slate-900" />}
+      {cellStyle.borderRight && <span className="absolute right-0 top-0 h-full w-px bg-slate-900" />}
+      {cellStyle.borderBottom && <span className="absolute bottom-0 left-0 h-px w-full bg-slate-900" />}
+      {cellStyle.borderLeft && <span className="absolute left-0 top-0 h-full w-px bg-slate-900" />}
+    </div>
+  );
+
   const handleRangeMerge = () => {
     const rSpan = maxRow - minRow + 1;
     const cSpan = maxCol - minCol + 1;
@@ -741,6 +840,41 @@ export default function ObservationEntry() {
               
               <div className="h-4 w-px bg-slate-200 mx-1" />
 
+              <div className="relative flex items-center" onMouseLeave={() => setBorderMenuOpen(false)}>
+                <button
+                  onClick={() => applyBorderToSelection("all")}
+                  className="h-7 px-2 hover:bg-slate-100 rounded-l flex items-center gap-1 text-[11px] font-bold text-slate-600"
+                  title="All Borders"
+                >
+                  <BorderAllIcon style={{ fontSize: 15 }} />
+                  All Borders
+                </button>
+                <button
+                  onClick={() => setBorderMenuOpen((open) => !open)}
+                  className="h-7 w-6 hover:bg-slate-100 rounded-r flex items-center justify-center border-l border-slate-200"
+                  title="Border options"
+                >
+                  <ArrowDropDownIcon style={{ fontSize: 17 }} />
+                </button>
+
+                {borderMenuOpen && (
+                  <div className="absolute left-0 top-8 z-50 w-40 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
+                    {borderMenuItems.map(({ type, label, icon: Icon }) => (
+                      <button
+                        key={type}
+                        onClick={() => applyBorderToSelection(type)}
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-[11px] font-bold text-slate-600 hover:bg-blue-50 hover:text-[#2562AA]"
+                      >
+                        <Icon style={{ fontSize: 15 }} />
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              
+              <div className="h-4 w-px bg-slate-200 mx-1" />
+
               {/* Color Fill picker */}
               <div className="flex items-center gap-1.5 border border-slate-200 bg-slate-50 px-2 py-0.5 rounded-lg select-none">
                 <FillIcon style={{ fontSize: 13 }} className="text-slate-400" />
@@ -894,8 +1028,13 @@ export default function ObservationEntry() {
                                     backgroundColor: isCalculated ? "#f0fdf4" : (cellStyle.backgroundColor || (isCellInSelection ? "#eff6ff" : "transparent")),
                                     color: cellStyle.color || "inherit",
                                     textAlign: cellStyle.alignment || "left",
+                                    borderTop: cellStyle.borderTop,
+                                    borderRight: cellStyle.borderRight,
+                                    borderBottom: cellStyle.borderBottom,
+                                    borderLeft: cellStyle.borderLeft,
                                   }}
                                 >
+                                  {renderCellBorderOverlay(cellStyle)}
                                   {isEditable ? (
                                     <input
                                       type={cellState.type === "number" ? "number" : "text"}

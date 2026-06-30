@@ -6,7 +6,7 @@ import ViewListIcon from "@mui/icons-material/ViewList";
 import DescriptionIcon from "@mui/icons-material/Description";
 import ScienceIcon from "@mui/icons-material/Science";
 import BiotechIcon from "@mui/icons-material/Biotech";
-import PeopleIcon from "@mui/icons-material/People";
+import AssignmentTurnedInIcon from "@mui/icons-material/AssignmentTurnedIn";
 import GroupIcon from "@mui/icons-material/Group";
 import PersonIcon from "@mui/icons-material/Person";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
@@ -42,7 +42,9 @@ const Sidebar = ({ isOpen, onClose }) => {
         { path: "/labClients", label: "Clients", icon: GroupIcon },
         { path: "/projects", label: "Projects", icon: ViewListIcon },
         { path: "/scope", label: "Testing Scope", icon: ScienceIcon },
-        { path: "/samples/master", label: "Sample Master", icon: BiotechIcon },
+        { path: "/samples", label: "Samples", icon: BiotechIcon },
+        { path: "/test-assignments", label: "Test Assign", icon: AssignmentTurnedInIcon },
+        // { path: "/samples/master", label: "Sample Master", icon: BiotechIcon },
       ];
 
 
