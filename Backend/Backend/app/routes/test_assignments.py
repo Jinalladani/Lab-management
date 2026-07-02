@@ -506,6 +506,7 @@ def get_assignments_by_project(project_id):
                 sta.assignment_id,
                 sta.sample_id,
                 sta.scope_test_id,
+                pst.scope_test_id AS master_scope_test_id,
                 sta.assigned_to,
                 sta.assigned_date,
                 sta.target_date,
@@ -541,6 +542,7 @@ def get_assignments_by_project(project_id):
                 "assignment_id": assignment.assignment_id,
                 "sample_id": assignment.sample_id,
                 "scope_test_id": assignment.scope_test_id,
+                "master_scope_test_id": assignment.master_scope_test_id,
                 "assigned_to": assignment.assigned_to,
                 "assigned_date": assignment.assigned_date.isoformat() if assignment.assigned_date else None,
                 "target_date": assignment.target_date.isoformat() if assignment.target_date else None,
@@ -552,8 +554,9 @@ def get_assignments_by_project(project_id):
                 "quantity": assignment.quantity,
                 "received_date": assignment.received_date.isoformat() if assignment.received_date else None,
                 "received_condition": assignment.received_condition,
-                "success": True,
-                "data": assignments_data
+                "test_name": assignment.test_name,
+                "test_method": assignment.test_method,
+                "assigned_to_name": assignment.assigned_to_name
             })
         
         return jsonify({

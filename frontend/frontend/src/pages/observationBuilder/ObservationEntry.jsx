@@ -160,7 +160,32 @@ export default function ObservationEntry() {
   };
 
   useEffect(() => {
-    fetchObservations();
+    const init = async () => {
+      try {
+        setObservationsLoading(true);
+        const res = await getSampleObservations();
+        let obsList = [];
+        if (res.data && res.data.success) {
+          obsList = res.data.data || [];
+          setObservations(obsList);
+        }
+
+        // Check query parameters
+        const params = new URLSearchParams(window.location.search);
+        const qSampleId = params.get("sample_id");
+        const qScopeTestId = params.get("scope_test_id");
+        const qProjectId = params.get("project_id");
+
+        if (qSampleId && qScopeTestId && qProjectId) {
+          await loadPreselectedOrCreate(qProjectId, qSampleId, qScopeTestId, obsList);
+        }
+      } catch (err) {
+        console.error("Failed to initialize:", err);
+      } finally {
+        setObservationsLoading(false);
+      }
+    };
+    init();
   }, []);
 
   // Fetch initial select items on Wizard load
@@ -246,6 +271,19 @@ export default function ObservationEntry() {
     if (!val) {
       setSheetsData({ sheet1: {} });
       setMerges([]);
+      return;
+    }
+
+    // Check if an observation for this sample and test already exists
+    const existingObs = observations.find(
+      (obs) =>
+        String(obs.sample_id) === String(selectedSample) &&
+        String(obs.scope_test_id) === String(val)
+    );
+
+    if (existingObs) {
+      toast.info("An observation sheet already exists for this sample and test. Loading in edit mode...");
+      handleEditObservation(existingObs);
       return;
     }
 
@@ -395,6 +433,149 @@ export default function ObservationEntry() {
       toast.error("Failed to delete observation record");
     }
   };
+  const loadPreselectedOrCreate = async (qProjectId, qSampleId, qScopeTestId, obsList) => {
+    try {
+      setWizardLoading(true);
+      toast.loading("Resolving observation details...");
+      
+      // 1. Fetch initial select items (projects, templates)
+      const [projRes, tempRes] = await Promise.all([
+        getProjects(),
+        getObservationTemplates()
+      ]);
+      
+      let currentProjects = [];
+      let currentTemplates = [];
+      if (projRes.data && projRes.data.success) {
+        currentProjects = projRes.data.data || [];
+        setProjects(currentProjects);
+      }
+      if (tempRes.data && tempRes.data.success) {
+        currentTemplates = tempRes.data.data || [];
+        setTemplates(currentTemplates);
+      }
+
+      // 2. Fetch samples under project
+      const samplesRes = await getSampleEntries({ project_id: qProjectId });
+      let currentSamples = [];
+      if (samplesRes.data && samplesRes.data.success) {
+        currentSamples = samplesRes.data.data || [];
+        setSamples(currentSamples);
+      }
+
+      // 3. Fetch test assignments under sample to map/resolve scope_test_id
+      const assignmentsRes = await getAssignmentsBySample(qSampleId);
+      let currentAssignments = [];
+      if (assignmentsRes.data) {
+        currentAssignments = assignmentsRes.data.data || assignmentsRes.data || [];
+        setAssignedTests(currentAssignments);
+      }
+
+      // Find the assignment that matches qScopeTestId
+      // It can match either the project scope_test_id, the master_scope_test_id, or the assignment_id itself
+      const matchingAssignment = currentAssignments.find(
+        (a) =>
+          String(a.scope_test_id) === String(qScopeTestId) ||
+          String(a.master_scope_test_id) === String(qScopeTestId) ||
+          String(a.assignment_id) === String(qScopeTestId)
+      );
+
+      const resolvedMasterScopeTestId = matchingAssignment
+        ? (matchingAssignment.master_scope_test_id || matchingAssignment.scope_test_id)
+        : qScopeTestId;
+
+      // Debug toast to inspect variable matching
+      const matchingAssignmentsDebug = currentAssignments.map(a => `[a_id:${a.assignment_id}, s_id:${a.scope_test_id}, m_id:${a.master_scope_test_id}]`).join(', ');
+      const obsListDebug = obsList.filter(o => String(o.sample_id) === String(qSampleId)).map(o => `[obs_id:${o.observation_id}, s_id:${o.scope_test_id}]`).join(', ');
+      toast.info(
+        `Debug Info - qSample: ${qSampleId}, qTest: ${qScopeTestId} | Assignments: ${matchingAssignmentsDebug || 'None'} | ResolvedMaster: ${resolvedMasterScopeTestId} | Existing Obs: ${obsListDebug || 'None'}`,
+        { duration: 20000 }
+      );
+
+      // Check if an observation already exists with this sample and resolved master scope test ID
+      const existingObs = obsList.find(
+        (obs) =>
+          String(obs.sample_id) === String(qSampleId) &&
+          String(obs.scope_test_id) === String(resolvedMasterScopeTestId)
+      );
+
+      if (existingObs) {
+        toast.dismiss();
+        toast.info("An observation sheet already exists for this sample and test. Loading in edit mode...");
+        await handleEditObservation(existingObs);
+        // Clear search parameters from URL
+        window.history.replaceState({}, document.title, window.location.pathname);
+        return;
+      }
+
+      // If not, we are in "Create/Add" mode but preselected
+      toast.loading("Initializing preselected observation template...");
+
+      // Set selections
+      setSelectedProject(qProjectId);
+      setSelectedSample(qSampleId);
+      setSelectedTest(resolvedMasterScopeTestId);
+
+      // Match template layout
+      const matchedTemplate = currentTemplates.find(
+        t => t.scope_test_id.toString() === resolvedMasterScopeTestId.toString()
+      );
+
+      if (!matchedTemplate) {
+        setSheetsData({ sheet1: {} });
+        setMerges([]);
+        toast.dismiss();
+        toast.error("No observation layout template found for this test scope in the Form Builder yet!");
+        setView("entry"); // Open the entry page so they see selection dropdowns
+        
+        // Clear search parameters from URL
+        window.history.replaceState({}, document.title, window.location.pathname);
+        return;
+      }
+
+      // Load layout
+      const loadedData = matchedTemplate.sheets_data || { sheet1: {} };
+      const loadedMerges = matchedTemplate.merges_data || [];
+
+      setSheetsData(loadedData);
+      setMerges(loadedMerges);
+
+      setHistory([{ sheetsData: loadedData, merges: loadedMerges }]);
+      setHistoryIndex(0);
+
+      const sheetKeys = Object.keys(loadedData);
+      if (sheetKeys.length > 0) {
+        setSheets(sheetKeys.map((key, idx) => ({ id: key, name: `Sheet ${idx + 1}` })));
+        setActiveSheetId(sheetKeys[0]);
+      } else {
+        setSheets([{ id: "sheet1", name: "Sheet 1" }]);
+        setActiveSheetId("sheet1");
+      }
+
+      const sampleNo = currentSamples.find(s => s.sample_id.toString() === qSampleId.toString())?.sample_no || "SAMPLE_ID";
+      const testLabel = matchedTemplate.test_name || matchedTemplate.name || "Test Observations";
+      const testMethod = matchedTemplate.test_method || "NABL Standards";
+
+      setSampleIdLabel(sampleNo);
+      setTestType(testLabel);
+      setMethod(testMethod);
+
+      toast.dismiss();
+      toast.success("Initialized observation template successfully!");
+      setView("entry");
+
+      // Clear search parameters from URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+
+    } catch (error) {
+      toast.dismiss();
+      console.error("Failed to load preselected details:", error);
+      toast.error("Error setting up preselected observation context");
+    } finally {
+      setWizardLoading(false);
+    }
+  };
+
 
   const handleCreateNew = () => {
     loadSetupResources();

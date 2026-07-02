@@ -13,6 +13,8 @@ import AddIcon from "@mui/icons-material/Add";
 import CloseIcon from "@mui/icons-material/Close";
 import DeleteIcon from "@mui/icons-material/Delete";
 import SearchIcon from "@mui/icons-material/Search";
+import ScienceIcon from "@mui/icons-material/Science";
+import { useNavigate } from "react-router-dom";
 import { toast, Toaster } from "sonner";
 
 const inputClass =
@@ -35,6 +37,7 @@ const statusClass = (status) => {
 };
 
 const TestAssignmentsList = () => {
+  const navigate = useNavigate();
   const [projects, setProjects] = useState([]);
   const [samples, setSamples] = useState([]);
   const [assignments, setAssignments] = useState([]);
@@ -354,7 +357,18 @@ const TestAssignmentsList = () => {
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex justify-end">
+                        <div className="flex justify-end gap-2">
+                          <button
+                            onClick={() => {
+                              navigate(
+                                `/observation-entry?project_id=${assignment.project_id}&sample_id=${assignment.sample_id}&scope_test_id=${assignment.master_scope_test_id || assignment.scope_test_id}`
+                              );
+                            }}
+                            className="rounded-lg border border-blue-100 p-2 text-blue-600 hover:bg-blue-50"
+                            title="Observation Sheet"
+                          >
+                            <ScienceIcon fontSize="small" />
+                          </button>
                           <button onClick={() => handleDelete(assignment)} className="rounded-lg border border-red-100 p-2 text-red-600 hover:bg-red-50" title="Delete">
                             <DeleteIcon fontSize="small" />
                           </button>

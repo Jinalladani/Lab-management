@@ -144,31 +144,29 @@ const Sidebar = ({ isOpen, onClose }) => {
                   <KeyboardArrowDownIcon sx={{ fontSize: 18 }} />
                 )}
               </button>
-              
+
               {observationOpen && (
                 <div className="pl-6 space-y-1 mt-1 transition-all">
                   <NavLink
                     to="/observation-entry"
                     onClick={onClose}
                     className={({ isActive }) =>
-                      `flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 ${
-                        isActive
-                          ? "bg-white text-[#2562AA] shadow-md font-bold"
-                          : "text-white/80 hover:bg-white/8 hover:text-white"
+                      `flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 ${isActive
+                        ? "bg-white text-[#2562AA] shadow-md font-bold"
+                        : "text-white/80 hover:bg-white/8 hover:text-white"
                       }`
                     }
                   >
                     <span className="font-medium text-xs">Observation Entry</span>
                   </NavLink>
-                  
+
                   <NavLink
                     to="/observation-builder"
                     onClick={onClose}
                     className={({ isActive }) =>
-                      `flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 ${
-                        isActive
-                          ? "bg-white text-[#2562AA] shadow-md font-bold"
-                          : "text-white/80 hover:bg-white/8 hover:text-white"
+                      `flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 ${isActive
+                        ? "bg-white text-[#2562AA] shadow-md font-bold"
+                        : "text-white/80 hover:bg-white/8 hover:text-white"
                       }`
                     }
                   >
