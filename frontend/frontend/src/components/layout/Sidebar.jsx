@@ -142,10 +142,9 @@ const Sidebar = ({ isOpen, onClose }) => {
                     onClose();
                   }}
                   className={({ isActive }) =>
-                    `flex items-center gap-3 px-4 py-3 flex-1 rounded-l-xl ${
-                      isActive || window.location.pathname.startsWith("/equipment/")
-                        ? "text-white font-bold"
-                        : "text-white/95"
+                    `flex items-center gap-3 px-4 py-3 flex-1 rounded-l-xl ${isActive || window.location.pathname.startsWith("/equipment/")
+                      ? "text-white font-bold"
+                      : "text-white/95"
                     }`
                   }
                 >
@@ -207,10 +206,9 @@ const Sidebar = ({ isOpen, onClose }) => {
                     onClose();
                   }}
                   className={({ isActive }) =>
-                    `flex items-center gap-3 px-4 py-3 flex-1 rounded-l-xl ${
-                      isActive || window.location.pathname.startsWith("/calibration/")
-                        ? "text-white font-bold"
-                        : "text-white/95"
+                    `flex items-center gap-3 px-4 py-3 flex-1 rounded-l-xl ${isActive || window.location.pathname.startsWith("/calibration/")
+                      ? "text-white font-bold"
+                      : "text-white/95"
                     }`
                   }
                 >

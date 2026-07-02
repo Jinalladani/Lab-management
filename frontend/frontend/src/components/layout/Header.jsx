@@ -9,11 +9,11 @@ import BusinessIcon from "@mui/icons-material/Business";
 
 const getRoleTitle = (role) => {
   if (!role) return "User";
-  
+
   // Convert API role to proper display format
   // Remove underscores and convert to title case
   const formattedRole = role.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-  
+
   // Special cases for specific role mappings
   switch (role.toLowerCase()) {
     case "super_admin":
