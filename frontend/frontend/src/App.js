@@ -53,6 +53,18 @@ import EditLab from "./pages/superadmin/lab/EditLab";
 import ObservationEntry from "./pages/observationBuilder/ObservationEntry";
 import ObservationBuilder from "./pages/observationBuilder/ObservationBuilder";
 
+import EquipmentDashboard from "./pages/equipment/EquipmentDashboard";
+import EquipmentList from "./pages/equipment/EquipmentList";
+import AddEquipment from "./pages/equipment/AddEquipment";
+import EditEquipment from "./pages/equipment/EditEquipment";
+import EquipmentDetails from "./pages/equipment/EquipmentDetails";
+import EquipmentLocations from "./pages/equipment/EquipmentLocations";
+import CalibrationDashboard from "./pages/calibration/CalibrationDashboard";
+import CalibrationCalendar from "./pages/calibration/CalibrationCalendar";
+import CalibrationRegister from "./pages/calibration/CalibrationRegister";
+import CalibrationDueOverdue from "./pages/calibration/CalibrationDueOverdue";
+import MaintenanceHistory from "./pages/calibration/MaintenanceHistory";
+
 // import ReportList  from "./pages/reports/ReportList";
 // import ReportCreate from "./pages/reports/ReportCreate";
 // import ReportDetail from "./pages/reports/ReportDetail";
@@ -403,6 +415,96 @@ function App() {
         element={
           <ProtectedRoute>
             <ObservationBuilder />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Equipment & Calibration Routes */}
+      <Route
+        path="/equipment/dashboard"
+        element={
+          <ProtectedRoute>
+            <EquipmentDashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/equipment/list"
+        element={
+          <ProtectedRoute>
+            <EquipmentList />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/equipment/add"
+        element={
+          <ProtectedRoute>
+            <AddEquipment />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/equipment/view/:id"
+        element={
+          <ProtectedRoute>
+            <EquipmentDetails />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/equipment/edit/:id"
+        element={
+          <ProtectedRoute>
+            <EditEquipment />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/equipment/locations"
+        element={
+          <ProtectedRoute>
+            <EquipmentLocations />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/calibration/dashboard"
+        element={
+          <ProtectedRoute>
+            <CalibrationDashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/calibration/calendar"
+        element={
+          <ProtectedRoute>
+            <CalibrationCalendar />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/calibration/register"
+        element={
+          <ProtectedRoute>
+            <CalibrationRegister />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/calibration/due-overdue"
+        element={
+          <ProtectedRoute>
+            <CalibrationDueOverdue />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/maintenance/history"
+        element={
+          <ProtectedRoute>
+            <MaintenanceHistory />
           </ProtectedRoute>
         }
       />

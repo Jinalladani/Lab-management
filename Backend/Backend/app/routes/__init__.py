@@ -15,6 +15,8 @@ from .superadmin import superadmin_bp
 from .test_assignments import test_assignments_bp
 from .observation_builder import observation_builder_bp
 from .sample_observation import sample_observations_bp
+from .equipment import equipment_bp
+from .calibration import calibration_bp
 
 def register_blueprints(app):
     app.register_blueprint(home_bp, url_prefix="/api")
@@ -34,3 +36,5 @@ def register_blueprints(app):
     app.register_blueprint(test_assignments_bp, url_prefix="/api/test-assignments")
     app.register_blueprint(observation_builder_bp, url_prefix="/api/observation-builder")
     app.register_blueprint(sample_observations_bp, url_prefix="/api/sample-observations")
+    app.register_blueprint(equipment_bp, url_prefix="/api/equipment")
+    app.register_blueprint(calibration_bp, url_prefix="/api/calibration")

@@ -12,11 +12,16 @@ import PersonIcon from "@mui/icons-material/Person";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
 import TableChartIcon from "@mui/icons-material/TableChart";
+import ConstructionIcon from "@mui/icons-material/Construction";
+import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
+import BuildIcon from "@mui/icons-material/Build";
 import { NavLink } from "react-router-dom";
 import { useState } from "react";
 
 const Sidebar = ({ isOpen, onClose }) => {
-  const [observationOpen, setObservationOpen] = useState(true); // Default open for ease of navigation
+  const [observationOpen, setObservationOpen] = useState(false);
+  const [equipmentOpen, setEquipmentOpen] = useState(false);
+  const [calibrationOpen, setCalibrationOpen] = useState(false);
   // Get user role from localStorage
   const user = (() => {
     try {
@@ -126,6 +131,166 @@ const Sidebar = ({ isOpen, onClose }) => {
                 <span className="font-medium">{label}</span>
               </NavLink>
             ))}
+
+            {/* Collapsible Equipment submenus */}
+            <div className="pt-1 select-none">
+              <div className="flex items-center justify-between rounded-xl hover:bg-white/12 text-white/95 transition-all duration-200">
+                <NavLink
+                  to="/equipment/dashboard"
+                  onClick={() => {
+                    setEquipmentOpen(true);
+                    onClose();
+                  }}
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 px-4 py-3 flex-1 rounded-l-xl ${
+                      isActive || window.location.pathname.startsWith("/equipment/")
+                        ? "text-white font-bold"
+                        : "text-white/95"
+                    }`
+                  }
+                >
+                  <ConstructionIcon sx={{ fontSize: 22 }} />
+                  <span className="font-medium">Equipment</span>
+                </NavLink>
+                <button
+                  type="button"
+                  onClick={() => setEquipmentOpen(!equipmentOpen)}
+                  className="px-4 py-3 text-white/80 hover:text-white transition-colors"
+                  aria-label="Toggle Equipment Menu"
+                >
+                  {equipmentOpen ? (
+                    <KeyboardArrowUpIcon sx={{ fontSize: 18 }} />
+                  ) : (
+                    <KeyboardArrowDownIcon sx={{ fontSize: 18 }} />
+                  )}
+                </button>
+              </div>
+
+              {equipmentOpen && (
+                <div className="pl-6 space-y-1 mt-1 transition-all">
+                  <NavLink
+                    to="/equipment/list"
+                    onClick={onClose}
+                    className={({ isActive }) =>
+                      `flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 ${isActive
+                        ? "bg-white text-[#2562AA] shadow-md font-bold"
+                        : "text-white/80 hover:bg-white/8 hover:text-white"
+                      }`
+                    }
+                  >
+                    <span className="font-medium text-xs">Equipment List</span>
+                  </NavLink>
+
+                  <NavLink
+                    to="/equipment/locations"
+                    onClick={onClose}
+                    className={({ isActive }) =>
+                      `flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 ${isActive
+                        ? "bg-white text-[#2562AA] shadow-md font-bold"
+                        : "text-white/80 hover:bg-white/8 hover:text-white"
+                      }`
+                    }
+                  >
+                    <span className="font-medium text-xs">Locations</span>
+                  </NavLink>
+                </div>
+              )}
+            </div>
+
+            {/* Collapsible Calibration submenus */}
+            <div className="pt-2 select-none">
+              <div className="flex items-center justify-between rounded-xl hover:bg-white/12 text-white/95 transition-all duration-200">
+                <NavLink
+                  to="/calibration/dashboard"
+                  onClick={() => {
+                    setCalibrationOpen(true);
+                    onClose();
+                  }}
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 px-4 py-3 flex-1 rounded-l-xl ${
+                      isActive || window.location.pathname.startsWith("/calibration/")
+                        ? "text-white font-bold"
+                        : "text-white/95"
+                    }`
+                  }
+                >
+                  <CalendarMonthIcon sx={{ fontSize: 22 }} />
+                  <span className="font-medium">Calibration</span>
+                </NavLink>
+                <button
+                  type="button"
+                  onClick={() => setCalibrationOpen(!calibrationOpen)}
+                  className="px-4 py-3 text-white/80 hover:text-white transition-colors"
+                  aria-label="Toggle Calibration Menu"
+                >
+                  {calibrationOpen ? (
+                    <KeyboardArrowUpIcon sx={{ fontSize: 18 }} />
+                  ) : (
+                    <KeyboardArrowDownIcon sx={{ fontSize: 18 }} />
+                  )}
+                </button>
+              </div>
+
+              {calibrationOpen && (
+                <div className="pl-6 space-y-1 mt-1 transition-all">
+                  <NavLink
+                    to="/calibration/register"
+                    onClick={onClose}
+                    className={({ isActive }) =>
+                      `flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 ${isActive
+                        ? "bg-white text-[#2562AA] shadow-md font-bold"
+                        : "text-white/80 hover:bg-white/8 hover:text-white"
+                      }`
+                    }
+                  >
+                    <span className="font-medium text-xs">Register</span>
+                  </NavLink>
+
+                  <NavLink
+                    to="/calibration/calendar"
+                    onClick={onClose}
+                    className={({ isActive }) =>
+                      `flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 ${isActive
+                        ? "bg-white text-[#2562AA] shadow-md font-bold"
+                        : "text-white/80 hover:bg-white/8 hover:text-white"
+                      }`
+                    }
+                  >
+                    <span className="font-medium text-xs">Calendar</span>
+                  </NavLink>
+
+                  <NavLink
+                    to="/calibration/due-overdue"
+                    onClick={onClose}
+                    className={({ isActive }) =>
+                      `flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all duration-200 ${isActive
+                        ? "bg-white text-[#2562AA] shadow-md font-bold"
+                        : "text-white/80 hover:bg-white/8 hover:text-white"
+                      }`
+                    }
+                  >
+                    <span className="font-medium text-xs">Due / Overdue</span>
+                  </NavLink>
+                </div>
+              )}
+            </div>
+
+            {/* Maintenance Link */}
+            <div className="pt-2">
+              <NavLink
+                to="/maintenance/history"
+                onClick={onClose}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${isActive
+                    ? "bg-white text-[#2562AA] shadow-md"
+                    : "text-white/95 hover:bg-white/12 hover:text-white"
+                  }`
+                }
+              >
+                <BuildIcon sx={{ fontSize: 22 }} />
+                <span className="font-medium">Maintenance</span>
+              </NavLink>
+            </div>
 
             {/* Collapsible Observation submenus */}
             <div className="pt-2">
