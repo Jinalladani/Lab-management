@@ -1,156 +1,168 @@
-import React, { useState, useEffect } from "react";
-import { MainLayout } from "../components/layout";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { api } from "../api";
-import { getDashboardData } from "../api/dashboard";
+import { motion } from "framer-motion";
 import {
-  People,
-  Science,
-  Business,
-  Assessment,
-  TrendingUp,
-  TrendingDown,
-  Add,
-  Visibility,
-  Schedule,
-  CheckCircle,
-  Pending,
-  Error,
-} from "@mui/icons-material";
-import {
-  LineChart,
-  Line,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
+  Area, AreaChart, CartesianGrid, Line, LineChart,
+  ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
-
-const COLORS = ['#2562AA', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
+import { MainLayout } from "../components/layout";
+import {
+  Briefcase, FlaskConical, Users, Clock, Building2,
+  TrendingUp, TrendingDown, ArrowRight, Activity,
+} from "lucide-react";
+import Icon from "../components/ui/LucideIcon";
+import { getDashboardData } from "../api/dashboard";
 
 const getRoleTitle = (role) => {
   if (!role) return "User";
-  
-  // Convert API role to proper display format
-  // Remove underscores and convert to title case
-  const formattedRole = role.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-  
-  // Special cases for specific role mappings
+  const formattedRole = role.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
   switch (role.toLowerCase()) {
-    case "super_admin":
-      return "Super Admin";
-    case "admin":
-      return "Admin";
-    case "qm":
-      return "QM";
-    case "eng":
-      return "Engineer";
-    case "lab_admin":
-      return "Lab Admin";
-    case "lab_manager":
-      return "Lab Manager";
-    case "quality_manager":
-      return "Quality Manager";
-    case "test_engineer":
-      return "Test Engineer";
-    default:
-      return formattedRole || "User";
+    case "super_admin": return "Super Admin";
+    case "admin": return "Admin";
+    case "qm": return "QM";
+    case "eng": return "Engineer";
+    case "lab_admin": return "Lab Admin";
+    case "lab_manager": return "Lab Manager";
+    case "quality_manager": return "Quality Manager";
+    case "test_engineer": return "Test Engineer";
+    default: return formattedRole || "User";
   }
 };
 
-const StatCard = ({ title, value, icon: Icon, color, trend, trendValue }) => (
-  <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-lg border border-gray-100 p-4 sm:p-6 hover:shadow-xl transition-all duration-300 hover:scale-[1.02] h-full">
-    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-      <div className="flex-1">
-        <p className="text-xs sm:text-sm font-semibold text-gray-600 uppercase tracking-wide">{title}</p>
-        <p className="text-2xl sm:text-3xl font-bold text-gray-900 mt-1 sm:mt-2">{(value || 0).toLocaleString()}</p>
-        {trend && (
-          <div className="flex items-center mt-2 sm:mt-3">
-            {trend === 'up' ? (
-              <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 mr-1 text-green-500" />
-            ) : (
-              <TrendingDown className="w-4 h-4 sm:w-5 sm:h-5 mr-1 text-red-500" />
-            )}
-            <span className={`text-xs sm:text-sm font-medium ${trend === 'up' ? 'text-green-500' : 'text-red-500'}`}>
-              {trendValue}
-            </span>
-          </div>
-        )}
-      </div>
-      <div className="flex items-center justify-center">
-        <div className={`p-3 rounded-full ${color}`}>
-          <Icon className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
-        </div>
-      </div>
-    </div>
+const useCountUp = (value) => {
+  const [displayValue, setDisplayValue] = useState(0);
+  useEffect(() => {
+    const target = Number(value) || 0;
+    const duration = 700;
+    const start = performance.now();
+    const tick = (now) => {
+      const progress = Math.min((now - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setDisplayValue(Math.round(target * eased));
+      if (progress < 1) requestAnimationFrame(tick);
+    };
+    const frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [value]);
+  return displayValue;
+};
+
+const stagger = {
+  container: {
+    hidden: {},
+    visible: { transition: { staggerChildren: 0.06 } },
+  },
+  item: {
+    hidden: { opacity: 0, y: 12 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.3, ease: [0.22, 0.68, 0, 1] } },
+  },
+};
+
+const Workspace = ({ children }) => (
+  <div className="mx-auto w-full max-w-[1800px] px-4 py-5 sm:px-5 lg:px-6">
+    <div className="app-workspace-shell">{children}</div>
   </div>
 );
 
-const QuickAction = ({ title, icon: Icon, onClick, color }) => (
-  <button
-    onClick={onClick}
-    className="w-full bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-lg border border-gray-100 p-4 sm:p-5 hover:shadow-xl transition-all duration-300 hover:scale-[1.02] text-left focus:outline-none focus:ring-2 focus:ring-[#2562AA] focus:ring-offset-4 group"
-  >
-    <div className="flex items-center gap-3 sm:gap-4">
-      <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center ${color} shadow-lg group-hover:shadow-xl transition-shadow flex-shrink-0`}>
-        <Icon className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-      </div>
-      <div className="flex-1 min-w-0">
-        <h3 className="font-bold text-gray-900 text-base sm:text-lg group-hover:text-[#2562AA] transition-colors truncate">{title}</h3>
-      </div>
-    </div>
-  </button>
-);
+const iconMap = {
+  briefcase: Briefcase,
+  flask: FlaskConical,
+  users: Users,
+  timer: Clock,
+  building: Building2,
+  user: Users,
+};
 
-const RecentActivity = ({ type, title, time, status }) => {
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'completed': return 'text-green-600 bg-green-50 border-green-200';
-      case 'pending': return 'text-yellow-600 bg-yellow-50 border-yellow-200';
-      case 'failed': return 'text-red-600 bg-red-50 border-red-200';
-      default: return 'text-gray-600 bg-gray-50 border-gray-200';
-    }
-  };
-
-  const getIcon = (type) => {
-    switch (type) {
-      case 'project': return <Business className="w-4 h-4" />;
-      case 'sample': return <Science className="w-4 h-4" />;
-      case 'client': return <People className="w-4 h-4" />;
-      default: return <Assessment className="w-4 h-4" />;
-    }
-  };
+const StatTile = ({ label, value, icon, tone = "info", caption, trend = "up" }) => {
+  const count = useCountUp(value);
+  const IconComp = iconMap[icon] || Briefcase;
+  const TrendIcon = trend === "down" ? TrendingDown : TrendingUp;
 
   return (
-    <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-gray-50 to-white rounded-xl border border-gray-100 hover:shadow-md transition-all duration-200">
-      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#2562AA] to-[#1e4f8a] flex items-center justify-center text-white shadow-lg">
-        {getIcon(type)}
+    <motion.article
+      className={`lab-stat-tile lab-stat-${tone}`}
+      variants={stagger.item}
+      whileHover={{ y: -3, boxShadow: "0 16px 40px rgba(0,0,0,0.08)" }}
+      transition={{ duration: 0.2 }}
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="lab-overline">{label}</p>
+          <div className="mt-2.5 flex items-end gap-3">
+            <span className="lab-stat-number">{count.toLocaleString()}</span>
+            <span className={`lab-trend ${trend === "down" ? "lab-trend-danger" : "lab-trend-success"}`}>
+              <TrendIcon size={14} />
+              {caption}
+            </span>
+          </div>
+        </div>
+        <div className="lab-stat-icon">
+          <IconComp size={20} strokeWidth={2} />
+        </div>
       </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-gray-900 truncate">{title}</p>
-        <p className="text-xs text-gray-500 mt-1">{time}</p>
+      <div className="mt-5 h-1.5 rounded-full bg-[#EDF0F3]">
+        <div className="lab-meter-fill" style={{ width: `${Math.min(88, Math.max(20, Number(value) * 8 || 28))}%` }} />
       </div>
-      <span className={`px-3 py-1 text-xs font-bold rounded-full border ${getStatusColor(status)}`}>
-        {status}
-      </span>
-    </div>
+    </motion.article>
   );
 };
 
+const SectionHeader = ({ eyebrow, title, meta }) => (
+  <div className="mb-5 flex items-end justify-between gap-4">
+    <div>
+      <p className="lab-overline">{eyebrow}</p>
+      <h2 className="mt-1 text-lg font-bold text-[#1A2733] tracking-tight">{title}</h2>
+    </div>
+    {meta && <p className="hidden text-sm text-[#8A97A4] sm:block">{meta}</p>}
+  </div>
+);
+
+const ActionRow = ({ title, description, icon, onClick }) => (
+  <motion.button
+    type="button"
+    onClick={onClick}
+    className="group lab-action-row"
+    whileHover={{ y: -2, boxShadow: "0 12px 30px rgba(0,0,0,0.07)" }}
+    transition={{ duration: 0.18 }}
+  >
+    <span className="lab-action-icon">
+      <Icon name={icon} size={18} strokeWidth={2} />
+    </span>
+    <span className="min-w-0 flex-1">
+      <span className="block truncate text-sm font-semibold text-[#1A2733]">{title}</span>
+      <span className="block truncate text-xs text-[#8A97A4]">{description}</span>
+    </span>
+    <ArrowRight size={15} className="text-[#CDD4DB] transition-transform duration-200 group-hover:translate-x-1" />
+  </motion.button>
+);
+
+const activityIconMap = { project: "briefcase", sample: "flask", client: "users" };
+
+const ActivityRow = ({ type, title, time, status, index }) => (
+  <div className="lab-activity-row" style={{ animationDelay: `${index * 55}ms` }}>
+    <div className="lab-activity-marker">
+      <Icon name={activityIconMap[type] || "activity"} size={16} />
+    </div>
+    <div className="min-w-0 flex-1">
+      <p className="truncate text-sm font-semibold text-[#1A2733]">{title}</p>
+      <p className="mt-0.5 text-xs text-[#8A97A4]">{time}</p>
+    </div>
+    <span className="lab-badge lab-badge-success">{status || "updated"}</span>
+  </div>
+);
+
+const DataList = ({ items, emptyText, renderItem }) => (
+  <div className="space-y-2">
+    {items.length ? items.map(renderItem) : (
+      <div className="lab-empty-state">{emptyText}</div>
+    )}
+  </div>
+);
+
 const Home = () => {
   const [stats, setStats] = useState({
-    totalProjects: 0,
-    totalSamples: 0,
-    totalClients: 0,
-    totalLabs: 0,
-    totalUsers: 0,
-    pendingTests: 0,
+    totalProjects: 0, totalSamples: 0, totalClients: 0,
+    totalLabs: 0, totalUsers: 0, pendingTests: 0,
   });
   const [recentActivities, setRecentActivities] = useState([]);
   const [monthlyData, setMonthlyData] = useState([]);
@@ -161,321 +173,258 @@ const Home = () => {
   const [error, setError] = useState(null);
   const navigate = useNavigate();
 
-  const user = (() => {
-    try {
-      const raw = localStorage.getItem("user");
-      return raw ? JSON.parse(raw) : null;
-    } catch {
-      return null;
-    }
-  })();
-
-  useEffect(() => {
-    fetchDashboardData();
+  const user = useMemo(() => {
+    try { return JSON.parse(localStorage.getItem("user")); } catch { return null; }
   }, []);
+
+  const isSuperAdmin = user?.role === "superadmin" || user?.role === "super_admin";
+  const roleTitle = getRoleTitle(user?.role);
+
+  useEffect(() => { fetchDashboardData(); }, []);
 
   const fetchDashboardData = async () => {
     try {
-      setLoading(true);
-      setError(null);
-      
-      // Fetch dashboard data from API endpoint
+      setLoading(true); setError(null);
       const response = await getDashboardData();
       const data = response.data.data;
+      const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
 
-      // Check user role and set appropriate data
-      const user = JSON.parse(localStorage.getItem('user') || '{}');
-      
-      if (user.role === 'superadmin' || user.role === 'super_admin') {
-        // Superadmin: Show total labs, total projects, total clients
-        setStats({
-          totalLabs: data.stats?.totalLabs || 0,
-          totalUsers: data.stats?.totalUsers || 0,
-          totalProjects: data.stats?.totalProjects || 0,
-          totalClients: data.stats?.totalClients || 0,
-        });
-        
-        // Set lab stats for superadmin
+      if (currentUser.role === "superadmin" || currentUser.role === "super_admin") {
+        setStats({ totalLabs: data.stats?.totalLabs || 0, totalUsers: data.stats?.totalUsers || 0, totalProjects: data.stats?.totalProjects || 0, totalClients: data.stats?.totalClients || 0 });
         setLabStats(data.labStats || []);
         setRoleDistribution(data.roleDistribution || []);
-        
       } else {
-        // Admin, QM, Eng: Show current dashboard
-        setStats({
-          totalProjects: data.stats?.totalProjects || 0,
-          totalSamples: data.stats?.totalSamples || 0,
-          totalClients: data.stats?.totalClients || 0,
-          pendingTests: data.stats?.pendingTests || 0,
-        });
-        
-        // Set monthly data for current dashboard
+        setStats({ totalProjects: data.stats?.totalProjects || 0, totalSamples: data.stats?.totalSamples || 0, totalClients: data.stats?.totalClients || 0, pendingTests: data.stats?.pendingTests || 0 });
         setMonthlyData(data.monthlyData || []);
         setTestStatusData(data.testStatusData || []);
       }
-      
-      // Set recent activities (common for both)
       setRecentActivities(data.recentActivities || []);
-
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error);
-      setError('Failed to load dashboard data');
+    } catch (fetchError) {
+      console.error("Error fetching dashboard data:", fetchError);
+      setError("Failed to load dashboard data");
     } finally {
       setLoading(false);
     }
   };
 
+  const statsConfig = isSuperAdmin
+    ? [
+        { label: "Labs", value: stats.totalLabs, icon: "building", caption: "Network", tone: "primary" },
+        { label: "Users", value: stats.totalUsers, icon: "users", caption: "Workforce", tone: "info" },
+        { label: "Projects", value: stats.totalProjects, icon: "briefcase", caption: "Portfolio", tone: "secondary" },
+        { label: "Clients", value: stats.totalClients, icon: "user", caption: "Accounts", tone: "success" },
+      ]
+    : [
+        { label: "Projects", value: stats.totalProjects, icon: "briefcase", caption: "Active", tone: "primary" },
+        { label: "Samples", value: stats.totalSamples, icon: "flask", caption: "Registered", tone: "info" },
+        { label: "Clients", value: stats.totalClients, icon: "users", caption: "Accounts", tone: "secondary" },
+        { label: "Pending", value: stats.pendingTests, icon: "timer", caption: "Attention", trend: "down", tone: "danger" },
+      ];
+
   const quickActions = [
-    {
-      title: 'Add New Project',
-      // description: 'Create a new testing project',
-      icon: Add,
-      color: 'bg-[#2562AA]',
-      onClick: () => navigate('/projects/add'),
-    },
-    {
-      title: 'Add Sample',
-      // description: 'Register a new sample for testing',
-      icon: Science,
-      color: 'bg-[#2562AA]',
-      onClick: () => navigate('/samples/add'),
-    },
-    {
-      title: 'Add Client',
-      // description: 'Register a new laboratory client',
-      icon: People,
-      color: 'bg-[#2562AA]',
-      onClick: () => navigate('/labClients/add'),
-    },
-    {
-      title: 'View Reports',
-      // description: 'Access all test reports',
-      icon: Visibility,
-      color: 'bg-[#2562AA]',
-      onClick: () => navigate('/reports'),
-    },
+    { title: "New Project", description: "Start a testing engagement", icon: "briefcase", onClick: () => navigate("/projects/add") },
+    { title: "Register Sample", description: "Open sample intake", icon: "flask", onClick: () => navigate("/samples/add") },
+    { title: "Add Client", description: "Create a lab account", icon: "users", onClick: () => navigate("/labClients/add") },
+    { title: "Reports", description: "Review published output", icon: "fileText", onClick: () => navigate("/reports") },
   ];
 
   if (loading) {
     return (
-      <MainLayout headerTitle="Dashboard" headerSubtitle="Loading...">
-        <div className="flex flex-col items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-16 w-16 border-4 border-gray-200 border-t-[#2562AA] shadow-lg"></div>
-          <p className="mt-4 text-gray-600 font-medium">Loading dashboard data...</p>
-        </div>
+      <MainLayout headerTitle={`${roleTitle} Dashboard`} headerSubtitle="Loading operational workspace">
+        <Workspace>
+          <div className="lab-skeleton h-36" />
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {[0, 1, 2, 3].map((item) => <div key={item} className="lab-skeleton h-32" />)}
+          </div>
+          <div className="mt-4 grid gap-4 xl:grid-cols-12">
+            <div className="lab-skeleton h-96 xl:col-span-8" />
+            <div className="lab-skeleton h-96 xl:col-span-4" />
+          </div>
+        </Workspace>
       </MainLayout>
     );
   }
 
   if (error) {
     return (
-      <MainLayout headerTitle="Dashboard" headerSubtitle="Error">
-        <div className="flex flex-col items-center justify-center h-64">
-          <div className="text-red-500 text-xl font-bold mb-4">{error}</div>
-          <button
-            onClick={fetchDashboardData}
-            className="px-6 py-3 bg-gradient-to-r from-[#2562AA] to-[#1e4f8a] text-white rounded-xl hover:shadow-lg transition-all duration-300 font-semibold"
-          >
-            Retry
-          </button>
-        </div>
+      <MainLayout headerTitle={`${roleTitle} Dashboard`} headerSubtitle="Telemetry unavailable">
+        <Workspace>
+          <div className="flex min-h-[420px] flex-col items-center justify-center text-center">
+            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-[#E2E6EB] bg-white text-[#DC2626]"
+              style={{ boxShadow: "var(--shadow-sm)" }}>
+              <Activity size={24} />
+            </div>
+            <h2 className="text-xl font-bold text-[#1A2733]">{error}</h2>
+            <p className="mt-2 max-w-xl text-sm text-[#8A97A4]">
+              Dashboard data could not be loaded. Navigation and session state are still available.
+            </p>
+            <motion.button
+              type="button"
+              onClick={fetchDashboardData}
+              className="app-button app-button-primary mt-6"
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.97 }}
+            >
+              Retry
+            </motion.button>
+          </div>
+        </Workspace>
       </MainLayout>
     );
   }
 
   return (
-    <MainLayout headerTitle={`${getRoleTitle(user?.role) || 'USER'} Dashboard`} headerSubtitle={`Welcome back, ${user?.first_name || 'User'}`}>
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
-        <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8 space-y-6 lg:space-y-8">
-          {user?.role === 'superadmin' || user?.role === 'super_admin' ? (
-            // Superadmin Dashboard
-            <>
-              {/* Stats Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
-                <StatCard
-                  title="Total Labs"
-                  value={stats.totalLabs}
-                  icon={Business}
-                  color="bg-gradient-to-br from-[#2562AA] to-[#1e4f8a]"
-                  trend="up"
-                  trendValue="All labs"
-                />
-                <StatCard
-                  title="Total Users"
-                  value={stats.totalUsers}
-                  icon={People}
-                  color="bg-gradient-to-br from-[#2562AA] to-[#1e4f8a]"
-                  trend="up"
-                  trendValue="All users"
-                />
-                <StatCard
-                  title="Total Projects"
-                  value={stats.totalProjects}
-                  icon={Assessment}
-                  color="bg-gradient-to-br from-[#2562AA] to-[#1e4f8a]"
-                  trend="up"
-                  trendValue="All projects"
-                />
-                <StatCard
-                  title="Total Clients"
-                  value={stats.totalClients}
-                  icon={People}
-                  color="bg-gradient-to-br from-[#2562AA] to-[#1e4f8a]"
-                  trend="up"
-                  trendValue="All clients"
-                />
-              </div>
+    <MainLayout
+      headerTitle={`${roleTitle} Dashboard`}
+      headerSubtitle={isSuperAdmin ? "Network operations command center" : "Projects, samples, tests, and reports"}
+    >
+      <Workspace>
+        {/* Hero */}
+        <motion.section
+          className="lab-command-center"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35, ease: [0.22, 0.68, 0, 1] }}
+        >
+          <div className="min-w-0">
+            <p className="text-[11px] font-bold uppercase tracking-widest text-white/50">Operational Workspace</p>
+            <h2 className="mt-3 max-w-3xl text-2xl font-bold text-white sm:text-3xl tracking-tight">
+              {isSuperAdmin ? "Lab network performance at a glance" : "Today's testing workload is ready to triage"}
+            </h2>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-white/65">
+              {isSuperAdmin
+                ? "Monitor labs, project volume, client footprint, and user coverage from one calm control surface."
+                : "Track project flow, sample intake, pending tests, and recent operational movement without leaving the workspace."}
+            </p>
+          </div>
+          <div className="lab-command-aside flex flex-col justify-center">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-white/45">Signed in</span>
+            <strong className="mt-2 block truncate text-xl font-bold text-white tracking-tight">
+              {user?.first_name || user?.email || "User"}
+            </strong>
+            <span className="mt-3 inline-flex self-start rounded-lg border border-white/16 bg-white/8 px-3 py-1.5 text-xs font-semibold text-white/80">
+              {roleTitle}
+            </span>
+          </div>
+        </motion.section>
 
-              {/* Lab Distribution and Role Distribution */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
-                {/* Lab Stats */}
-                <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-xl border border-gray-100 p-6 lg:p-8">
-                  <h3 className="text-xl lg:text-2xl font-bold text-gray-900 mb-4 lg:mb-6 flex items-center gap-2">
-                    <span className="w-1 h-6 lg:h-8 bg-gradient-to-b from-[#2562AA] to-[#1e4f8a] rounded-full"></span>
-                    Top Labs
-                  </h3>
-                  <div className="space-y-3">
-                    {labStats?.map((lab, index) => (
-                      <div key={index} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-                        <span className="font-medium text-gray-900">{lab.name}</span>
-                        <div className="flex gap-4 text-sm">
-                          <span className="text-[#2562AA] font-semibold">{lab.projects} projects</span>
-                          <span className="text-[#2562AA] font-semibold">{lab.samples} samples</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+        {/* Stats */}
+        <motion.section
+          className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4"
+          variants={stagger.container}
+          initial="hidden"
+          animate="visible"
+        >
+          {statsConfig.map((item) => (
+            <StatTile key={item.label} {...item} />
+          ))}
+        </motion.section>
 
-                {/* Role Distribution */}
-                <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-xl border border-gray-100 p-6 lg:p-8">
-                  <h3 className="text-xl lg:text-2xl font-bold text-gray-900 mb-4 lg:mb-6 flex items-center gap-2">
-                    <span className="w-1 h-6 lg:h-8 bg-gradient-to-b from-[#2562AA] to-[#1e4f8a] rounded-full"></span>
-                    User Distribution
-                  </h3>
-                  <div className="space-y-3">
-                    {roleDistribution?.map((role, index) => (
-                      <div key={index} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-                        <span className="font-medium text-gray-900 capitalize">{role.role}</span>
-                        <span className="bg-gradient-to-r from-[#2562AA] to-[#1e4f8a] text-white px-3 py-1 rounded-full text-sm font-semibold shadow-md">
-                          {role.count}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </>
-          ) : (
-            // Admin/QM/Eng Dashboard
-            <>
-              {/* Stats Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
-                <StatCard
-                  title="Total Projects"
-                  value={stats.totalProjects}
-                  icon={Business}
-                  color="bg-gradient-to-br from-[#2562AA] to-[#1e4f8a]"
-                  trend="up"
-                  trendValue="Active projects"
-                />
-                <StatCard
-                  title="Total Samples"
-                  value={stats.totalSamples}
-                  icon={Science}
-                  color="bg-gradient-to-br from-[#2562AA] to-[#1e4f8a]"
-                  trend="up"
-                  trendValue="All samples"
-                />
-                <StatCard
-                  title="Total Clients"
-                  value={stats.totalClients}
-                  icon={People}
-                  color="bg-gradient-to-br from-[#2562AA] to-[#1e4f8a]"
-                  trend="up"
-                  trendValue="Registered clients"
-                />
-                <StatCard
-                  title="Pending Tests"
-                  value={stats.pendingTests}
-                  icon={Schedule}
-                  color="bg-gradient-to-br from-[#2562AA] to-[#1e4f8a]"
-                  trend="down"
-                  trendValue="Need attention"
-                />
-              </div>
-
-              {/* Charts and Actions Section */}
-              <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 lg:gap-8">
-                {/* Monthly Trends Chart - 70% on large screens */}
-                <div className="xl:col-span-8 lg:col-span-7">
-                  <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-xl border border-gray-100 p-6 lg:p-8 h-full">
-                    <h2 className="text-xl lg:text-2xl font-bold text-gray-900 mb-4 lg:mb-6 flex items-center gap-2">
-                      <span className="w-1 h-6 lg:h-8 bg-gradient-to-b from-[#2562AA] to-[#1e4f8a] rounded-full"></span>
-                      Monthly Trends
-                    </h2>
-                    {monthlyData.length > 0 ? (
-                      <div className="w-full overflow-x-auto">
-                        <ResponsiveContainer width="100%" height={350}>
-                          <LineChart data={monthlyData}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                            <XAxis dataKey="month" stroke="#6b7280" />
-                            <YAxis stroke="#6b7280" />
-                            <Tooltip 
-                              contentStyle={{ 
-                                backgroundColor: 'rgba(255, 255, 255, 0.95)', 
-                                border: '1px solid #e5e7eb',
-                                borderRadius: '8px',
-                                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-                              }} 
-                            />
-                            <Line type="monotone" dataKey="projects" stroke="#2562AA" strokeWidth={3} name="Projects" dot={{ fill: '#2562AA', r: 4 }} />
-                            <Line type="monotone" dataKey="samples" stroke="#10b981" strokeWidth={3} name="Samples" dot={{ fill: '#10b981', r: 4 }} />
-                          </LineChart>
-                        </ResponsiveContainer>
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-center h-64">
-                        <p className="text-gray-500">No data available</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Quick Actions - 30% on large screens */}
-                <div className="xl:col-span-4 lg:col-span-5">
-                  <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-xl border border-gray-100 p-6 lg:p-8 h-full">
-                    <h2 className="text-xl lg:text-2xl font-bold text-gray-900 mb-4 lg:mb-6 flex items-center gap-2">
-                      <span className="w-1 h-6 lg:h-8 bg-gradient-to-b from-[#2562AA] to-[#1e4f8a] rounded-full"></span>
-                      Quick Actions
-                    </h2>
-                    <div className="space-y-3 lg:space-y-4">
-                      {quickActions.map((action, index) => (
-                        <QuickAction key={index} {...action} />
-                      ))}
+        {/* Charts & Actions */}
+        {isSuperAdmin ? (
+          <section className="mt-5 grid gap-4 xl:grid-cols-12">
+            <motion.div className="lab-panel xl:col-span-7" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2, duration: 0.3 }}>
+              <SectionHeader eyebrow="Network" title="Top Labs" meta="Projects and samples by laboratory" />
+              <DataList
+                items={labStats}
+                emptyText="No lab analytics available yet."
+                renderItem={(lab, index) => (
+                  <div key={index} className="lab-data-row">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-[#1A2733]">{lab.name}</p>
+                      <p className="text-xs text-[#8A97A4]">Operational throughput</p>
+                    </div>
+                    <div className="flex gap-3 text-sm font-semibold text-[#3F6E8C]">
+                      <span>{lab.projects} projects</span>
+                      <span>{lab.samples} samples</span>
                     </div>
                   </div>
-                </div>
-              </div>
-            </>
-          )}
+                )}
+              />
+            </motion.div>
 
-          {/* Recent Activities - Common for all roles */}
-          <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl shadow-xl border border-gray-100 p-6 lg:p-8">
-            <h3 className="text-xl lg:text-2xl font-bold text-gray-900 mb-4 lg:mb-6 flex items-center gap-2">
-              <span className="w-1 h-6 lg:h-8 bg-gradient-to-b from-[#2562AA] to-[#1e4f8a] rounded-full"></span>
-              Recent Activities
-            </h3>
-            <div className="space-y-3">
-              {recentActivities?.map((activity, index) => (
-                <RecentActivity key={index} {...activity} />
-              ))}
+            <motion.div className="lab-panel xl:col-span-5" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25, duration: 0.3 }}>
+              <SectionHeader eyebrow="Access" title="User Distribution" meta="Active roles" />
+              <DataList
+                items={roleDistribution}
+                emptyText="No role distribution data available."
+                renderItem={(role, index) => (
+                  <div key={index} className="lab-data-row">
+                    <span className="text-sm font-semibold capitalize text-[#1A2733]">{role.role}</span>
+                    <span className="lab-badge">{role.count}</span>
+                  </div>
+                )}
+              />
+            </motion.div>
+          </section>
+        ) : (
+          <section className="mt-5 grid gap-4 xl:grid-cols-12">
+            <motion.div className="lab-panel lab-panel-prominent xl:col-span-8" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2, duration: 0.3 }}>
+              <SectionHeader eyebrow="Throughput" title="Monthly Movement" meta="Projects and samples" />
+              <div className="h-[390px]">
+                {monthlyData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={monthlyData} margin={{ top: 8, right: 10, left: -10, bottom: 0 }}>
+                      <CartesianGrid stroke="#EDF0F3" strokeDasharray="4 4" />
+                      <XAxis dataKey="month" stroke="#8A97A4" tickLine={false} axisLine={{ stroke: "#E2E6EB" }} fontSize={12} />
+                      <YAxis stroke="#8A97A4" tickLine={false} axisLine={{ stroke: "#E2E6EB" }} fontSize={12} />
+                      <Tooltip contentStyle={{ border: "1px solid #E2E6EB", borderRadius: "12px", boxShadow: "0 16px 40px rgba(0,0,0,0.1)", fontSize: 13 }} />
+                      <Line type="monotone" dataKey="projects" stroke="#243744" strokeWidth={2.4} dot={{ r: 4, fill: "#243744" }} activeDot={{ r: 6 }} name="Projects" animationDuration={900} />
+                      <Line type="monotone" dataKey="samples" stroke="#16A34A" strokeWidth={2.4} dot={{ r: 4, fill: "#16A34A" }} activeDot={{ r: 6 }} name="Samples" animationDuration={900} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="lab-empty-state h-full">No monthly trend data available.</div>
+                )}
+              </div>
+            </motion.div>
+
+            <motion.div className="lab-panel xl:col-span-4" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25, duration: 0.3 }}>
+              <SectionHeader eyebrow="Actions" title="Fast Workflows" meta="Primary tasks" />
+              <div className="space-y-2">
+                {quickActions.map((action) => <ActionRow key={action.title} {...action} />)}
+              </div>
+            </motion.div>
+          </section>
+        )}
+
+        {/* Bottom Section */}
+        <section className="mt-5 grid gap-4 xl:grid-cols-12">
+          <motion.div className="lab-panel xl:col-span-4" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3, duration: 0.3 }}>
+            <SectionHeader eyebrow="Quality" title="Test Status" meta="Current queue" />
+            <div className="h-[310px]">
+              {testStatusData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={testStatusData} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>
+                    <CartesianGrid stroke="#EDF0F3" strokeDasharray="4 4" />
+                    <XAxis dataKey="name" stroke="#8A97A4" tickLine={false} axisLine={{ stroke: "#E2E6EB" }} fontSize={12} />
+                    <YAxis stroke="#8A97A4" tickLine={false} axisLine={{ stroke: "#E2E6EB" }} fontSize={12} />
+                    <Tooltip contentStyle={{ border: "1px solid #E2E6EB", borderRadius: "12px", boxShadow: "0 16px 40px rgba(0,0,0,0.1)", fontSize: 13 }} />
+                    <Area type="monotone" dataKey="value" stroke="#3F6E8C" fill="#EDF0F3" strokeWidth={2.2} animationDuration={900} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="lab-empty-state h-full">No status breakdown available.</div>
+              )}
             </div>
-          </div>
-        </div>
-      </div>
+          </motion.div>
+
+          <motion.div className="lab-panel xl:col-span-8" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35, duration: 0.3 }}>
+            <SectionHeader eyebrow="Timeline" title="Recent Operational Activity" meta="Latest system movement" />
+            <div className="lab-activity-stream">
+              {recentActivities.length ? (
+                recentActivities.map((activity, index) => (
+                  <ActivityRow key={index} index={index} {...activity} />
+                ))
+              ) : (
+                <div className="lab-empty-state">No recent activity yet.</div>
+              )}
+            </div>
+          </motion.div>
+        </section>
+      </Workspace>
     </MainLayout>
   );
 };
 
 export default Home;
-

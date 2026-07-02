@@ -1,75 +1,105 @@
-import React, { useState, useRef, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Menu, Search, ChevronLeft, ChevronRight, Bell, Plus,
+  ArrowRight, User, LogOut,
+} from "lucide-react";
 import { api } from "../../api";
-import MenuIcon from "@mui/icons-material/Menu";
-import PersonIcon from "@mui/icons-material/Person";
-import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
-import LogoutIcon from "@mui/icons-material/Logout";
-import BusinessIcon from "@mui/icons-material/Business";
 
-const getRoleTitle = (role) => {
-  if (!role) return "User";
-
-  // Convert API role to proper display format
-  // Remove underscores and convert to title case
-  const formattedRole = role.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-
-  // Special cases for specific role mappings
-  switch (role.toLowerCase()) {
-    case "super_admin":
-      return "Super Admin";
-    case "admin":
-      return "Admin";
-    case "qm":
-      return "QM";
-    case "eng":
-      return "Engineer";
-    case "lab_admin":
-      return "Lab Admin";
-    case "lab_manager":
-      return "Lab Manager";
-    case "quality_manager":
-      return "Quality Manager";
-    case "test_engineer":
-      return "Test Engineer";
-    default:
-      return formattedRole || "User";
-  }
+const breadcrumbLabels = {
+  dashboard: "Dashboard",
+  projects: "Projects",
+  users: "Users",
+  samples: "Samples",
+  reports: "Reports",
+  clients: "Clients",
+  labclients: "Clients",
+  scope: "Testing Scope",
+  equipment: "Equipment",
+  calibration: "Calibration",
+  maintenance: "Maintenance",
+  observation: "Observation",
+  profile: "Profile",
+  lab: "Lab Details",
+  labs: "Labs",
 };
 
-const Header = ({ onMenuClick, title = "Projects", subtitle = "Performance summary" }) => {
-  const [dropdownOpen, setDropdownOpen] = useState(false);
+const getBreadcrumb = (pathname) => {
+  const segments = pathname.split("/").filter(Boolean);
+  if (!segments.length) return [{ label: "Home", path: "/" }];
+
+  let runningPath = "";
+  return [
+    { label: "Home", path: "/" },
+    ...segments.map((segment) => {
+      runningPath += `/${segment}`;
+      return {
+        label: breadcrumbLabels[segment.toLowerCase()] || segment.replace(/-/g, " "),
+        path: runningPath,
+      };
+    }),
+  ];
+};
+
+const quickLinks = [
+  { label: "New Project", path: "/projects/add", hint: "Create project" },
+  { label: "Register Sample", path: "/samples/entry", hint: "Open sample intake" },
+  { label: "Add Client", path: "/labClients/add", hint: "Create client record" },
+  { label: "Create Report", path: "/reports/add", hint: "Start report workflow" },
+];
+
+const notifications = [
+  { title: "3 pending tests need assignment", meta: "Operations" },
+  { title: "Calibration due in 2 days", meta: "Equipment" },
+  { title: "5 reports were published today", meta: "Reports" },
+];
+
+const dropdownVariants = {
+  hidden: { opacity: 0, y: -8, scale: 0.97 },
+  visible: {
+    opacity: 1, y: 0, scale: 1,
+    transition: { duration: 0.18, ease: [0.22, 0.68, 0, 1] },
+  },
+  exit: {
+    opacity: 0, y: -6, scale: 0.98,
+    transition: { duration: 0.12, ease: "easeIn" },
+  },
+};
+
+const Header = ({
+  onMenuClick,
+  onCollapseClick,
+  isCollapsed = false,
+  title = "Projects",
+  subtitle = "Performance summary",
+}) => {
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [searchValue, setSearchValue] = useState("");
   const dropdownRef = useRef(null);
   const navigate = useNavigate();
+  const location = useLocation();
 
-  const user = (() => {
-    try {
-      const raw = localStorage.getItem("user");
-      return raw ? JSON.parse(raw) : null;
-    } catch {
-      return null;
-    }
-  })();
-
-  const displayName = user?.first_name || user?.email || "User";
-  const role = user?.role || "user";
+  const breadcrumb = useMemo(() => getBreadcrumb(location.pathname), [location.pathname]);
 
   useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
-        setDropdownOpen(false);
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setQuickAddOpen(false);
+        setNotificationsOpen(false);
       }
     };
+
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const handleLogout = async () => {
-    setDropdownOpen(false);
     try {
       await api.post("/auth/logout");
     } catch {
-      // Ignore - clear local state anyway
+      // Preserve logout flow even if the API call fails.
     } finally {
       localStorage.removeItem("user");
       localStorage.removeItem("token");
@@ -77,89 +107,186 @@ const Header = ({ onMenuClick, title = "Projects", subtitle = "Performance summa
     }
   };
 
-  const handleProfile = () => {
-    setDropdownOpen(false);
-    navigate("/profile");
-  };
-
-  const handleLabDetails = () => {
-    setDropdownOpen(false);
-    navigate("/lab");
-  };
-
   return (
-    <header className="h-auto py-4 px-6 bg-white border-b border-gray-200 shrink-0">
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-2 min-w-0">
-          <button
-            type="button"
-            onClick={onMenuClick}
-            className="md:hidden p-2 -ml-2 rounded-lg hover:bg-gray-100 transition-colors shrink-0"
-            aria-label="Toggle sidebar"
-          >
-            <MenuIcon sx={{ width: 24, height: 24, color: "#4b5563" }} />
-          </button>
-          <div className="min-w-0">
-            <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
-            <p className="text-sm text-gray-500 mt-0.5">{subtitle}</p>
+    <header className="sticky top-0 z-30 border-b border-[#E2E6EB] bg-white/80 backdrop-blur-md">
+      <div
+        ref={dropdownRef}
+        className="mx-auto flex w-full max-w-[1800px] items-center gap-3 px-4 py-3 sm:px-5 lg:px-6"
+      >
+        <button
+          type="button"
+          onClick={onMenuClick}
+          className="app-icon-button md:hidden"
+          aria-label="Open sidebar"
+        >
+          <Menu size={20} strokeWidth={2} />
+        </button>
+
+        <div className="min-w-0 flex-1">
+          <div className="hidden items-center gap-1.5 text-xs text-[#8A97A4] sm:flex">
+            {breadcrumb.map((crumb, index) => (
+              <React.Fragment key={crumb.path}>
+                {index > 0 && <span className="text-[#CDD4DB]">/</span>}
+                <span className={index === breadcrumb.length - 1 ? "font-semibold text-[#57687A]" : ""}>
+                  {crumb.label}
+                </span>
+              </React.Fragment>
+            ))}
+          </div>
+          <div className="flex min-w-0 items-baseline gap-3">
+            <h1 className="truncate text-lg font-bold text-[#1A2733] tracking-tight sm:text-xl">{title}</h1>
+            <p className="hidden truncate text-sm text-[#8A97A4] lg:block">{subtitle}</p>
           </div>
         </div>
 
-        <div className="relative" ref={dropdownRef}>
-          <button
-            type="button"
-            onClick={() => setDropdownOpen((prev) => !prev)}
-            className="p-1 rounded-full hover:bg-gray-100 transition-colors ring-2 ring-transparent hover:ring-gray-200 focus:outline-none focus:ring-2 focus:ring-[#2562AA]"
-          >
-            <div className="w-10 h-10 rounded-full bg-[#2562AA] flex items-center justify-center shrink-0 shadow-sm">
-              <PersonIcon sx={{ fontSize: 22, color: "white" }} />
-            </div>
-          </button>
+        <label className="hidden h-10 min-w-[240px] max-w-[420px] flex-1 items-center gap-2.5 rounded-xl border border-[#DDE4EA] bg-[#F8FAFB] px-3.5 transition-all duration-200 focus-within:border-[#3F6E8C] focus-within:bg-white focus-within:ring-2 focus-within:ring-[#3F6E8C]/12 md:flex"
+          style={{ boxShadow: "var(--shadow-xs)" }}
+        >
+          <Search size={16} strokeWidth={2} className="text-[#8A97A4] shrink-0" />
+          <input
+            type="text"
+            value={searchValue}
+            onChange={(event) => setSearchValue(event.target.value)}
+            placeholder="Search projects, samples, reports..."
+            className="w-full bg-transparent text-sm text-[#1A2733] placeholder:text-[#A1ADB8] focus:outline-none"
+            aria-label="Search dashboard"
+          />
+        </label>
 
-          {dropdownOpen && (
-            <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50">
-              <div className="px-4 py-3 border-b border-gray-100">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-[#2562AA] flex items-center justify-center shrink-0">
-                    <PersonIcon sx={{ fontSize: 22, color: "white" }} />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-gray-900 truncate">
-                      {displayName}
-                    </p>
-                    <p className="text-xs text-gray-500">{getRoleTitle(role)}</p>
-                  </div>
+        <motion.button
+          type="button"
+          onClick={onCollapseClick}
+          className="app-button app-button-secondary hidden md:inline-flex"
+          aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.97 }}
+          transition={{ duration: 0.15 }}
+        >
+          {isCollapsed ? <ChevronRight size={16} strokeWidth={2.2} /> : <ChevronLeft size={16} strokeWidth={2.2} />}
+          <span className="hidden xl:inline">{isCollapsed ? "Expand" : "Collapse"}</span>
+        </motion.button>
+
+        {/* Notifications */}
+        <div className="relative">
+          <motion.button
+            type="button"
+            onClick={() => {
+              setNotificationsOpen((prev) => !prev);
+              setQuickAddOpen(false);
+            }}
+            className="app-icon-button"
+            aria-label="Open notifications"
+            whileHover={{ scale: 1.04 }}
+            whileTap={{ scale: 0.96 }}
+          >
+            <Bell size={18} strokeWidth={2} />
+            <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-[#DC2626] ring-2 ring-white" />
+          </motion.button>
+
+          <AnimatePresence>
+            {notificationsOpen && (
+              <motion.div
+                className="absolute right-0 mt-2 w-[320px] rounded-xl border border-[#E2E6EB] bg-white p-2 z-50"
+                style={{ boxShadow: "var(--shadow-xl)" }}
+                variants={dropdownVariants}
+                initial="hidden"
+                animate="visible"
+                exit="exit"
+              >
+                <div className="flex items-center justify-between border-b border-[#EDF0F3] px-3 pb-3 pt-1">
+                  <p className="text-sm font-semibold text-[#1A2733]">Notifications</p>
+                  <span className="text-xs font-medium text-[#8A97A4]">3 new</span>
                 </div>
-              </div>
-              <div className="py-1">
-                <button
-                  type="button"
-                  onClick={handleProfile}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                >
-                  <PersonOutlineIcon sx={{ fontSize: 20, color: "#6b7280" }} />
-                  Profile
-                </button>
-                <button
-                  type="button"
-                  onClick={handleLabDetails}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                >
-                  <BusinessIcon sx={{ fontSize: 20, color: "#6b7280" }} />
-                  Lab Details
-                </button>
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                >
-                  <LogoutIcon sx={{ fontSize: 20, color: "#6b7280" }} />
-                  Logout
-                </button>
-              </div>
-            </div>
-          )}
+                <div className="space-y-0.5 pt-2">
+                  {notifications.map((item) => (
+                    <button
+                      key={item.title}
+                      type="button"
+                      className="flex w-full items-center justify-between rounded-lg px-3 py-3 text-left transition-colors duration-100 hover:bg-[#F6F7F9]"
+                    >
+                      <span>
+                        <span className="block text-sm font-medium text-[#1A2733]">{item.title}</span>
+                        <span className="block text-xs text-[#8A97A4]">{item.meta}</span>
+                      </span>
+                      <ArrowRight size={14} className="text-[#CDD4DB]" />
+                    </button>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
+
+        {/* Quick Add */}
+        <div className="relative">
+          <motion.button
+            type="button"
+            onClick={() => {
+              setQuickAddOpen((prev) => !prev);
+              setNotificationsOpen(false);
+            }}
+            className="app-button app-button-primary"
+            aria-label="Quick add"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.97 }}
+          >
+            <Plus size={17} strokeWidth={2.5} />
+            <span className="hidden sm:inline">Quick Add</span>
+          </motion.button>
+
+          <AnimatePresence>
+            {quickAddOpen && (
+              <motion.div
+                className="absolute right-0 mt-2 w-[280px] rounded-xl border border-[#E2E6EB] bg-white p-2 z-50"
+                style={{ boxShadow: "var(--shadow-xl)" }}
+                variants={dropdownVariants}
+                initial="hidden"
+                animate="visible"
+                exit="exit"
+              >
+                {quickLinks.map((item) => (
+                  <button
+                    key={item.path}
+                    type="button"
+                    onClick={() => {
+                      setQuickAddOpen(false);
+                      navigate(item.path);
+                    }}
+                    className="flex w-full items-center justify-between rounded-lg px-3 py-3 text-left transition-colors duration-100 hover:bg-[#F6F7F9]"
+                  >
+                    <span>
+                      <span className="block text-sm font-medium text-[#1A2733]">{item.label}</span>
+                      <span className="block text-xs text-[#8A97A4]">{item.hint}</span>
+                    </span>
+                    <ArrowRight size={14} className="text-[#CDD4DB]" />
+                  </button>
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        <motion.button
+          type="button"
+          onClick={() => navigate("/profile")}
+          className="app-icon-button"
+          aria-label="Open profile"
+          whileHover={{ scale: 1.04 }}
+          whileTap={{ scale: 0.96 }}
+        >
+          <User size={18} strokeWidth={2} />
+        </motion.button>
+
+        <motion.button
+          type="button"
+          onClick={handleLogout}
+          className="app-icon-button hidden !text-[#DC2626] !border-[#FECACA] sm:inline-flex"
+          aria-label="Logout"
+          whileHover={{ scale: 1.04 }}
+          whileTap={{ scale: 0.96 }}
+        >
+          <LogOut size={18} strokeWidth={2} />
+        </motion.button>
       </div>
     </header>
   );

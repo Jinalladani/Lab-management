@@ -1,482 +1,343 @@
-import React, { useEffect, useState, useCallback, useRef } from "react";
-import { createPortal } from "react-dom";
+import React, { useEffect, useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
+import {
+  UserPlus, Download, RefreshCw, Eye, Pencil,
+  MoreHorizontal, Users, Filter, UserCheck, UserX, Search,
+} from "lucide-react";
 import { usersAPI } from "../../api/users";
 import { MainLayout } from "../../components/layout";
-import { Link } from "react-router-dom";
-import Email from "@mui/icons-material/Email";
-import Phone from "@mui/icons-material/Phone";
-import Person from "@mui/icons-material/Person";
-import Add from "@mui/icons-material/Add";
-import Visibility from "@mui/icons-material/Visibility";
-import Edit from "@mui/icons-material/Edit";
-import MoreVert from "@mui/icons-material/MoreVert";
+import {
+  PageHeader, SearchInput, Badge, Avatar,
+  ActionDropdown, Button, EmptyState,
+} from "../../components/ui";
+import { TableSkeleton } from "../../components/ui/Skeleton";
 
-const DROPDOWN_WIDTH = 180;
-const DROPDOWN_HEIGHT = 100;
-const DROPDOWN_GAP = 8;
-
-const ActionDropdownPortal = ({
-  anchorEl,
-  open,
-  onClose,
-  onView,
-  onEdit,
-}) => {
-  const [style, setStyle] = useState(null);
-
-  useEffect(() => {
-    if (!open || !anchorEl) return;
-
-    const updatePosition = () => {
-      const rect = anchorEl.getBoundingClientRect();
-      const viewportWidth = window.innerWidth;
-      const viewportHeight = window.innerHeight;
-
-      const spaceBelow = viewportHeight - rect.bottom;
-      const spaceAbove = rect.top;
-
-      let top;
-      if (spaceBelow >= DROPDOWN_HEIGHT + DROPDOWN_GAP) {
-        top = rect.bottom + DROPDOWN_GAP;
-      } else if (spaceAbove >= DROPDOWN_HEIGHT + DROPDOWN_GAP) {
-        top = rect.top - DROPDOWN_HEIGHT - DROPDOWN_GAP;
-      } else {
-        top =
-          spaceBelow >= spaceAbove
-            ? Math.max(8, rect.bottom + DROPDOWN_GAP)
-            : Math.max(8, rect.top - DROPDOWN_HEIGHT - DROPDOWN_GAP);
-      }
-
-      let left = rect.right - DROPDOWN_WIDTH;
-
-      if (left < 8) left = 8;
-      if (left + DROPDOWN_WIDTH > viewportWidth - 8) {
-        left = viewportWidth - DROPDOWN_WIDTH - 8;
-      }
-
-      setStyle({
-        position: "fixed",
-        top: `${top}px`,
-        left: `${left}px`,
-        width: `${DROPDOWN_WIDTH}px`,
-        zIndex: 99999,
-      });
-    };
-
-    const handleClickOutside = (event) => {
-      if (
-        anchorEl &&
-        !anchorEl.contains(event.target) &&
-        !event.target.closest(".action-dropdown-portal")
-      ) {
-        onClose();
-      }
-    };
-
-    updatePosition();
-
-    document.addEventListener("mousedown", handleClickOutside);
-    window.addEventListener("resize", updatePosition);
-    window.addEventListener("scroll", updatePosition, true);
-
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-      window.removeEventListener("resize", updatePosition);
-      window.removeEventListener("scroll", updatePosition, true);
-    };
-  }, [open, anchorEl, onClose]);
-
-  if (!open || !anchorEl || !style) return null;
-
-  return createPortal(
-    <div
-      style={style}
-      className="action-dropdown-portal bg-white border border-gray-200 rounded-xl shadow-xl py-2 overflow-hidden"
-    >
-      <button
-        type="button"
-        onClick={onView}
-        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left text-gray-700 hover:bg-gray-50"
-      >
-        <Visibility fontSize="small" />
-        <span>View Details</span>
-      </button>
-      <button
-        type="button"
-        onClick={onEdit}
-        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left text-gray-700 hover:bg-gray-50"
-      >
-        <Edit fontSize="small" />
-        <span>Edit User</span>
-      </button>
-    </div>,
-    document.body
-  );
+const stagger = {
+  container: { hidden: {}, visible: { transition: { staggerChildren: 0.04 } } },
+  item: {
+    hidden: { opacity: 0, y: 8 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.25, ease: [0.22, 0.68, 0, 1] } },
+  },
 };
 
 const UsersList = () => {
+  const navigate = useNavigate();
   const [users, setUsers] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [search, setSearch] = useState("");
-  const [activeDropdownId, setActiveDropdownId] = useState(null);
-  const [activeAnchorEl, setActiveAnchorEl] = useState(null);
-  const actionButtonRefs = useRef({});
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [roleFilter, setRoleFilter] = useState("all");
+  const [openDropdownId, setOpenDropdownId] = useState(null);
 
   const fetchUsers = useCallback(async () => {
     try {
       setLoading(true);
       setErrorMessage("");
-
       const response = await usersAPI.getLabUsers();
       const userData = response.data?.users || [];
       setAllUsers(userData);
       setUsers(userData);
     } catch (error) {
-      setErrorMessage(
-        error?.response?.data?.message || "Failed to fetch users"
-      );
+      setErrorMessage(error?.response?.data?.message || "Failed to fetch users");
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    fetchUsers();
-  }, [fetchUsers]);
+  useEffect(() => { fetchUsers(); }, [fetchUsers]);
 
   useEffect(() => {
-    if (search === "") {
-      setUsers(allUsers);
-    } else {
-      const filteredUsers = allUsers.filter(user => 
-        user.first_name.toLowerCase().includes(search.toLowerCase()) ||
-        user.last_name.toLowerCase().includes(search.toLowerCase()) ||
-        user.email.toLowerCase().includes(search.toLowerCase())
+    let filtered = allUsers;
+
+    if (search) {
+      const q = search.toLowerCase();
+      filtered = filtered.filter(
+        (u) =>
+          u.first_name?.toLowerCase().includes(q) ||
+          u.last_name?.toLowerCase().includes(q) ||
+          u.email?.toLowerCase().includes(q)
       );
-      setUsers(filteredUsers);
     }
-  }, [search, allUsers]);
 
-  const closeDropdown = () => {
-    setActiveDropdownId(null);
-    setActiveAnchorEl(null);
-  };
-
-  const handleToggleDropdown = (userId, event) => {
-    const buttonEl = event.currentTarget;
-    
-    if (activeDropdownId === userId) {
-      closeDropdown();
-    } else {
-      setActiveDropdownId(userId);
-      setActiveAnchorEl(buttonEl);
+    if (statusFilter !== "all") {
+      filtered = filtered.filter((u) =>
+        statusFilter === "active" ? u.is_active : !u.is_active
+      );
     }
-  };
 
-  const handleView = (userId) => {
-    closeDropdown();
-    // Navigate to user details
-    window.location.href = `/users/${userId}`;
-  };
-
-  const handleEdit = (userId) => {
-    closeDropdown();
-    // Navigate to edit user
-    window.location.href = `/users/${userId}/edit`;
-  };
+    setUsers(filtered);
+  }, [search, statusFilter, roleFilter, allUsers]);
 
   const formatDate = (dateString) => {
-    if (!dateString) return "-";
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
+    if (!dateString) return "—";
+    return new Date(dateString).toLocaleDateString("en-US", {
+      year: "numeric", month: "short", day: "numeric",
     });
   };
 
+  const getStatusBadge = (isActive) => (
+    <Badge variant={isActive ? "success" : "danger"} dot>
+      {isActive ? "Active" : "Inactive"}
+    </Badge>
+  );
+
+  const getVerifiedBadge = (isVerified) => (
+    <Badge variant={isVerified ? "success" : "warning"} dot>
+      {isVerified ? "Verified" : "Not Verified"}
+    </Badge>
+  );
+
+  const activeCount = allUsers.filter((u) => u.is_active).length;
+  const inactiveCount = allUsers.length - activeCount;
+
   return (
     <MainLayout headerTitle="Users" headerSubtitle="Manage lab users">
-      <div className="p-4 sm:p-6">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
-          <input
-            type="text"
-            placeholder="Search users by name or email..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full md:max-w-[320px] border border-gray-300 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-blue-100"
-          />
-          <Link
-            to="/users/add"
-            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-[#2d66b3] text-white font-medium hover:bg-[#1f5498] whitespace-nowrap"
-          >
-            <Add fontSize="small" />
-            Add User
-          </Link>
-        </div>
+      <div className="mx-auto w-full max-w-[1800px] px-4 py-5 sm:px-5 lg:px-6">
+        <PageHeader
+          title="User Management"
+          subtitle={`${allUsers.length} team member${allUsers.length !== 1 ? "s" : ""} · ${activeCount} active · ${inactiveCount} inactive`}
+          icon="users"
+          actions={
+            <Button
+              variant="primary"
+              icon={UserPlus}
+              onClick={() => navigate("/users/add")}
+            >
+              Add User
+            </Button>
+          }
+        />
 
-        {errorMessage && (
-          <p className="text-red-500 text-sm mb-4">{errorMessage}</p>
-        )}
+        {/* Toolbar */}
+        <motion.div
+          className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1, duration: 0.25 }}
+        >
+          <div className="flex flex-1 items-center gap-3">
+            <SearchInput
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by name or email..."
+              className="w-full sm:max-w-xs"
+            />
 
-        {/* Desktop Table View */}
-        <div className="hidden lg:block">
-          <div className="bg-white rounded-xl shadow border border-gray-200">
-            <div className="w-full overflow-x-auto">
-              <table className="w-full min-w-[1000px]">
-                <thead className="bg-[#eef5fd]">
-                  <tr>
-                    <th className="text-left px-4 py-3 font-semibold text-gray-700">
-                      Name
-                    </th>
-                    <th className="text-left px-4 py-3 font-semibold text-gray-700">
-                      Email
-                    </th>
-                    <th className="text-left px-4 py-3 font-semibold text-gray-700">
-                      Phone
-                    </th>
-                    <th className="text-left px-4 py-3 font-semibold text-gray-700">
-                      Status
-                    </th>
-                    <th className="text-left px-4 py-3 font-semibold text-gray-700">
-                      Email Verified
-                    </th>
-                    <th className="text-left px-4 py-3 font-semibold text-gray-700">
-                      Last Login
-                    </th>
-                    <th className="text-left px-4 py-3 font-semibold text-gray-700">
-                      Created At
-                    </th>
-                    <th className="text-left px-4 py-3 font-semibold text-gray-700 w-[90px]">
-                      Action
-                    </th>
-                  </tr>
-                </thead>
-
-                <tbody>
-                  {!loading && users.length === 0 && (
-                    <tr>
-                      <td
-                        colSpan="8"
-                        className="px-4 py-8 text-center text-gray-500"
-                      >
-                        No users found
-                      </td>
-                    </tr>
-                  )}
-
-                  {loading && (
-                    <tr>
-                      <td
-                        colSpan="8"
-                        className="px-4 py-8 text-center text-gray-500"
-                      >
-                        Loading...
-                      </td>
-                    </tr>
-                  )}
-
-                  {!loading &&
-                    users.map((user) => (
-                      <tr
-                        key={user.user_id}
-                        className="border-t border-gray-200"
-                      >
-                        <td className="px-4 py-4 text-gray-900">
-                          <div className="flex items-center gap-2">
-                            {/* <Person fontSize="small" className="text-gray-400" /> */}
-                            <div className="max-w-[150px] break-words font-medium">
-                              {user.full_name}
-                            </div>
-                          </div>
-                        </td>
-
-                        <td className="px-4 py-4 text-gray-900">
-                          <div className="flex items-center gap-2">
-                            {/* <Email fontSize="small" className="text-gray-400" /> */}
-                            <div className="max-w-[200px] break-words">
-                              {user.email}
-                            </div>
-                          </div>
-                        </td>
-
-                        <td className="px-4 py-4 text-gray-900">
-                          <div className="flex items-center gap-2">
-                            {/* <Phone fontSize="small" className="text-gray-400" /> */}
-                            <div className="max-w-[120px] break-words">
-                              {user.phone || "-"}
-                            </div>
-                          </div>
-                        </td>
-
-                        <td className="px-4 py-4">
-                          <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                            user.is_active 
-                              ? 'bg-green-100 text-green-700' 
-                              : 'bg-red-100 text-red-700'
-                          }`}>
-                            {user.is_active ? 'Active' : 'Inactive'}
-                          </span>
-                        </td>
-
-                        <td className="px-4 py-4">
-                          <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                            user.is_email_verified 
-                              ? 'bg-green-100 text-green-700' 
-                              : 'bg-yellow-100 text-yellow-700'
-                          }`}>
-                            {user.is_email_verified ? 'Verified' : 'Not Verified'}
-                          </span>
-                        </td>
-
-                        <td className="px-4 py-4 text-gray-900">
-                          {formatDate(user.last_login)}
-                        </td>
-
-                        <td className="px-4 py-4 text-gray-900">
-                          {formatDate(user.created_at)}
-                        </td>
-
-                        <td className="px-4 py-4">
-                          <button
-                            type="button"
-                            ref={(el) => {
-                              actionButtonRefs.current[user.user_id] = el;
-                            }}
-                            onClick={(e) =>
-                              handleToggleDropdown(user.user_id, e)
-                            }
-                            className="h-9 w-9 inline-flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors"
-                            title="Actions"
-                          >
-                            <MoreVert fontSize="small" />
-                          </button>
-
-                          <ActionDropdownPortal
-                            anchorEl={
-                              activeDropdownId === user.user_id
-                                ? activeAnchorEl
-                                : null
-                            }
-                            open={activeDropdownId === user.user_id}
-                            onClose={closeDropdown}
-                            onView={() => handleView(user.user_id)}
-                            onEdit={() => handleEdit(user.user_id)}
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
+            {/* Status Filter */}
+            <div className="hidden sm:flex items-center gap-2">
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="app-select !py-2.5 !text-xs !w-auto !min-w-[120px]"
+              >
+                <option value="all">All Status</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
             </div>
           </div>
-        </div>
 
-        {/* Mobile Card View */}
-        <div className="lg:hidden space-y-4">
-          {!loading && users.length === 0 && (
-            <div className="bg-white rounded-xl shadow p-6 text-center text-gray-500 border border-gray-200">
-              No users found
-            </div>
-          )}
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" icon={RefreshCw} onClick={fetchUsers}>
+              <span className="hidden sm:inline">Refresh</span>
+            </Button>
+            <Button variant="ghost" size="sm" icon={Download}>
+              <span className="hidden sm:inline">Export</span>
+            </Button>
+          </div>
+        </motion.div>
 
-          {loading && (
-            <div className="bg-white rounded-xl shadow p-6 text-center text-gray-500 border border-gray-200">
-              Loading...
-            </div>
-          )}
+        {errorMessage && (
+          <motion.div
+            className="mb-4 rounded-xl border border-[#FECACA] bg-[#FEF2F2] px-4 py-3 text-sm text-[#DC2626]"
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            {errorMessage}
+          </motion.div>
+        )}
 
-          {!loading &&
-            users.map((user) => (
-              <div
-                key={user.user_id}
-                className="bg-white rounded-xl shadow border border-gray-200 p-5"
-              >
-                <div className="flex justify-between items-start mb-4 gap-3">
-                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <Person fontSize="small" className="text-gray-400" />
-                    <h3 className="font-semibold text-lg text-gray-900 break-words">
-                      {user.full_name}
-                    </h3>
-                  </div>
-                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                    user.is_active 
-                      ? 'bg-green-100 text-green-700' 
-                      : 'bg-red-100 text-red-700'
-                  }`}>
-                    {user.is_active ? 'Active' : 'Inactive'}
-                  </span>
-                </div>
+        {/* Desktop Table */}
+        <motion.div
+          className="hidden lg:block"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15, duration: 0.3 }}
+        >
+          {loading ? (
+            <TableSkeleton rows={5} cols={7} />
+          ) : users.length === 0 ? (
+            <EmptyState
+              icon={Users}
+              title="No users found"
+              description={search ? "Try adjusting your search or filters" : "Get started by adding your first team member"}
+              action={
+                !search && (
+                  <Button variant="primary" icon={UserPlus} onClick={() => navigate("/users/add")} size="sm">
+                    Add User
+                  </Button>
+                )
+              }
+            />
+          ) : (
+            <div className="app-table-container">
+              <div className="overflow-x-auto">
+                <table className="app-table min-w-[1000px]">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Email</th>
+                      <th>Phone</th>
+                      <th>Role</th>
+                      <th>Status</th>
+                      <th>Email Verified</th>
+                      <th>Last Login</th>
+                      <th>Created</th>
+                      <th className="w-[60px]"></th>
+                    </tr>
+                  </thead>
+                  <motion.tbody variants={stagger.container} initial="hidden" animate="visible">
+                    {users.map((user) => (
+                      <motion.tr key={user.user_id} variants={stagger.item}>
+                        <td>
+                          <div className="flex items-center gap-3">
+                            <Avatar name={user.full_name || `${user.first_name} ${user.last_name}`} size="sm" />
+                            <div className="min-w-0">
+                              <p className="truncate font-semibold text-[#1A2733]">{user.full_name}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td>
+                          <span className="text-[#57687A]">{user.email}</span>
+                        </td>
+                        <td>
+                          <span className="text-[#57687A]">{user.phone || "—"}</span>
+                        </td>
+                        <td>
+                          <Badge variant="info">
+                            {user.role_name || "User"}
+                          </Badge>
+                        </td>
+                        <td>{getStatusBadge(user.is_active)}</td>
+                        <td>{getVerifiedBadge(user.is_email_verified)}</td>
+                        <td>
+                          <span className="text-[#8A97A4] text-xs">{formatDate(user.last_login)}</span>
+                        </td>
+                        <td>
+                          <span className="text-[#8A97A4] text-xs">{formatDate(user.created_at)}</span>
+                        </td>
+                        <td>
+                          <ActionDropdown
+                            open={openDropdownId === user.user_id}
+                            onOpenChange={(isOpen) => setOpenDropdownId(isOpen ? user.user_id : null)}
+                            trigger={
+                              <button
+                                type="button"
+                                onClick={() => setOpenDropdownId(openDropdownId === user.user_id ? null : user.user_id)}
+                                className="flex h-8 w-8 items-center justify-center rounded-lg text-[#8A97A4] transition-colors hover:bg-[#F0F2F5] hover:text-[#1A2733]"
+                                aria-label="Actions"
+                              >
+                                <MoreHorizontal size={16} />
+                              </button>
+                            }
+                            items={[
+                              { label: "View Details", icon: Eye, onClick: () => navigate(`/users/${user.user_id}`) },
+                              { label: "Edit User", icon: Pencil, onClick: () => navigate(`/users/${user.user_id}/edit`) },
+                            ]}
+                          />
+                        </td>
+                      </motion.tr>
+                    ))}
+                  </motion.tbody>
+                </table>
+              </div>
 
-                <div className="grid grid-cols-2 gap-3 mb-4">
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Email</p>
-                    <p className="text-sm font-medium break-words">
-                      {user.email}
-                    </p>
-                  </div>
-
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Phone</p>
-                    <p className="text-sm font-medium break-words">
-                      {user.phone || "-"}
-                    </p>
-                  </div>
-
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Email Verified</p>
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      user.is_email_verified 
-                        ? 'bg-green-100 text-green-700' 
-                        : 'bg-yellow-100 text-yellow-700'
-                    }`}>
-                      {user.is_email_verified ? 'Verified' : 'Not Verified'}
-                    </span>
-                  </div>
-
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Last Login</p>
-                    <p className="text-sm font-medium">
-                      {formatDate(user.last_login)}
-                    </p>
-                  </div>
-
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Created At</p>
-                    <p className="text-sm font-medium">
-                      {formatDate(user.created_at)}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="pt-3 border-t">
-                  <button
-                    type="button"
-                    ref={(el) => {
-                      actionButtonRefs.current[user.user_id] = el;
-                    }}
-                    onClick={(e) => handleToggleDropdown(user.user_id, e)}
-                    className="flex items-center justify-center gap-2 w-full text-[#2d66b3] hover:bg-blue-50 py-2 rounded-lg transition-colors"
-                  >
-                    <MoreVert fontSize="small" />
-                    <span className="text-sm">Actions</span>
+              {/* Pagination footer */}
+              <div className="flex items-center justify-between border-t border-[#EDF0F3] px-5 py-3">
+                <p className="text-xs text-[#8A97A4]">
+                  Showing <span className="font-semibold text-[#57687A]">{users.length}</span> of{" "}
+                  <span className="font-semibold text-[#57687A]">{allUsers.length}</span> users
+                </p>
+                <div className="flex items-center gap-1.5">
+                  <button className="app-button app-button-secondary !h-8 !px-3 !text-xs !rounded-lg" disabled>
+                    Previous
                   </button>
-
-                  <ActionDropdownPortal
-                    anchorEl={
-                      activeDropdownId === user.user_id
-                        ? activeAnchorEl
-                        : null
-                    }
-                    open={activeDropdownId === user.user_id}
-                    onClose={closeDropdown}
-                    onView={() => handleView(user.user_id)}
-                    onEdit={() => handleEdit(user.user_id)}
-                  />
+                  <button className="app-button app-button-secondary !h-8 !px-3 !text-xs !rounded-lg" disabled>
+                    Next
+                  </button>
                 </div>
               </div>
-            ))}
+            </div>
+          )}
+        </motion.div>
+
+        {/* Mobile Card View */}
+        <div className="lg:hidden">
+          {loading ? (
+            <div className="space-y-3">
+              {[0, 1, 2].map((i) => <div key={i} className="lab-skeleton h-48" />)}
+            </div>
+          ) : users.length === 0 ? (
+            <EmptyState
+              icon={Users}
+              title="No users found"
+              description={search ? "Try adjusting your search or filters" : "Get started by adding your first team member"}
+            />
+          ) : (
+            <motion.div className="space-y-3" variants={stagger.container} initial="hidden" animate="visible">
+              {users.map((user) => (
+                <motion.div
+                  key={user.user_id}
+                  className="app-section-card"
+                  variants={stagger.item}
+                >
+                  <div className="p-5">
+                    <div className="flex justify-between items-start mb-4 gap-3">
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <Avatar name={user.full_name || `${user.first_name} ${user.last_name}`} size="md" />
+                        <div className="min-w-0">
+                          <h3 className="font-semibold text-[#1A2733] break-words">{user.full_name}</h3>
+                          <p className="text-xs text-[#8A97A4] truncate">{user.email}</p>
+                        </div>
+                      </div>
+                      {getStatusBadge(user.is_active)}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 mb-4">
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-[#8A97A4] mb-1">Phone</p>
+                        <p className="text-sm text-[#1A2733]">{user.phone || "—"}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-[#8A97A4] mb-1">Email</p>
+                        {getVerifiedBadge(user.is_email_verified)}
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-[#8A97A4] mb-1">Last Login</p>
+                        <p className="text-sm text-[#57687A]">{formatDate(user.last_login)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-[#8A97A4] mb-1">Created</p>
+                        <p className="text-sm text-[#57687A]">{formatDate(user.created_at)}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2 pt-3 border-t border-[#EDF0F3]">
+                      <Button variant="ghost" size="sm" icon={Eye} onClick={() => navigate(`/users/${user.user_id}`)} className="flex-1">
+                        View
+                      </Button>
+                      <Button variant="ghost" size="sm" icon={Pencil} onClick={() => navigate(`/users/${user.user_id}/edit`)} className="flex-1">
+                        Edit
+                      </Button>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </motion.div>
+          )}
         </div>
       </div>
     </MainLayout>

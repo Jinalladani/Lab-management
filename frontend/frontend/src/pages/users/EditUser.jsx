@@ -1,9 +1,15 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { motion } from "framer-motion";
+import {
+  ArrowLeft, User, Shield, ToggleLeft, Mail, Phone, Info,
+} from "lucide-react";
 import { rolesAPI } from "../../api/roles";
 import { usersAPI } from "../../api/users";
 import { MainLayout } from "../../components/layout";
-import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import {
+  PageHeader, SectionCard, Input, Select, Button,
+} from "../../components/ui";
 
 const EditUser = () => {
   const navigate = useNavigate();
@@ -17,28 +23,20 @@ const EditUser = () => {
   const [errors, setErrors] = useState({});
 
   const [formData, setFormData] = useState({
-    first_name: "",
-    last_name: "",
-    email: "",
-    phone: "",
-    role_id: "",
-    is_active: true
+    first_name: "", last_name: "", email: "", phone: "", role_id: "", is_active: true,
   });
-
   const [originalData, setOriginalData] = useState({});
 
   useEffect(() => {
     fetchRoles();
-    if (userId) {
-      fetchUserData();
-    }
+    if (userId) fetchUserData();
   }, [userId]);
 
   const fetchRoles = async () => {
     try {
       setRolesLoading(true);
       const response = await rolesAPI.getLabRoles();
-      setRoles(response.data?.roles?.filter(role => role.role_name !== "super_admin") || []);
+      setRoles(response.data?.roles?.filter((role) => role.role_name !== "super_admin") || []);
     } catch (error) {
       console.error("Failed to fetch roles:", error);
       setErrorMessage("Failed to load roles");
@@ -51,17 +49,10 @@ const EditUser = () => {
     try {
       setUserLoading(true);
       // TODO: Create getUser API endpoint
-      // For now, we'll use a mock user data
       const mockUser = {
-        user_id: userId,
-        first_name: "John",
-        last_name: "Doe",
-        email: "john.doe@example.com",
-        phone: "1234567890",
-        role_id: "1",
-        is_active: true
+        user_id: userId, first_name: "John", last_name: "Doe",
+        email: "john.doe@example.com", phone: "1234567890", role_id: "1", is_active: true,
       };
-      
       setFormData(mockUser);
       setOriginalData(mockUser);
     } catch (error) {
@@ -74,92 +65,63 @@ const EditUser = () => {
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value
-    }));
-    setErrors(prev => ({ ...prev, [name]: "" }));
+    setFormData((prev) => ({ ...prev, [name]: type === "checkbox" ? checked : value }));
+    setErrors((prev) => ({ ...prev, [name]: "" }));
   };
 
   const validateForm = () => {
     const newErrors = {};
-
-    if (!formData.first_name.trim()) {
-      newErrors.first_name = "First name is required";
-    }
-
-    if (!formData.last_name.trim()) {
-      newErrors.last_name = "Last name is required";
-    }
-
-    if (!formData.email.trim()) {
-      newErrors.email = "Email is required";
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = "Email is invalid";
-    }
-
-    if (!formData.role_id) {
-      newErrors.role_id = "Role is required";
-    }
-
+    if (!formData.first_name.trim()) newErrors.first_name = "First name is required";
+    if (!formData.last_name.trim()) newErrors.last_name = "Last name is required";
+    if (!formData.email.trim()) newErrors.email = "Email is required";
+    else if (!/\S+@\S+\.\S+/.test(formData.email)) newErrors.email = "Email is invalid";
+    if (!formData.role_id) newErrors.role_id = "Role is required";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setErrorMessage("");
-    setSuccessMessage("");
-
+    setErrorMessage(""); setSuccessMessage("");
     if (!validateForm()) return;
 
     try {
       setLoading(true);
-      
       const userData = {
-        first_name: formData.first_name,
-        last_name: formData.last_name,
-        email: formData.email,
-        phone: formData.phone || null,
-        role_id: formData.role_id,
-        is_active: formData.is_active
+        first_name: formData.first_name, last_name: formData.last_name,
+        email: formData.email, phone: formData.phone || null,
+        role_id: formData.role_id, is_active: formData.is_active,
       };
-
       // TODO: Create updateUser API endpoint
-      // const response = await usersAPI.updateUser(userId, userData);
-      
-      // Mock successful update
       const response = { success: true, message: "User updated successfully!" };
-      
       if (response.success) {
         setSuccessMessage("User updated successfully!");
         setOriginalData(formData);
-        
-        // Redirect to users list after 2 seconds
-        setTimeout(() => {
-          navigate("/users");
-        }, 2000);
+        setTimeout(() => navigate("/users"), 2000);
       } else {
         setErrorMessage(response.message || "Failed to update user");
       }
     } catch (error) {
-      setErrorMessage(
-        error?.response?.data?.message || "Failed to update user"
-      );
+      setErrorMessage(error?.response?.data?.message || "Failed to update user");
     } finally {
       setLoading(false);
     }
   };
 
-  const hasChanges = () => {
-    return JSON.stringify(formData) !== JSON.stringify(originalData);
-  };
+  const hasChanges = () => JSON.stringify(formData) !== JSON.stringify(originalData);
+  const roleOptions = roles.map((r) => ({ value: r.role_id, label: r.role_name }));
 
   if (userLoading) {
     return (
       <MainLayout headerTitle="Edit User" headerSubtitle="Loading user data...">
-        <div className="p-6 flex justify-center items-center">
-          <div className="text-gray-500">Loading user information...</div>
+        <div className="mx-auto w-full max-w-[1800px] px-4 py-5 sm:px-5 lg:px-6">
+          <div className="space-y-5">
+            <div className="lab-skeleton h-20" />
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+              <div className="lg:col-span-2 lab-skeleton h-64" />
+              <div className="lab-skeleton h-64" />
+            </div>
+          </div>
         </div>
       </MainLayout>
     );
@@ -167,232 +129,86 @@ const EditUser = () => {
 
   return (
     <MainLayout headerTitle="Edit User" headerSubtitle="Update user information">
-      <div className="p-6">
-        {/* Back Button */}
-        <button
-          onClick={() => navigate("/users")}
-          className="mb-4 flex items-center gap-2 text-[#2d66b3] font-medium hover:text-[#1f5498] transition-colors"
-        >
-          <ArrowBackIcon fontSize="small" />
-          Back
-        </button>
-        
-        <div className="w-full">
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
-            {/* Success Message */}
-            {successMessage && (
-              <div className="bg-green-50 border-l-4 border-green-400 p-4 m-6">
-                <div className="flex">
-                  <div className="flex-shrink-0">
-                    <svg className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                  <div className="ml-3">
-                    <p className="text-sm text-green-700">{successMessage}</p>
-                  </div>
+      <div className="mx-auto w-full max-w-[1800px] px-4 py-5 sm:px-5 lg:px-6">
+        <PageHeader
+          title="Edit User"
+          subtitle="Update user profile and permissions"
+          icon="edit"
+          backButton={
+            <Button variant="ghost" size="sm" icon={ArrowLeft} onClick={() => navigate("/users")}>
+              Back to Users
+            </Button>
+          }
+        />
+
+        {successMessage && (
+          <motion.div className="mb-5 flex items-center gap-3 rounded-xl border border-[#BBF7D0] bg-[#F0FDF4] px-4 py-3"
+            initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}>
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#16A34A]/10 text-[#16A34A]"><Info size={16} /></div>
+            <p className="text-sm font-medium text-[#16A34A]">{successMessage}</p>
+          </motion.div>
+        )}
+
+        {errorMessage && (
+          <motion.div className="mb-5 flex items-center gap-3 rounded-xl border border-[#FECACA] bg-[#FEF2F2] px-4 py-3"
+            initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}>
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#DC2626]/10 text-[#DC2626]"><Info size={16} /></div>
+            <p className="text-sm font-medium text-[#DC2626]">{errorMessage}</p>
+          </motion.div>
+        )}
+
+        <form onSubmit={handleSubmit}>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            <div className="lg:col-span-2 space-y-5">
+              <SectionCard title="Personal Information" description="Basic user identity and contact details" icon={User}>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Input label="First Name" name="first_name" value={formData.first_name} onChange={handleChange} placeholder="Enter first name" error={errors.first_name} required icon={User} />
+                  <Input label="Last Name" name="last_name" value={formData.last_name} onChange={handleChange} placeholder="Enter last name" error={errors.last_name} required />
                 </div>
-              </div>
-            )}
-
-            {/* Error Message */}
-            {errorMessage && (
-              <div className="bg-red-50 border-l-4 border-red-400 p-4 m-6">
-                <div className="flex">
-                  <div className="flex-shrink-0">
-                    <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                  <div className="ml-3">
-                    <p className="text-sm text-red-700">{errorMessage}</p>
-                  </div>
+                <div className="mt-4">
+                  <Input label="Email Address" name="email" type="email" value={formData.email} onChange={handleChange} placeholder="user@example.com" error={errors.email} required icon={Mail} />
                 </div>
-              </div>
-            )}
+                <div className="mt-4">
+                  <Input label="Phone Number" name="phone" type="tel" value={formData.phone} onChange={handleChange} placeholder="Enter phone number" helperText="Optional — used for notifications" icon={Phone} />
+                </div>
+              </SectionCard>
+            </div>
 
-            {/* Form Section */}
-            <div className="p-8">
-              <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Left Column - Basic Info */}
-                <div className="lg:col-span-2 space-y-6">
-                  {/* Personal Information */}
-                  <div className="bg-gray-50 rounded-lg p-6">
-                    <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-                      <span className="w-2 h-2 bg-[#2b63ae] rounded-full mr-2"></span>
-                      Personal Information
-                    </h2>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block mb-2 text-sm font-medium text-gray-700">First Name *</label>
-                        <input
-                          type="text"
-                          name="first_name"
-                          value={formData.first_name}
-                          onChange={handleChange}
-                          className={`w-full border rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-[#2b63ae] focus:border-transparent ${
-                            errors.first_name ? 'border-red-500' : 'border-gray-300'
-                          }`}
-                          placeholder="Enter first name"
-                        />
-                        {errors.first_name && (
-                          <p className="mt-1 text-sm text-red-600">{errors.first_name}</p>
-                        )}
-                      </div>
-
-                      <div>
-                        <label className="block mb-2 text-sm font-medium text-gray-700">Last Name *</label>
-                        <input
-                          type="text"
-                          name="last_name"
-                          value={formData.last_name}
-                          onChange={handleChange}
-                          className={`w-full border rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-[#2b63ae] focus:border-transparent ${
-                            errors.last_name ? 'border-red-500' : 'border-gray-300'
-                          }`}
-                          placeholder="Enter last name"
-                        />
-                        {errors.last_name && (
-                          <p className="mt-1 text-sm text-red-600">{errors.last_name}</p>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="mt-4">
-                      <label className="block mb-2 text-sm font-medium text-gray-700">Email Address *</label>
-                      <input
-                        type="email"
-                        name="email"
-                        value={formData.email}
-                        onChange={handleChange}
-                        className={`w-full border rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-[#2b63ae] focus:border-transparent ${
-                          errors.email ? 'border-red-500' : 'border-gray-300'
-                        }`}
-                        placeholder="Enter email address"
-                      />
-                      {errors.email && (
-                        <p className="mt-1 text-sm text-red-600">{errors.email}</p>
-                      )}
-                    </div>
-
-                    <div className="mt-4">
-                      <label className="block mb-2 text-sm font-medium text-gray-700">Phone Number</label>
-                      <input
-                        type="tel"
-                        name="phone"
-                        value={formData.phone}
-                        onChange={handleChange}
-                        className="w-full border border-gray-300 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-[#2b63ae] focus:border-transparent"
-                        placeholder="Enter phone number"
-                      />
+            <div className="space-y-5">
+              <SectionCard title="Account Information" description="Role assignment and access level" icon={Shield}>
+                <Select label="Role" name="role_id" value={formData.role_id} onChange={handleChange} options={roleOptions} placeholder="Select a role" error={errors.role_id} loading={rolesLoading} required />
+                <div className="mt-4 rounded-xl border border-[#BFDBFE] bg-[#EFF6FF] p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#2563EB]/10 text-[#2563EB]"><Info size={16} /></div>
+                    <div>
+                      <h4 className="text-sm font-semibold text-[#1E40AF]">Account Settings</h4>
+                      <p className="mt-1 text-xs text-[#3B82F6] leading-relaxed">Update user role and permissions. Password changes require separate action.</p>
                     </div>
                   </div>
                 </div>
+              </SectionCard>
 
-                {/* Right Column - Account & Status */}
-                <div className="space-y-6">
-                  {/* Account Information */}
-                  <div className="bg-gray-50 rounded-lg p-6">
-                    <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-                      <span className="w-2 h-2 bg-[#2b63ae] rounded-full mr-2"></span>
-                      Account Information
-                    </h2>
-                    
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block mb-2 text-sm font-medium text-gray-700">Role *</label>
-                        <select
-                          name="role_id"
-                          value={formData.role_id}
-                          onChange={handleChange}
-                          className={`w-full border rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-[#2b63ae] focus:border-transparent ${
-                            errors.role_id ? 'border-red-500' : 'border-gray-300'
-                          }`}
-                          disabled={rolesLoading}
-                        >
-                          <option value="">
-                            {rolesLoading ? "Loading roles..." : "Select a role"}
-                          </option>
-                          {roles.map((role) => (
-                            <option key={role.role_id} value={role.role_id}>
-                              {role.role_name}
-                            </option>
-                          ))}
-                        </select>
-                        {errors.role_id && (
-                          <p className="mt-1 text-sm text-red-600">{errors.role_id}</p>
-                        )}
-                      </div>
-
-                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                        <div className="flex items-start">
-                          <svg className="h-5 w-5 text-blue-400 mt-0.5 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                          </svg>
-                          <div>
-                            <h4 className="text-sm font-medium text-blue-800">Account Settings</h4>
-                            <p className="text-xs text-blue-700 mt-1">
-                              Update user role and permissions. Password changes require separate action.
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* User Status */}
-                  <div className="bg-gray-50 rounded-lg p-6">
-                    <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-                      <span className="w-2 h-2 bg-[#2b63ae] rounded-full mr-2"></span>
-                      User Status
-                    </h2>
-                    
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <label className="text-sm font-medium text-gray-700">Active User</label>
-                        <label className="relative inline-flex items-center cursor-pointer">
-                          <input
-                            type="checkbox"
-                            name="is_active"
-                            id="is_active"
-                            checked={formData.is_active}
-                            onChange={handleChange}
-                            className="sr-only peer"
-                          />
-                          <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-[#2b63ae] rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#2b63ae]"></div>
-                        </label>
-                      </div>
-                      <p className="text-xs text-gray-500">
-                        Active users can log in and access the system
-                      </p>
-                    </div>
-                  </div>
+              <SectionCard title="User Status" description="Control user access to the system" icon={ToggleLeft}>
+                <div className="flex items-center justify-between">
+                  <label htmlFor="is_active" className="text-sm font-medium text-[#3D4F5F] cursor-pointer">Active User</label>
+                  <button type="button" role="switch" aria-checked={formData.is_active}
+                    onClick={() => setFormData((prev) => ({ ...prev, is_active: !prev.is_active }))}
+                    className={`app-toggle ${formData.is_active ? "app-toggle-checked" : "app-toggle-unchecked"}`}>
+                    <span className={`app-toggle-knob ${formData.is_active ? "app-toggle-knob-checked" : "app-toggle-knob-unchecked"}`} />
+                  </button>
                 </div>
-
-                {/* Submit Button */}
-                <div className="lg:col-span-3 mt-8">
-                  <div className="flex justify-end gap-4">
-                    <button
-                      type="button"
-                      onClick={() => navigate("/users")}
-                      className="px-6 py-3 rounded-lg border-2 border-gray-300 text-gray-700 font-medium hover:bg-gray-50 transition-colors"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={loading || rolesLoading || !hasChanges()}
-                      className="px-8 py-3 rounded-lg bg-gradient-to-r from-[#2b63ae] to-[#1e4a8c] text-white font-medium hover:from-[#1e4a8c] hover:to-[#2b63ae] transition-all disabled:opacity-70 shadow-lg"
-                    >
-                      {loading ? "Updating User..." : "Update User"}
-                    </button>
-                  </div>
-                </div>
-              </form>
+                <p className="mt-2 text-xs text-[#8A97A4]">Active users can log in and access the system</p>
+              </SectionCard>
             </div>
           </div>
-        </div>
+
+          <motion.div className="mt-6 flex justify-end gap-3" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+            <Button variant="secondary" onClick={() => navigate("/users")}>Cancel</Button>
+            <Button variant="primary" type="submit" loading={loading || rolesLoading} disabled={!hasChanges()}>
+              {loading ? "Updating User..." : "Update User"}
+            </Button>
+          </motion.div>
+        </form>
       </div>
     </MainLayout>
   );
