@@ -421,6 +421,10 @@ function App() {
 
       {/* Equipment & Calibration Routes */}
       <Route
+        path="/equipment"
+        element={<Navigate to="/equipment/dashboard" replace />}
+      />
+      <Route
         path="/equipment/dashboard"
         element={
           <ProtectedRoute>
@@ -469,6 +473,10 @@ function App() {
         }
       />
       <Route
+        path="/calibration"
+        element={<Navigate to="/calibration/dashboard" replace />}
+      />
+      <Route
         path="/calibration/dashboard"
         element={
           <ProtectedRoute>
@@ -510,6 +518,10 @@ function App() {
       />
 
       {/* Reports Routes */}
+      <Route
+        path="/observation"
+        element={<Navigate to="/observation-entry" replace />}
+      />
       <Route
         path="/reports"
         element={

@@ -85,9 +85,9 @@ const StatTile = ({ label, value, icon, tone = "info", caption, trend = "up" }) 
       whileHover={{ y: -3, boxShadow: "0 16px 40px rgba(0,0,0,0.08)" }}
       transition={{ duration: 0.2 }}
     >
-      <div className="flex items-start justify-between gap-4">
+      <div className="lab-stat-head flex items-start justify-between gap-4">
         <div>
-          <p className="lab-overline">{label}</p>
+          <p className="lab-overline lab-stat-label">{label}</p>
           <div className="mt-2.5 flex items-end gap-3">
             <span className="lab-stat-number">{count.toLocaleString()}</span>
             <span className={`lab-trend ${trend === "down" ? "lab-trend-danger" : "lab-trend-success"}`}>
@@ -100,8 +100,14 @@ const StatTile = ({ label, value, icon, tone = "info", caption, trend = "up" }) 
           <IconComp size={20} strokeWidth={2} />
         </div>
       </div>
-      <div className="mt-5 h-1.5 rounded-full bg-[#EDF0F3]">
-        <div className="lab-meter-fill" style={{ width: `${Math.min(88, Math.max(20, Number(value) * 8 || 28))}%` }} />
+      <div className="lab-stat-body">
+        <div className="mb-2 flex items-center justify-between text-xs font-semibold text-[#667684]">
+          <span>Progress</span>
+          <span>{Math.min(88, Math.max(20, Number(value) * 8 || 28))}%</span>
+        </div>
+        <div className="h-1.5 rounded-full bg-[#EDF0F3]">
+          <div className="lab-meter-fill" style={{ width: `${Math.min(88, Math.max(20, Number(value) * 8 || 28))}%` }} />
+        </div>
       </div>
     </motion.article>
   );
@@ -232,8 +238,7 @@ const Home = () => {
     return (
       <MainLayout headerTitle={`${roleTitle} Dashboard`} headerSubtitle="Loading operational workspace">
         <Workspace>
-          <div className="lab-skeleton h-36" />
-          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             {[0, 1, 2, 3].map((item) => <div key={item} className="lab-skeleton h-32" />)}
           </div>
           <div className="mt-4 grid gap-4 xl:grid-cols-12">
@@ -279,38 +284,9 @@ const Home = () => {
       headerSubtitle={isSuperAdmin ? "Network operations command center" : "Projects, samples, tests, and reports"}
     >
       <Workspace>
-        {/* Hero */}
-        <motion.section
-          className="lab-command-center"
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35, ease: [0.22, 0.68, 0, 1] }}
-        >
-          <div className="min-w-0">
-            <p className="text-[11px] font-bold uppercase tracking-widest text-white/50">Operational Workspace</p>
-            <h2 className="mt-3 max-w-3xl text-2xl font-bold text-white sm:text-3xl tracking-tight">
-              {isSuperAdmin ? "Lab network performance at a glance" : "Today's testing workload is ready to triage"}
-            </h2>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-white/65">
-              {isSuperAdmin
-                ? "Monitor labs, project volume, client footprint, and user coverage from one calm control surface."
-                : "Track project flow, sample intake, pending tests, and recent operational movement without leaving the workspace."}
-            </p>
-          </div>
-          <div className="lab-command-aside flex flex-col justify-center">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-white/45">Signed in</span>
-            <strong className="mt-2 block truncate text-xl font-bold text-white tracking-tight">
-              {user?.first_name || user?.email || "User"}
-            </strong>
-            <span className="mt-3 inline-flex self-start rounded-lg border border-white/16 bg-white/8 px-3 py-1.5 text-xs font-semibold text-white/80">
-              {roleTitle}
-            </span>
-          </div>
-        </motion.section>
-
         {/* Stats */}
         <motion.section
-          className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4"
+          className="grid gap-3 md:grid-cols-2 xl:grid-cols-4"
           variants={stagger.container}
           initial="hidden"
           animate="visible"
@@ -361,7 +337,7 @@ const Home = () => {
           <section className="mt-5 grid gap-4 xl:grid-cols-12">
             <motion.div className="lab-panel lab-panel-prominent xl:col-span-8" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2, duration: 0.3 }}>
               <SectionHeader eyebrow="Throughput" title="Monthly Movement" meta="Projects and samples" />
-              <div className="h-[390px]">
+              <div className="h-[320px]">
                 {monthlyData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={monthlyData} margin={{ top: 8, right: 10, left: -10, bottom: 0 }}>
@@ -392,7 +368,7 @@ const Home = () => {
         <section className="mt-5 grid gap-4 xl:grid-cols-12">
           <motion.div className="lab-panel xl:col-span-4" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3, duration: 0.3 }}>
             <SectionHeader eyebrow="Quality" title="Test Status" meta="Current queue" />
-            <div className="h-[310px]">
+            <div className="h-[260px]">
               {testStatusData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={testStatusData} margin={{ top: 8, right: 8, left: -10, bottom: 0 }}>

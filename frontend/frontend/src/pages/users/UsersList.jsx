@@ -3,12 +3,12 @@ import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   UserPlus, Download, RefreshCw, Eye, Pencil,
-  MoreHorizontal, Users, Filter, UserCheck, UserX, Search,
+  MoreHorizontal, Users,
 } from "lucide-react";
 import { usersAPI } from "../../api/users";
 import { MainLayout } from "../../components/layout";
 import {
-  PageHeader, SearchInput, Badge, Avatar,
+  SearchInput, Badge, Avatar,
   ActionDropdown, Button, EmptyState,
 } from "../../components/ui";
 import { TableSkeleton } from "../../components/ui/Skeleton";
@@ -96,57 +96,58 @@ const UsersList = () => {
   return (
     <MainLayout headerTitle="Users" headerSubtitle="Manage lab users">
       <div className="mx-auto w-full max-w-[1800px] px-4 py-5 sm:px-5 lg:px-6">
-        <PageHeader
-          title="User Management"
-          subtitle={`${allUsers.length} team member${allUsers.length !== 1 ? "s" : ""} · ${activeCount} active · ${inactiveCount} inactive`}
-          icon="users"
-          actions={
-            <Button
-              variant="primary"
-              icon={UserPlus}
-              onClick={() => navigate("/users/add")}
-            >
-              Add User
-            </Button>
-          }
-        />
 
         {/* Toolbar */}
         <motion.div
-          className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+          className="mb-5 rounded-xl border border-[#E2E6EB] bg-white p-3 shadow-sm"
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1, duration: 0.25 }}
         >
-          <div className="flex flex-1 items-center gap-3">
-            <SearchInput
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by name or email..."
-              className="w-full sm:max-w-xs"
-            />
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-wider text-[#8A97A4]">Team Directory</p>
+              <p className="mt-0.5 text-sm text-[#57687A]">
+                {allUsers.length} team member{allUsers.length !== 1 ? "s" : ""} · {activeCount} active · {inactiveCount} inactive
+              </p>
+            </div>
 
-            {/* Status Filter */}
-            <div className="hidden sm:flex items-center gap-2">
+            <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center lg:justify-end">
+              <SearchInput
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search by name or email..."
+                className="w-full sm:max-w-sm"
+              />
+
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="app-select !py-2.5 !text-xs !w-auto !min-w-[120px]"
+                className="app-select !h-10 !w-full !py-2.5 !text-xs sm:!w-auto sm:!min-w-[130px]"
+                aria-label="Filter users by status"
               >
                 <option value="all">All Status</option>
                 <option value="active">Active</option>
                 <option value="inactive">Inactive</option>
               </select>
-            </div>
-          </div>
 
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" icon={RefreshCw} onClick={fetchUsers}>
-              <span className="hidden sm:inline">Refresh</span>
-            </Button>
-            <Button variant="ghost" size="sm" icon={Download}>
-              <span className="hidden sm:inline">Export</span>
-            </Button>
+              <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
+                <Button variant="ghost" icon={RefreshCw} onClick={fetchUsers} className="whitespace-nowrap">
+                  <span className="hidden sm:inline">Refresh</span>
+                </Button>
+                <Button variant="ghost" icon={Download} className="whitespace-nowrap">
+                  <span className="hidden sm:inline">Export</span>
+                </Button>
+                <Button
+                  variant="primary"
+                  icon={UserPlus}
+                  onClick={() => navigate("/users/add")}
+                  className="w-full whitespace-nowrap px-4 sm:w-auto"
+                >
+                  Add User
+                </Button>
+              </div>
+            </div>
           </div>
         </motion.div>
 

@@ -2,8 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Menu, Search, ChevronLeft, ChevronRight, Bell, Plus,
-  ArrowRight, User, LogOut,
+  Menu, Search, Bell, Plus,
+  ArrowRight, User, LogOut, Settings,
 } from "lucide-react";
 import { api } from "../../api";
 
@@ -69,13 +69,12 @@ const dropdownVariants = {
 
 const Header = ({
   onMenuClick,
-  onCollapseClick,
-  isCollapsed = false,
   title = "Projects",
   subtitle = "Performance summary",
 }) => {
   const [quickAddOpen, setQuickAddOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
   const [searchValue, setSearchValue] = useState("");
   const dropdownRef = useRef(null);
   const navigate = useNavigate();
@@ -88,12 +87,34 @@ const Header = ({
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setQuickAddOpen(false);
         setNotificationsOpen(false);
+        setAccountOpen(false);
+      }
+    };
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        setQuickAddOpen(false);
+        setNotificationsOpen(false);
+        setAccountOpen(false);
       }
     };
 
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
   }, []);
+
+  const user = useMemo(() => {
+    try {
+      return JSON.parse(localStorage.getItem("user") || "{}");
+    } catch {
+      return {};
+    }
+  }, []);
+
+  const accountName = user?.first_name || user?.full_name || user?.email || "Account";
 
   const handleLogout = async () => {
     try {
@@ -153,19 +174,6 @@ const Header = ({
           />
         </label>
 
-        <motion.button
-          type="button"
-          onClick={onCollapseClick}
-          className="app-button app-button-secondary hidden md:inline-flex"
-          aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.97 }}
-          transition={{ duration: 0.15 }}
-        >
-          {isCollapsed ? <ChevronRight size={16} strokeWidth={2.2} /> : <ChevronLeft size={16} strokeWidth={2.2} />}
-          <span className="hidden xl:inline">{isCollapsed ? "Expand" : "Collapse"}</span>
-        </motion.button>
-
         {/* Notifications */}
         <div className="relative">
           <motion.button
@@ -173,6 +181,7 @@ const Header = ({
             onClick={() => {
               setNotificationsOpen((prev) => !prev);
               setQuickAddOpen(false);
+              setAccountOpen(false);
             }}
             className="app-icon-button"
             aria-label="Open notifications"
@@ -224,6 +233,7 @@ const Header = ({
             onClick={() => {
               setQuickAddOpen((prev) => !prev);
               setNotificationsOpen(false);
+              setAccountOpen(false);
             }}
             className="app-button app-button-primary"
             aria-label="Quick add"
@@ -266,27 +276,72 @@ const Header = ({
           </AnimatePresence>
         </div>
 
-        <motion.button
-          type="button"
-          onClick={() => navigate("/profile")}
-          className="app-icon-button"
-          aria-label="Open profile"
-          whileHover={{ scale: 1.04 }}
-          whileTap={{ scale: 0.96 }}
-        >
-          <User size={18} strokeWidth={2} />
-        </motion.button>
+        {/* Account */}
+        <div className="relative">
+          <motion.button
+            type="button"
+            onClick={() => {
+              setAccountOpen((prev) => !prev);
+              setQuickAddOpen(false);
+              setNotificationsOpen(false);
+            }}
+            className="app-icon-button"
+            aria-label="Open account menu"
+            aria-expanded={accountOpen}
+            whileHover={{ scale: 1.04 }}
+            whileTap={{ scale: 0.96 }}
+          >
+            <User size={18} strokeWidth={2} />
+          </motion.button>
 
-        <motion.button
-          type="button"
-          onClick={handleLogout}
-          className="app-icon-button hidden !text-[#DC2626] !border-[#FECACA] sm:inline-flex"
-          aria-label="Logout"
-          whileHover={{ scale: 1.04 }}
-          whileTap={{ scale: 0.96 }}
-        >
-          <LogOut size={18} strokeWidth={2} />
-        </motion.button>
+          <AnimatePresence>
+            {accountOpen && (
+              <motion.div
+                className="absolute right-0 z-50 mt-2 w-[250px] rounded-xl border border-[#E2E6EB] bg-white p-2"
+                style={{ boxShadow: "var(--shadow-xl)" }}
+                variants={dropdownVariants}
+                initial="hidden"
+                animate="visible"
+                exit="exit"
+                role="menu"
+              >
+                <div className="border-b border-[#EDF0F3] px-3 pb-3 pt-1">
+                  <p className="truncate text-sm font-semibold text-[#1A2733]">{accountName}</p>
+                  <p className="truncate text-xs text-[#8A97A4]">{user?.email || "Signed in"}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAccountOpen(false);
+                    navigate("/profile");
+                  }}
+                  className="mt-2 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-[#1A2733] transition-colors hover:bg-[#F6F7F9]"
+                  role="menuitem"
+                >
+                  <User size={16} className="text-[#57687A]" />
+                  Profile
+                </button>
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-[#8A97A4] transition-colors hover:bg-[#F6F7F9]"
+                  role="menuitem"
+                >
+                  <Settings size={16} />
+                  Preferences
+                </button>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-[#DC2626] transition-colors hover:bg-[#FEF2F2]"
+                  role="menuitem"
+                >
+                  <LogOut size={16} />
+                  Logout
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
     </header>
   );
