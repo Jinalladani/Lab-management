@@ -41,6 +41,7 @@ const nameMap = {
   info: "Info",
   alertCircle: "AlertCircle",
   alertTriangle: "AlertTriangle",
+  warning: "AlertTriangle",
   mail: "Mail",
   phone: "Phone",
   shield: "Shield",

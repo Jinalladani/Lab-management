@@ -65,3 +65,73 @@ export const getSampleScopeTests = async (sampleId) => {
     throw error;
   }
 };
+
+// Generate report automatically from observation entries
+export const generateReport = async (sampleId) => {
+  try {
+    const response = await api.post("/reports/generate", { sample_id: sampleId });
+    return response.data;
+  } catch (error) {
+    console.error("Error generating report:", error);
+    throw error;
+  }
+};
+
+// Approve report
+export const approveReport = async (reportId, remarks) => {
+  try {
+    const response = await api.post(`/reports/${reportId}/approve`, { remarks });
+    return response.data;
+  } catch (error) {
+    console.error("Error approving report:", error);
+    throw error;
+  }
+};
+
+// Reject report
+export const rejectReport = async (reportId, remarks) => {
+  try {
+    const response = await api.post(`/reports/${reportId}/reject`, { remarks });
+    return response.data;
+  } catch (error) {
+    console.error("Error rejecting report:", error);
+    throw error;
+  }
+};
+
+// Create report revision
+export const createRevision = async (reportId, changeLog) => {
+  try {
+    const response = await api.post(`/reports/${reportId}/revision`, { change_log: changeLog });
+    return response.data;
+  } catch (error) {
+    console.error("Error creating report revision:", error);
+    throw error;
+  }
+};
+
+// Upload attachment
+export const uploadAttachment = async (reportId, formData) => {
+  try {
+    const response = await api.post(`/reports/${reportId}/attachments`, formData, {
+      headers: {
+        "Content-Type": "multipart/form-data"
+      }
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Error uploading report attachment:", error);
+    throw error;
+  }
+};
+
+// Verify report QR hash
+export const verifyQrHash = async (qrHash) => {
+  try {
+    const response = await api.get(`/reports/verify-qr/${qrHash}`);
+    return response.data;
+  } catch (error) {
+    console.error("Error verifying QR hash:", error);
+    throw error;
+  }
+};

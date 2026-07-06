@@ -29,9 +29,9 @@ const stagger = {
 const getStatusBadge = (status) => {
   const norm = String(status || "").toLowerCase();
   const map = {
-    completed: { text: "Completed", bg: "bg-[#ECFDF5] text-[#10B981] border-[#D1FAE5]", dot: "bg-[#10B981]" },
-    "in progress": { text: "In Progress", bg: "bg-[#EFF6FF] text-[#2563EB] border-[#DBEAFE]", dot: "bg-[#2563EB]" },
-    scheduled: { text: "Scheduled", bg: "bg-[#FFFBEB] text-[#D97706] border-[#FEF3C7]", dot: "bg-[#D97706]" },
+    completed: { text: "Completed", bg: "bg-[#F0FDF4] text-[#16A34A] border-[#BBF7D0]", dot: "bg-[#16A34A]" },
+    "in progress": { text: "In Progress", bg: "bg-[#EFF6FF] text-[#2563EB] border-[#BFDBFE]", dot: "bg-[#2563EB]" },
+    scheduled: { text: "Scheduled", bg: "bg-[#FFFBEB] text-[#D97706] border-[#FDE68A]", dot: "bg-[#D97706]" },
   };
   const config = map[norm] || { text: status, bg: "bg-slate-50 text-slate-600 border-slate-200", dot: "bg-slate-500" };
   return (

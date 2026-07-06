@@ -19,17 +19,22 @@ def create_app():
     db.init_app(app)
     bcrypt.init_app(app)
 
-    # Database column alterations for Observation Module to handle very long labels/keys
-    # pyrefly: ignore [missing-import]
-    # from sqlalchemy import text
-    # with app.app_context():
-    #     try:
-    #         db.session.execute(text("ALTER TABLE observation_template_fields ALTER COLUMN field_label TYPE TEXT;"))
-    #         db.session.execute(text("ALTER TABLE observation_template_fields ALTER COLUMN field_key TYPE VARCHAR(255);"))
-    #         db.session.execute(text("ALTER TABLE observation_template_formulas ALTER COLUMN result_name TYPE TEXT;"))
-    #         db.session.commit()
-    #     except Exception as e:
-    #         db.session.rollback()
+    # Automatically run report module schema migrations
+    from sqlalchemy import text
+    import os
+    with app.app_context():
+        try:
+            sql_path = os.path.join(os.path.dirname(__file__), 'models', 'reports_module.sql')
+            if os.path.exists(sql_path):
+                with open(sql_path, 'r') as f:
+                    migration_sql = f.read()
+                db.session.execute(text(migration_sql))
+                db.session.commit()
+                print("Reports Module database tables verified/created successfully.")
+        except Exception as e:
+            db.session.rollback()
+            print("Failed to run Reports Module database migrations:", e)
+
 
     # Handle OPTIONS requests globally before authentication
     @app.before_request

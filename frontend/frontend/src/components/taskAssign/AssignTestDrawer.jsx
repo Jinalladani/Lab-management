@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import CloseIcon from "@mui/icons-material/Close";
 
 const inputClass =
-  "w-full border border-gray-300 rounded-xl px-3 py-2.5 outline-none focus:ring-2 focus:ring-[#2b63ae] bg-white/90 text-sm";
+  "w-full border border-gray-300 rounded-xl px-3 py-2.5 outline-none focus:ring-2 focus:ring-[#243744]/10 focus:border-[#243744] bg-white/90 text-sm";
 
 const AssignTestDrawer = () => {
   const [open, setOpen] = useState(false);
@@ -12,7 +12,7 @@ const AssignTestDrawer = () => {
       {/* OPEN BUTTON */}
       <button
         onClick={() => setOpen(true)}
-        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+        className="px-4 py-2 bg-[#243744] text-white rounded-lg hover:bg-[#1A2733]"
       >
         + Assign Test
       </button>
@@ -172,7 +172,7 @@ const AssignTestDrawer = () => {
               Cancel
             </button>
 
-            <button className="px-4 py-2 rounded-xl bg-[#2b63ae] text-white hover:bg-[#1f4f8a]">
+            <button className="px-4 py-2 rounded-xl bg-[#243744] text-white hover:bg-[#1A2733]">
               Save Assignment
             </button>
 

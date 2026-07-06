@@ -1110,7 +1110,7 @@ export default function ObservationEntry() {
               <div className="h-4 w-px bg-slate-200" />
               <button
                 onClick={handleSave}
-                className="px-4.5 py-1.5 bg-[#2562AA] text-white hover:bg-[#1e4f8a] rounded-lg text-xs font-bold shadow-xs"
+                className="px-4.5 py-1.5 bg-[#243744] text-white hover:bg-[#1A2733] rounded-lg text-xs font-bold shadow-xs"
               >
                 Submit observations
               </button>
@@ -1188,7 +1188,7 @@ export default function ObservationEntry() {
               {/* Selection Merging */}
               <button
                 onClick={handleRangeMerge}
-                className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-[#2562AA] rounded-lg text-[11px] flex items-center gap-1 font-bold shadow-2xs"
+                className="px-3 py-1.5 bg-[#243744]/5 hover:bg-[#243744]/10 text-[#243744] rounded-lg text-[11px] flex items-center gap-1 font-bold shadow-2xs"
                 title="Merge selected drag cells range"
               >
                 <MergeIcon style={{ fontSize: 13 }} /> Merge Range
@@ -1307,7 +1307,7 @@ export default function ObservationEntry() {
                   [activeSheetId]: nextCells,
                 }));
               }}
-              className="flex-1 px-3 py-1.5 border border-slate-200 bg-slate-50/50 rounded-lg outline-none font-mono text-xs text-slate-800 focus:ring-1 focus:ring-blue-500 focus:bg-white transition-all disabled:opacity-75"
+              className="flex-1 px-3 py-1.5 border border-slate-200 bg-slate-50/50 rounded-lg outline-none font-mono text-xs text-slate-800 focus:ring-2 focus:ring-[#243744]/10 focus:border-[#243744] focus:bg-white transition-all disabled:opacity-75"
               placeholder={activeCellState.type === "formula" ? "Formula equation (read-only)" : "Enter cell value"}
             />
           </div>
@@ -1318,7 +1318,7 @@ export default function ObservationEntry() {
 
               {Object.keys(cells).length === 0 ? (
                 <div className="bg-white rounded-2xl border border-dashed border-slate-300 p-16 text-center select-none">
-                  <ScienceIcon style={{ fontSize: 48 }} className="text-[#2562AA] opacity-55 animate-bounce mb-3" />
+                  <ScienceIcon style={{ fontSize: 48 }} className="text-[#243744] opacity-55 animate-bounce mb-3" />
                   <h3 className="text-sm font-bold text-slate-700">Spreadsheet observations workspace</h3>
                   <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto leading-relaxed">
                     Select a Project, registered Sample, and Assigned Test from the panel above to instantly load and display the observation spreadsheet layout.
@@ -1327,7 +1327,7 @@ export default function ObservationEntry() {
               ) : (
                 /* Excel grid canvas */
                 <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden flex flex-col min-h-[400px]">
-                  <div className="px-4 py-2 border-b bg-slate-50/80 flex items-center justify-between text-[10px] font-bold text-[#2562AA] uppercase tracking-wider border-b border-slate-200">
+                  <div className="px-4 py-2 border-b bg-slate-50/80 flex items-center justify-between text-[10px] font-bold text-[#243744] uppercase tracking-wider border-b border-slate-200">
                     <span>Observation Grid Sheet</span>
                     <span className="text-slate-400 normal-case font-bold text-[9px]">Fill input values to trigger calculations</span>
                   </div>
@@ -1456,7 +1456,7 @@ export default function ObservationEntry() {
                         onClick={() => setActiveSheetId(s.id)}
                         className={`px-3.5 py-1.5 rounded-lg transition-all ${
                           activeSheetId === s.id
-                            ? "bg-white text-[#2562AA] shadow-xs"
+                            ? "bg-white text-[#243744] shadow-xs"
                             : "hover:bg-slate-200 hover:text-slate-700 text-slate-500"
                         }`}
                       >

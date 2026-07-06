@@ -56,7 +56,7 @@ const SearchableSelect = ({
         }}
         onFocus={() => !disabled && setOpen(true)}
         placeholder={placeholder}
-        className="w-full border border-gray-300 rounded-xl px-3 py-2.5 outline-none focus:ring-2 focus:ring-[#2b63ae] bg-white/90 disabled:bg-gray-50 disabled:text-gray-700"
+        className="w-full border border-gray-300 rounded-xl px-3 py-2.5 outline-none focus:ring-2 focus:ring-[#243744]/10 focus:border-[#243744] bg-white/90 disabled:bg-gray-50 disabled:text-gray-700"
       />
       {open && !disabled && (
         <div className="absolute z-20 mt-1 w-full max-h-48 overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-xl">
@@ -64,7 +64,7 @@ const SearchableSelect = ({
             <button
               type="button"
               onClick={() => selectOption(query.trim())}
-              className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-blue-50"
+              className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-[#243744]/5"
             >
               Use &quot;{query.trim()}&quot;
             </button>
@@ -74,8 +74,8 @@ const SearchableSelect = ({
                 key={option}
                 type="button"
                 onClick={() => selectOption(option)}
-                className={`w-full px-3 py-2 text-left text-sm hover:bg-blue-50 ${
-                  value === option ? "bg-blue-50 text-[#2d66b3] font-medium" : "text-gray-700"
+                className={`w-full px-3 py-2 text-left text-sm hover:bg-[#243744]/5 ${
+                  value === option ? "bg-[#243744]/5 text-[#243744] font-medium" : "text-gray-700"
                 }`}
               >
                 {option}

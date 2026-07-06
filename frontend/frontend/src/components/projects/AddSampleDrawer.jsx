@@ -66,7 +66,7 @@ const ReadOnlyField = ({ label, value }) => (
 );
 
 const inputClass =
-  "w-full border border-gray-300 rounded-xl px-3 py-2.5 outline-none focus:ring-2 focus:ring-[#2b63ae] bg-white/90 text-sm";
+  "w-full border border-gray-300 rounded-xl px-3 py-2.5 outline-none focus:ring-2 focus:ring-[#243744]/10 focus:border-[#243744] bg-white/90 text-sm";
 
 const AddSampleDrawer = ({
   open,
@@ -520,8 +520,8 @@ const AddSampleDrawer = ({
                     }}
                     className={`h-20 w-20 shrink-0 rounded-xl border-2 border-dashed flex items-center justify-center text-3xl font-light cursor-pointer transition-colors ${
                       dragOverId === sample.id
-                        ? "border-[#2d66b3] bg-blue-50 text-[#2d66b3]"
-                        : "border-gray-300 bg-white text-[#2d66b3] hover:bg-blue-50"
+                        ? "border-[#243744] bg-[#243744]/5 text-[#243744]"
+                        : "border-gray-300 bg-white text-[#243744] hover:bg-[#243744]/5"
                     }`}
                   >
                     +
@@ -595,7 +595,7 @@ const AddSampleDrawer = ({
                 type="button"
                 disabled={loading}
                 onClick={submitSamples}
-                className="px-4 py-2.5 rounded-xl bg-[#2d66b3] text-white text-sm font-medium hover:bg-[#1f5498] disabled:opacity-60"
+                className="px-4 py-2.5 rounded-xl bg-[#243744] text-white text-sm font-medium hover:bg-[#1A2733] disabled:opacity-60"
               >
                 {loading ? "Saving..." : isEditMode ? "Update Sample" : "Save Sample"}
               </button>

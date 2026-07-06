@@ -21,8 +21,8 @@ const stagger = {
 const getStatusBadge = (status) => {
   const norm = String(status || "").toLowerCase();
   const map = {
-    active: { text: "Active", bg: "bg-[#ECFDF5] text-[#10B981] border-[#D1FAE5]", dot: "bg-[#10B981]" },
-    "under maintenance": { text: "Maintenance", bg: "bg-[#EFF6FF] text-[#2563EB] border-[#DBEAFE]", dot: "bg-[#2563EB]" },
+    active: { text: "Active", bg: "bg-[#F0FDF4] text-[#16A34A] border-[#BBF7D0]", dot: "bg-[#16A34A]" },
+    "under maintenance": { text: "Maintenance", bg: "bg-[#EFF6FF] text-[#2563EB] border-[#BFDBFE]", dot: "bg-[#2563EB]" },
   };
   const config = map[norm] || { text: status || "Inactive", bg: "bg-[#F8FAFC] text-[#64748B] border-[#E2E8F0]", dot: "bg-[#64748B]" };
   return (
@@ -37,8 +37,8 @@ const getCalibrationBadge = (status) => {
   const norm = String(status || "").toLowerCase();
   if (norm === "valid") {
     return (
-      <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full bg-[#ECFDF5] text-[#10B981] border-[#D1FAE5]">
-        <span className="w-1.5 h-1.5 rounded-full bg-[#10B981]" />
+      <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full bg-[#F0FDF4] text-[#16A34A] border-[#BBF7D0]">
+        <span className="w-1.5 h-1.5 rounded-full bg-[#16A34A]" />
         Valid
       </span>
     );
@@ -46,8 +46,8 @@ const getCalibrationBadge = (status) => {
   let color = "bg-[#FFFBEB] text-[#D97706] border-[#FEF3C7]";
   let dotColor = "bg-[#D97706]";
   if (norm.includes("7 days") || norm.includes("soon")) {
-    color = "bg-[#FFF5F5] text-[#EF4444] border-[#FEE2E2]";
-    dotColor = "bg-[#EF4444]";
+    color = "bg-[#FEF2F2] text-[#DC2626] border-[#FECACA]";
+    dotColor = "bg-[#DC2626]";
   }
   return (
     <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full border ${color}`}>

@@ -1,246 +1,189 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
+import {
+  PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+} from "recharts";
+import { TrendingUp } from "lucide-react";
 import MainLayout from "../../components/layout/MainLayout";
-import { mockEquipmentDb } from "../../utils/mockEquipmentData";
 import { getCalibrationDashboard } from "../../api";
 import {
-  PieChart,
-  Pie,
-  Cell,
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend
-} from "recharts";
-import {
-  Science,
-  CheckCircle,
-  Warning,
-  Error,
-  MonetizationOn,
-  CalendarMonth,
-  ChevronRight,
-  TrendingUp
-} from "@mui/icons-material";
-
-const COLORS = ["#10b981", "#f59e0b", "#f97316", "#ef4444", "#94a3b8"];
-
-const trendData = [
-  { name: "Jan", calibrations: 4 },
-  { name: "Feb", calibrations: 8 },
-  { name: "Mar", calibrations: 12 },
-  { name: "Apr", calibrations: 9 },
-  { name: "May", calibrations: 15 },
-  { name: "Jun", calibrations: 22 }
-];
+  EquipmentWorkspace,
+  StatTile,
+  SectionHeader,
+  ActionLink,
+  stagger,
+  CHART_COLORS,
+  PRIMARY_CHART,
+  getRemainingDays,
+  formatDate,
+  getUrgencyLabel,
+} from "../../components/equipment/EquipmentModuleShared";
 
 const CalibrationDashboard = () => {
   const navigate = useNavigate();
-  const [stats, setStats] = useState({
-    totalCount: 0,
-    validCount: 0,
-    dueCount: 0,
-    due7Count: 0,
-    overdueCount: 0
-  });
+  const [stats, setStats] = useState({ totalCount: 0, validCount: 0, dueCount: 0, due7Count: 0, overdueCount: 0 });
   const [upcomingCalibrations, setUpcomingCalibrations] = useState([]);
   const [trendData, setTrendData] = useState([]);
   const [totalCost, setTotalCost] = useState(0);
+  const [loading, setLoading] = useState(true);
 
   const fetchDashboard = async () => {
     try {
+      setLoading(true);
       const res = await getCalibrationDashboard();
       if (res.success && res.data) {
-        setStats(res.data.stats);
+        setStats(res.data.stats || {});
         setUpcomingCalibrations(res.data.upcoming || []);
         setTrendData(res.data.trends || []);
         setTotalCost(res.data.cost || 0);
       }
     } catch (err) {
-      console.error("Failed to load calibration dashboard from API:", err);
-      setStats({
-        totalCount: 0,
-        validCount: 0,
-        dueCount: 0,
-        due7Count: 0,
-        overdueCount: 0
-      });
-      setUpcomingCalibrations([]);
-      setTrendData([]);
-      setTotalCost(0);
+      console.error("Failed to load calibration dashboard:", err);
+    } finally {
+      setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchDashboard();
-  }, []);
+  useEffect(() => { fetchDashboard(); }, []);
 
-  const totalCount = stats.totalCount;
-  const validCount = stats.validCount;
-  const validPercent = totalCount ? ((validCount / totalCount) * 100).toFixed(1) : 0;
-  const dueCount = stats.dueCount;
-  const due7Count = stats.due7Count;
-  const overdueCount = stats.overdueCount;
+  const validPercent = stats.totalCount ? ((stats.validCount / stats.totalCount) * 100).toFixed(1) : 0;
 
-  const pieData = [
+  const pieData = useMemo(() => [
     { name: "Valid", value: stats.validCount },
     { name: "Due Soon", value: stats.dueCount },
     { name: "Due within 7 Days", value: stats.due7Count },
-    { name: "Overdue", value: stats.overdueCount }
-  ].filter(item => item.value > 0);
+    { name: "Overdue", value: stats.overdueCount },
+  ].filter((item) => item.value > 0), [stats]);
 
-  const getRemainingDays = (nextDueStr) => {
-    const today = new Date();
-    const nextDue = new Date(nextDueStr);
-    const diffTime = nextDue - today;
-    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  };
+  const budgetPct = totalCost ? Math.min(100, Math.round((totalCost / 200000) * 100)) : 62;
+
+  if (loading) {
+    return (
+      <MainLayout headerTitle="Calibration Control Center" headerSubtitle="Traceability audits & compliance status">
+        <EquipmentWorkspace>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+            {[0, 1, 2, 3, 4].map((i) => <div key={i} className="lab-skeleton h-32" />)}
+          </div>
+          <div className="mt-4 grid gap-4 xl:grid-cols-3">
+            <div className="lab-skeleton h-72 xl:col-span-1" />
+            <div className="lab-skeleton h-72 xl:col-span-2" />
+          </div>
+        </EquipmentWorkspace>
+      </MainLayout>
+    );
+  }
 
   return (
-    <MainLayout headerTitle="Calibration Control Center" headerSubtitle="Traceability Audits & Compliance Status Dashboard">
-      <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <MainLayout headerTitle="Calibration Control Center" headerSubtitle="Traceability audits & compliance status">
+      <EquipmentWorkspace>
+        {/* KPI Stats */}
+        <motion.section
+          className="grid gap-3 md:grid-cols-2 xl:grid-cols-5"
+          variants={stagger.container}
+          initial="hidden"
+          animate="visible"
+        >
+          <StatTile label="Total Equipment" value={stats.totalCount} icon="microscope" tone="primary" caption="Tracked" />
+          <StatTile label="Valid Status" value={stats.validCount} icon="check" tone="success" caption={`${validPercent}%`} />
+          <StatTile label="Due Soon" value={stats.dueCount} icon="calendar" tone="warning" caption="7-30 days" trend="down" />
+          <StatTile label="Due within 7 Days" value={stats.due7Count} icon="timer" tone="danger" caption="Urgent" trend="down" />
+          <StatTile label="Overdue" value={stats.overdueCount} icon="warning" tone="danger" caption="Critical" trend="down" />
+        </motion.section>
 
-        {/* Status Metrics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between">
-            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Total Equipment</span>
-            <div className="mt-4 flex items-baseline justify-between">
-              <span className="text-3xl font-bold text-gray-900">{totalCount}</span>
-              <span className="p-2 bg-blue-50 text-[#2562AA] rounded-xl"><Science fontSize="small" /></span>
-            </div>
-          </div>
-
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between">
-            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Valid Status</span>
-            <div className="mt-4 flex items-baseline justify-between">
-              <span className="text-3xl font-bold text-emerald-600">{validCount}</span>
-              <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-lg">{validPercent}%</span>
-            </div>
-          </div>
-
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between">
-            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Due Soon</span>
-            <div className="mt-4 flex items-baseline justify-between">
-              <span className="text-3xl font-bold text-amber-500">{dueCount}</span>
-              <span className="p-2 bg-amber-50 text-amber-500 rounded-xl"><Warning fontSize="small" /></span>
-            </div>
-          </div>
-
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between">
-            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Due within 7 Days</span>
-            <div className="mt-4 flex items-baseline justify-between">
-              <span className="text-3xl font-bold text-orange-600">{due7Count}</span>
-              <span className="p-2 bg-orange-50 text-orange-500 rounded-xl"><Warning fontSize="small" /></span>
-            </div>
-          </div>
-
-          <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between">
-            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Overdue</span>
-            <div className="mt-4 flex items-baseline justify-between">
-              <span className="text-3xl font-bold text-red-600">{overdueCount}</span>
-              <span className="p-2 bg-red-50 text-red-500 rounded-xl"><Error fontSize="small" /></span>
-            </div>
-          </div>
-        </div>
-
-        {/* Visual Charts Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          
-          {/* Donut Chart */}
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-            <h3 className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-4">Calibration Status</h3>
-            <div className="h-[230px] flex items-center justify-center">
+        {/* Charts */}
+        <section className="mt-5 grid gap-4 xl:grid-cols-3">
+          <motion.div
+            className="lab-panel xl:col-span-1"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15 }}
+          >
+            <SectionHeader eyebrow="Status" title="Calibration Status" />
+            <div className="flex h-[240px] items-center justify-center">
               {pieData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <Pie
-                      data={pieData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={55}
-                      outerRadius={75}
-                      paddingAngle={3}
-                      dataKey="value"
-                    >
-                      {pieData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    <Pie data={pieData} cx="50%" cy="50%" innerRadius={55} outerRadius={78} paddingAngle={3} dataKey="value">
+                      {pieData.map((_, index) => (
+                        <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
                       ))}
                     </Pie>
-                    <Tooltip formatter={(value) => [`${value} Devices`]} />
-                    <Legend verticalAlign="bottom" height={36} iconType="circle" style={{ fontSize: 10 }} />
+                    <Tooltip formatter={(value) => [`${value} devices`, "Count"]} />
+                    <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: 10 }} />
                   </PieChart>
                 </ResponsiveContainer>
               ) : (
-                <p className="text-gray-400">No calibration status records found.</p>
+                <p className="text-sm text-[#8A97A4]">No calibration records found</p>
               )}
             </div>
-          </div>
+          </motion.div>
 
-          {/* Trend Line Chart */}
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 lg:col-span-2">
-            <h3 className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-4">Calibration Trend (Last 6 Months)</h3>
-            <div className="h-[230px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={trendData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="name" style={{ fontSize: 11, fontWeight: 600 }} />
-                  <YAxis style={{ fontSize: 11, fontWeight: 600 }} allowDecimals={false} />
-                  <Tooltip formatter={(value) => [`${value} Calibrations Done`]} />
-                  <Line type="monotone" dataKey="calibrations" stroke="#2562AA" strokeWidth={3} activeDot={{ r: 6 }} dot={{ strokeWidth: 2 }} />
-                </LineChart>
-              </ResponsiveContainer>
+          <motion.div
+            className="lab-panel xl:col-span-2"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+          >
+            <SectionHeader eyebrow="Trends" title="Calibration Trend (Last 6 Months)" />
+            <div className="h-[240px]">
+              {trendData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={trendData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E6EB" />
+                    <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#57687A" }} />
+                    <YAxis tick={{ fontSize: 11, fill: "#57687A" }} allowDecimals={false} />
+                    <Tooltip formatter={(value) => [`${value} calibrations`, "Completed"]} />
+                    <Line type="monotone" dataKey="calibrations" stroke={PRIMARY_CHART} strokeWidth={2.5} dot={{ fill: PRIMARY_CHART, strokeWidth: 2 }} activeDot={{ r: 6, fill: PRIMARY_CHART }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <p className="flex h-full items-center justify-center text-sm text-[#8A97A4]">No trend data available</p>
+              )}
             </div>
-          </div>
+          </motion.div>
+        </section>
 
-        </div>
-
-        {/* Upcoming Calibrations & Compliance Cost Card */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-          {/* Upcoming Calibrations table */}
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 lg:col-span-2">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xs font-bold text-gray-800 uppercase tracking-wider">Upcoming Calibrations (Next 30 Days)</h3>
-              <button onClick={() => navigate("/calibration/calendar")} className="text-xs font-semibold text-[#2562AA] hover:underline flex items-center gap-0.5">
-                Calendar View <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
+        {/* Upcoming + Cost */}
+        <section className="mt-5 grid gap-4 lg:grid-cols-3">
+          <motion.div
+            className="lab-panel lg:col-span-2"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.25 }}
+          >
+            <SectionHeader
+              eyebrow="Schedule"
+              title="Upcoming Calibrations (Next 30 Days)"
+              action={<ActionLink onClick={() => navigate("/calibration/calendar")}>Calendar View</ActionLink>}
+            />
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-100 text-xs">
+              <table className="min-w-full text-sm">
                 <thead>
-                  <tr className="bg-gray-50 text-left font-bold text-gray-500 uppercase tracking-wider">
+                  <tr className="border-b border-[#E2E6EB] text-left text-[11px] font-semibold uppercase tracking-wider text-[#8A97A4]">
                     <th className="py-2.5 px-3">Equipment</th>
                     <th className="py-2.5 px-3">Equipment ID</th>
-                    <th className="py-2.5 px-3">Calibration Due Date</th>
-                    <th className="py-2.5 px-3">Remaining Days</th>
+                    <th className="py-2.5 px-3">Due Date</th>
+                    <th className="py-2.5 px-3">Remaining</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {upcomingCalibrations.slice(0, 4).map((eq) => {
+                <tbody className="divide-y divide-[#EDF0F3]">
+                  {upcomingCalibrations.slice(0, 5).map((eq) => {
                     const daysLeft = getRemainingDays(eq.nextDue);
-                    const isOverdue = daysLeft < 0;
+                    const urgency = getUrgencyLabel(daysLeft);
                     return (
-                      <tr key={eq.id} className="hover:bg-gray-50/50">
-                        <td className="py-3 px-3 font-semibold text-gray-800">{eq.name}</td>
-                        <td className="py-3 px-3 font-bold text-gray-500">{eq.id}</td>
-                        <td className="py-3 px-3 text-gray-600 font-medium">{new Date(eq.nextDue).toLocaleDateString("en-IN", { day: '2-digit', month: 'short', year: 'numeric' })}</td>
-                        <td className="py-3 px-3">
-                          {isOverdue ? (
-                            <span className="text-red-600 font-bold">{Math.abs(daysLeft)} Days Overdue</span>
-                          ) : (
-                            <span className={`font-bold ${daysLeft <= 7 ? "text-orange-600 animate-pulse" : "text-amber-600"}`}>{daysLeft} Days Left</span>
-                          )}
-                        </td>
+                      <tr key={eq.id} className="transition-colors hover:bg-[#F6F7F9]">
+                        <td className="py-3 px-3 font-semibold text-[#1A2733]">{eq.name}</td>
+                        <td className="py-3 px-3 font-bold text-[#3F6E8C]">{eq.id}</td>
+                        <td className="py-3 px-3 font-medium text-[#57687A]">{formatDate(eq.nextDue)}</td>
+                        <td className="py-3 px-3"><span className={urgency.className}>{urgency.text}</span></td>
                       </tr>
                     );
                   })}
                   {upcomingCalibrations.length === 0 && (
                     <tr>
-                      <td colSpan="4" className="py-8 text-center text-gray-400 font-bold">
+                      <td colSpan="4" className="py-10 text-center text-sm font-medium text-[#8A97A4]">
                         No calibrations scheduled in the next 30 days.
                       </td>
                     </tr>
@@ -248,50 +191,52 @@ const CalibrationDashboard = () => {
                 </tbody>
               </table>
             </div>
-          </div>
+          </motion.div>
 
-          {/* Calibration Cost Card */}
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between">
+          <motion.div
+            className="lab-panel flex flex-col justify-between"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+          >
             <div>
-              <h3 className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-6">Calibration Cost (This Year)</h3>
-              
+              <SectionHeader eyebrow="Finance" title="Calibration Cost (This Year)" />
               <div className="space-y-4">
                 <div>
-                  <span className="text-3xl font-extrabold text-gray-900">₹ {(totalCost || 124500).toLocaleString("en-IN")}</span>
-                  <div className="flex items-center gap-1 mt-1">
-                    <TrendingUp className="text-emerald-500 w-4 h-4" />
-                    <span className="text-xs font-bold text-emerald-600">+10.4% <span className="text-gray-400 font-semibold">vs last year</span></span>
+                  <span className="text-3xl font-extrabold text-[#1A2733]">
+                    ₹ {(totalCost || 0).toLocaleString("en-IN")}
+                  </span>
+                  <div className="mt-1 flex items-center gap-1">
+                    <TrendingUp size={14} className="text-[#16A34A]" />
+                    <span className="text-xs font-semibold text-[#16A34A]">
+                      +10.4% <span className="font-medium text-[#8A97A4]">vs last year</span>
+                    </span>
                   </div>
                 </div>
-
-                <div className="space-y-2">
-                  <div className="flex justify-between text-[11px] font-semibold text-gray-400 uppercase">
+                <div>
+                  <div className="mb-2 flex justify-between text-[11px] font-semibold uppercase text-[#8A97A4]">
                     <span>Yearly Budget Consumed</span>
-                    <span className="font-bold text-gray-700">62.2%</span>
+                    <span className="text-[#1A2733]">{budgetPct}%</span>
                   </div>
-                  <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
-                    <div className="bg-[#2562AA] h-full rounded-full" style={{ width: "62.2%" }} />
+                  <div className="h-2 overflow-hidden rounded-full bg-[#EDF0F3]">
+                    <div className="lab-meter-fill h-full" style={{ width: `${budgetPct}%` }} />
                   </div>
                 </div>
               </div>
             </div>
-
-            <div className="mt-8 border-t border-gray-100 pt-4 text-xs font-medium text-gray-500 space-y-1">
+            <div className="mt-6 space-y-2 border-t border-[#E2E6EB] pt-4 text-xs font-medium text-[#57687A]">
               <div className="flex justify-between">
                 <span>Avg. Cost / Certificate</span>
-                <span className="font-bold text-gray-805">₹ 11,250</span>
+                <span className="font-bold text-[#1A2733]">₹ 11,250</span>
               </div>
               <div className="flex justify-between">
                 <span>Active Contracts</span>
-                <span className="font-bold text-emerald-600">3 Agencies</span>
+                <span className="font-bold text-[#16A34A]">3 Agencies</span>
               </div>
             </div>
-
-          </div>
-
-        </div>
-
-      </div>
+          </motion.div>
+        </section>
+      </EquipmentWorkspace>
     </MainLayout>
   );
 };

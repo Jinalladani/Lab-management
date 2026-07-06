@@ -411,7 +411,7 @@ const SampleMasterList = () => {
                   setAddForm({});
                   setShowAddDialog(true);
                 }}
-                className="flex items-center gap-2 px-4 py-2 bg-[#2b63ae] text-white rounded-lg hover:bg-[#1e4a8c] transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-[#243744] text-white rounded-lg hover:bg-[#1A2733] transition-colors"
               >
                 <AddIcon className="w-4 h-4" />
                 Add Category
@@ -428,7 +428,7 @@ const SampleMasterList = () => {
                           type="text"
                           value={editForm.category_name}
                           onChange={(e) => setEditForm({ ...editForm, category_name: e.target.value })}
-                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#2b63ae] focus:border-transparent"
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#243744]/10 focus:border-[#243744]"
                         />
                       </div>
                       <div>
@@ -436,7 +436,7 @@ const SampleMasterList = () => {
                         <textarea
                           value={editForm.description}
                           onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#2b63ae] focus:border-transparent"
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#243744]/10 focus:border-[#243744]"
                           rows="3"
                         />
                       </div>
@@ -515,7 +515,7 @@ const SampleMasterList = () => {
                   setAddForm({});
                   setShowAddDialog(true);
                 }}
-                className="flex items-center gap-2 px-4 py-2 bg-[#2b63ae] text-white rounded-lg hover:bg-[#1e4a8c] transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-[#243744] text-white rounded-lg hover:bg-[#1A2733] transition-colors"
               >
                 <AddIcon className="w-4 h-4" />
                 Add Material Type
@@ -531,7 +531,7 @@ const SampleMasterList = () => {
                         <select
                           value={editForm.material_category_id}
                           onChange={(e) => setEditForm({ ...editForm, material_category_id: e.target.value })}
-                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#2b63ae] focus:border-transparent"
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#243744]/10 focus:border-[#243744]"
                         >
                           <option value="">Select a category</option>
                           {materialCategories.map((category) => (
@@ -547,7 +547,7 @@ const SampleMasterList = () => {
                           type="text"
                           value={editForm.type_name}
                           onChange={(e) => setEditForm({ ...editForm, type_name: e.target.value })}
-                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#2b63ae] focus:border-transparent"
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#243744]/10 focus:border-[#243744]"
                         />
                       </div>
                       <div>
@@ -555,7 +555,7 @@ const SampleMasterList = () => {
                         <textarea
                           value={editForm.description}
                           onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#2b63ae] focus:border-transparent"
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#243744]/10 focus:border-[#243744]"
                           rows="3"
                         />
                       </div>
@@ -637,7 +637,7 @@ const SampleMasterList = () => {
                   setAddForm({});
                   setShowAddDialog(true);
                 }}
-                className="flex items-center gap-2 px-4 py-2 bg-[#2b63ae] text-white rounded-lg hover:bg-[#1e4a8c] transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-[#243744] text-white rounded-lg hover:bg-[#1A2733] transition-colors"
               >
                 <AddIcon className="w-4 h-4" />
                 Add Sample Type
@@ -653,7 +653,7 @@ const SampleMasterList = () => {
                         <select
                           value={editForm.material_type_id}
                           onChange={(e) => setEditForm({ ...editForm, material_type_id: e.target.value })}
-                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#2b63ae] focus:border-transparent"
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#243744]/10 focus:border-[#243744]"
                         >
                           <option value="">Select a material type</option>
                           {materialTypes.map((materialType) => (
@@ -669,7 +669,7 @@ const SampleMasterList = () => {
                           type="text"
                           value={editForm.sample_type_name}
                           onChange={(e) => setEditForm({ ...editForm, sample_type_name: e.target.value })}
-                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#2b63ae] focus:border-transparent"
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#243744]/10 focus:border-[#243744]"
                         />
                       </div>
                       <div>
@@ -677,7 +677,7 @@ const SampleMasterList = () => {
                         <textarea
                           value={editForm.description}
                           onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#2b63ae] focus:border-transparent"
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#243744]/10 focus:border-[#243744]"
                           rows="3"
                         />
                       </div>
@@ -756,7 +756,7 @@ const SampleMasterList = () => {
                   setAddForm({});
                   setShowAddDialog(true);
                 }}
-                className="flex items-center gap-2 px-4 py-2 bg-[#2b63ae] text-white rounded-lg hover:bg-[#1e4a8c] transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-[#243744] text-white rounded-lg hover:bg-[#1A2733] transition-colors"
               >
                 <AddIcon className="w-4 h-4" />
                 Add Sample Condition
@@ -773,7 +773,7 @@ const SampleMasterList = () => {
                           type="text"
                           value={editForm.condition_name}
                           onChange={(e) => setEditForm({ ...editForm, condition_name: e.target.value })}
-                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#2b63ae] focus:border-transparent"
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#243744]/10 focus:border-[#243744]"
                         />
                       </div>
                       <div>
@@ -781,7 +781,7 @@ const SampleMasterList = () => {
                         <textarea
                           value={editForm.description}
                           onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#2b63ae] focus:border-transparent"
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#243744]/10 focus:border-[#243744]"
                           rows="3"
                         />
                       </div>
@@ -860,7 +860,7 @@ const SampleMasterList = () => {
                   setAddForm({});
                   setShowAddDialog(true);
                 }}
-                className="flex items-center gap-2 px-4 py-2 bg-[#2b63ae] text-white rounded-lg hover:bg-[#1e4a8c] transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-[#243744] text-white rounded-lg hover:bg-[#1A2733] transition-colors"
               >
                 <AddIcon className="w-4 h-4" />
                 Add Sample Location
@@ -877,7 +877,7 @@ const SampleMasterList = () => {
                           type="text"
                           value={editForm.location_name}
                           onChange={(e) => setEditForm({ ...editForm, location_name: e.target.value })}
-                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#2b63ae] focus:border-transparent"
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#243744]/10 focus:border-[#243744]"
                         />
                       </div>
                       <div>
@@ -885,7 +885,7 @@ const SampleMasterList = () => {
                         <textarea
                           value={editForm.description}
                           onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#2b63ae] focus:border-transparent"
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#243744]/10 focus:border-[#243744]"
                           rows="3"
                         />
                       </div>
@@ -964,7 +964,7 @@ const SampleMasterList = () => {
                   setAddForm({});
                   setShowAddDialog(true);
                 }}
-                className="flex items-center gap-2 px-4 py-2 bg-[#2b63ae] text-white rounded-lg hover:bg-[#1e4a8c] transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-[#243744] text-white rounded-lg hover:bg-[#1A2733] transition-colors"
               >
                 <AddIcon className="w-4 h-4" />
                 Add Testing Days
@@ -981,7 +981,7 @@ const SampleMasterList = () => {
                           type="number"
                           value={editForm.days}
                           onChange={(e) => setEditForm({ ...editForm, days: e.target.value })}
-                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#2b63ae] focus:border-transparent"
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#243744]/10 focus:border-[#243744]"
                         />
                       </div>
                       <div>
@@ -989,7 +989,7 @@ const SampleMasterList = () => {
                         <textarea
                           value={editForm.description}
                           onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#2b63ae] focus:border-transparent"
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#243744]/10 focus:border-[#243744]"
                           rows="3"
                         />
                       </div>
@@ -1068,7 +1068,7 @@ const SampleMasterList = () => {
                   setAddForm({});
                   setShowAddDialog(true);
                 }}
-                className="flex items-center gap-2 px-4 py-2 bg-[#2b63ae] text-white rounded-lg hover:bg-[#1e4a8c] transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-[#243744] text-white rounded-lg hover:bg-[#1A2733] transition-colors"
               >
                 <AddIcon className="w-4 h-4" />
                 Add Sample Grade
@@ -1084,7 +1084,7 @@ const SampleMasterList = () => {
                         <select
                           value={editForm.material_category_id}
                           onChange={(e) => setEditForm({ ...editForm, material_category_id: e.target.value })}
-                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#2b63ae] focus:border-transparent"
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#243744]/10 focus:border-[#243744]"
                         >
                           <option value="">Select a category</option>
                           {materialCategories.map((category) => (
@@ -1100,7 +1100,7 @@ const SampleMasterList = () => {
                           type="text"
                           value={editForm.grade_name}
                           onChange={(e) => setEditForm({ ...editForm, grade_name: e.target.value })}
-                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#2b63ae] focus:border-transparent"
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#243744]/10 focus:border-[#243744]"
                         />
                       </div>
                       <div>
@@ -1108,7 +1108,7 @@ const SampleMasterList = () => {
                         <textarea
                           value={editForm.grade_description}
                           onChange={(e) => setEditForm({ ...editForm, grade_description: e.target.value })}
-                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#2b63ae] focus:border-transparent"
+                          className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#243744]/10 focus:border-[#243744]"
                           rows="3"
                         />
                       </div>
@@ -1239,7 +1239,7 @@ const SampleMasterList = () => {
                         type="text"
                         value={addForm.category_name || ''}
                         onChange={(e) => setAddForm({ ...addForm, category_name: e.target.value })}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#2b63ae] focus:border-transparent"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#243744]/10 focus:border-[#243744]"
                         placeholder="Enter category name"
                       />
                     </div>
@@ -1248,7 +1248,7 @@ const SampleMasterList = () => {
                       <textarea
                         value={addForm.description || ''}
                         onChange={(e) => setAddForm({ ...addForm, description: e.target.value })}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#2b63ae] focus:border-transparent"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#243744]/10 focus:border-[#243744]"
                         rows="3"
                         placeholder="Enter description"
                       />
@@ -1263,7 +1263,7 @@ const SampleMasterList = () => {
                       <select
                         value={addForm.material_category_id || ''}
                         onChange={(e) => setAddForm({ ...addForm, material_category_id: e.target.value })}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#2b63ae] focus:border-transparent"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#243744]/10 focus:border-[#243744]"
                       >
                         <option value="">Select a category</option>
                         {materialCategories.map((category) => (
@@ -1279,7 +1279,7 @@ const SampleMasterList = () => {
                         type="text"
                         value={addForm.type_name || ''}
                         onChange={(e) => setAddForm({ ...addForm, type_name: e.target.value })}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#2b63ae] focus:border-transparent"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#243744]/10 focus:border-[#243744]"
                         placeholder="Enter type name"
                       />
                     </div>
@@ -1288,7 +1288,7 @@ const SampleMasterList = () => {
                       <textarea
                         value={addForm.description || ''}
                         onChange={(e) => setAddForm({ ...addForm, description: e.target.value })}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#2b63ae] focus:border-transparent"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#243744]/10 focus:border-[#243744]"
                         rows="3"
                         placeholder="Enter description"
                       />
@@ -1303,7 +1303,7 @@ const SampleMasterList = () => {
                       <select
                         value={addForm.material_type_id || ''}
                         onChange={(e) => setAddForm({ ...addForm, material_type_id: e.target.value })}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#2b63ae] focus:border-transparent"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#243744]/10 focus:border-[#243744]"
                       >
                         <option value="">Select a material type</option>
                         {materialTypes.map((type) => (
@@ -1319,7 +1319,7 @@ const SampleMasterList = () => {
                         type="text"
                         value={addForm.sample_type_name || ''}
                         onChange={(e) => setAddForm({ ...addForm, sample_type_name: e.target.value })}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#2b63ae] focus:border-transparent"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#243744]/10 focus:border-[#243744]"
                         placeholder="Enter sample type name"
                       />
                     </div>
@@ -1328,7 +1328,7 @@ const SampleMasterList = () => {
                       <textarea
                         value={addForm.description || ''}
                         onChange={(e) => setAddForm({ ...addForm, description: e.target.value })}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#2b63ae] focus:border-transparent"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#243744]/10 focus:border-[#243744]"
                         rows="3"
                         placeholder="Enter description"
                       />
@@ -1344,7 +1344,7 @@ const SampleMasterList = () => {
                         type="text"
                         value={addForm.condition_name || ''}
                         onChange={(e) => setAddForm({ ...addForm, condition_name: e.target.value })}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#2b63ae] focus:border-transparent"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#243744]/10 focus:border-[#243744]"
                         placeholder="Enter condition name"
                       />
                     </div>
@@ -1353,7 +1353,7 @@ const SampleMasterList = () => {
                       <textarea
                         value={addForm.description || ''}
                         onChange={(e) => setAddForm({ ...addForm, description: e.target.value })}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#2b63ae] focus:border-transparent"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#243744]/10 focus:border-[#243744]"
                         rows="3"
                         placeholder="Enter description"
                       />
@@ -1369,7 +1369,7 @@ const SampleMasterList = () => {
                         type="text"
                         value={addForm.location_name || ''}
                         onChange={(e) => setAddForm({ ...addForm, location_name: e.target.value })}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#2b63ae] focus:border-transparent"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#243744]/10 focus:border-[#243744]"
                         placeholder="Enter location name"
                       />
                     </div>
@@ -1378,7 +1378,7 @@ const SampleMasterList = () => {
                       <textarea
                         value={addForm.description || ''}
                         onChange={(e) => setAddForm({ ...addForm, description: e.target.value })}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#2b63ae] focus:border-transparent"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#243744]/10 focus:border-[#243744]"
                         rows="3"
                         placeholder="Enter description"
                       />
@@ -1394,7 +1394,7 @@ const SampleMasterList = () => {
                         type="number"
                         value={addForm.days || ''}
                         onChange={(e) => setAddForm({ ...addForm, days: e.target.value })}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#2b63ae] focus:border-transparent"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#243744]/10 focus:border-[#243744]"
                         placeholder="Enter number of days"
                       />
                     </div>
@@ -1403,7 +1403,7 @@ const SampleMasterList = () => {
                       <textarea
                         value={addForm.description || ''}
                         onChange={(e) => setAddForm({ ...addForm, description: e.target.value })}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#2b63ae] focus:border-transparent"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#243744]/10 focus:border-[#243744]"
                         rows="3"
                         placeholder="Enter description"
                       />
@@ -1418,7 +1418,7 @@ const SampleMasterList = () => {
                       <select
                         value={addForm.material_category_id || ''}
                         onChange={(e) => setAddForm({ ...addForm, material_category_id: e.target.value })}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#2b63ae] focus:border-transparent"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#243744]/10 focus:border-[#243744]"
                       >
                         <option value="">Select a category</option>
                         {materialCategories.map((category) => (
@@ -1434,7 +1434,7 @@ const SampleMasterList = () => {
                         type="text"
                         value={addForm.grade_name || ''}
                         onChange={(e) => setAddForm({ ...addForm, grade_name: e.target.value })}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#2b63ae] focus:border-transparent"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#243744]/10 focus:border-[#243744]"
                         placeholder="Enter grade name"
                       />
                     </div>
@@ -1443,7 +1443,7 @@ const SampleMasterList = () => {
                       <textarea
                         value={addForm.grade_description || ''}
                         onChange={(e) => setAddForm({ ...addForm, grade_description: e.target.value })}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#2b63ae] focus:border-transparent"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-[#243744]/10 focus:border-[#243744]"
                         rows="3"
                         placeholder="Enter grade description"
                       />
@@ -1456,7 +1456,7 @@ const SampleMasterList = () => {
                 <button
                   onClick={handleCreate}
                   disabled={loading}
-                  className="flex-1 px-4 py-2 bg-[#2b63ae] text-white rounded-lg hover:bg-[#1e4a8c] transition-colors disabled:opacity-50"
+                  className="flex-1 px-4 py-2 bg-[#243744] text-white rounded-lg hover:bg-[#1A2733] transition-colors disabled:opacity-50"
                 >
                   {loading ? "Creating..." : "Create"}
                 </button>

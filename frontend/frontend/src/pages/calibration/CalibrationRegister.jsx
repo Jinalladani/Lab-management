@@ -23,9 +23,9 @@ const getStatusBadge = (status) => {
   const isPass = norm === "pass";
   return (
     <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full ${
-      isPass ? "bg-[#ECFDF5] text-[#10B981]" : "bg-[#FEF2F2] text-[#EF4444]"
+      isPass ? "bg-[#F0FDF4] text-[#16A34A]" : "bg-[#FEF2F2] text-[#DC2626]"
     }`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${isPass ? "bg-[#10B981]" : "bg-[#EF4444]"}`} />
+      <span className={`w-1.5 h-1.5 rounded-full ${isPass ? "bg-[#16A34A]" : "bg-[#DC2626]"}`} />
       {status || "Pass"}
     </span>
   );

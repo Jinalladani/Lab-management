@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Plus, Eye, Pencil, Trash2, Search, RefreshCw, Download, MoreHorizontal, FlaskConical
+  Plus, Eye, Pencil, Trash2, Search, RefreshCw, Download, MoreHorizontal, FlaskConical, FileText
 } from "lucide-react";
 import { MainLayout } from "../../components/layout";
 import AddSampleDrawer from "../../components/projects/AddSampleDrawer";
@@ -13,6 +13,7 @@ import {
   deleteSampleEntry,
 } from "../../api/sampleEntries";
 import { getProjects } from "../../api/projects";
+import { generateReport } from "../../api/reports";
 import { TableSkeleton } from "../../components/ui/Skeleton";
 import { toast, Toaster } from "sonner";
 
@@ -140,6 +141,7 @@ const SamplesList = () => {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
+  const navigate = useNavigate();
   const location = useLocation();
   const [projectFilter, setProjectFilter] = useState(() => {
     const queryId = new URLSearchParams(window.location.search).get("project_id");
@@ -242,6 +244,24 @@ const SamplesList = () => {
       fetchSamples();
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to delete sample");
+    }
+  };
+
+  const handleGenerateReport = async (sample) => {
+    const sampleId = getSampleId(sample);
+    try {
+      toast.loading("Generating test report from observations...");
+      const res = await generateReport(sampleId);
+      toast.dismiss();
+      if (res.success && res.data) {
+        toast.success(res.message || "Report generated successfully!");
+        navigate(`/reports/view/${res.data.report_id}`);
+      } else {
+        toast.error(res.message || "Failed to generate report.");
+      }
+    } catch (err) {
+      toast.dismiss();
+      toast.error(err.response?.data?.message || err.message || "Failed to generate report.");
     }
   };
 
@@ -368,6 +388,7 @@ const SamplesList = () => {
                             actions={[
                               { label: "View Details", icon: Eye, onClick: () => openDrawer("view", sample) },
                               { label: "Edit Sample", icon: Pencil, onClick: () => openDrawer("edit", sample) },
+                              { label: "Generate Report", icon: FileText, onClick: () => handleGenerateReport(sample) },
                               { label: "Delete Sample", icon: Trash2, danger: true, onClick: () => handleDelete(sample) }
                             ]}
                           />
