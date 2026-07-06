@@ -1,32 +1,145 @@
-import React, { useEffect, useRef, useState } from "react";
-import { getClientById } from "../../api/clients";
+import React, { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useParams, useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
+import {
+  ArrowLeft,
+  Edit,
+  MoreHorizontal,
+  Briefcase,
+  User,
+  Mail,
+  Phone,
+  MapPin,
+  CreditCard,
+  Shield,
+  Info
+} from "lucide-react";
+import { getClientById } from "../../api/clients";
 import { MainLayout } from "../../components/layout";
-import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import EditIcon from "@mui/icons-material/Edit";
-import MoreVertIcon from "@mui/icons-material/MoreVert";
+import { Button } from "../../components/ui";
+
+const getStatusBadge = (status) => {
+  const norm = String(status || "").toLowerCase();
+  const map = {
+    active: { text: "Active", bg: "bg-[#ECFDF5] text-[#10B981] border-[#D1FAE5]", dot: "bg-[#10B981]" },
+    inactive: { text: "Inactive", bg: "bg-[#F8FAFC] text-[#64748B] border-[#E2E8F0]", dot: "bg-[#64748B]" },
+    suspended: { text: "Suspended", bg: "bg-[#FEF2F2] text-[#EF4444] border-[#FEE2E2]", dot: "bg-[#EF4444]" },
+  };
+  const config = map[norm] || { text: status, bg: "bg-slate-50 text-slate-600 border-slate-200", dot: "bg-slate-500" };
+  return (
+    <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full border ${config.bg}`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${config.dot}`} />
+      {config.text}
+    </span>
+  );
+};
+
+// Reusable Portal Action Menu to prevent parent clip and handle screen boundary directions
+const PortalActionMenu = ({ anchorEl, open, onClose, actions }) => {
+  const [style, setStyle] = useState(null);
+
+  useEffect(() => {
+    if (!open || !anchorEl) return;
+
+    const updatePosition = () => {
+      const rect = anchorEl.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+
+      const estimatedHeight = actions.length * 36 + 12;
+      const dropdownWidth = 160;
+      const gap = 6;
+
+      const spaceBelow = viewportHeight - rect.bottom;
+      
+      let top;
+      if (spaceBelow >= estimatedHeight + gap) {
+        top = rect.bottom + window.scrollY + gap;
+      } else {
+        top = rect.top + window.scrollY - estimatedHeight - gap;
+      }
+
+      let left = rect.right - dropdownWidth + window.scrollX;
+      if (left < 8) left = 8;
+      if (left + dropdownWidth > viewportWidth - 8) {
+        left = viewportWidth - dropdownWidth - 8;
+      }
+
+      setStyle({
+        position: "absolute",
+        top: `${top}px`,
+        left: `${left}px`,
+        width: `${dropdownWidth}px`,
+        zIndex: 9999,
+      });
+    };
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+
+    const handleClickOutside = (event) => {
+      if (anchorEl && !anchorEl.contains(event.target) && !event.target.closest(".portal-action-menu")) {
+        onClose();
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [open, anchorEl, onClose, actions]);
+
+  if (!open || !anchorEl || !style) return null;
+
+  return createPortal(
+    <div
+      style={style}
+      className="portal-action-menu bg-white rounded-xl border border-[#E2E8F0] shadow-lg py-1.5 text-left text-slate-800"
+    >
+      {actions.map((act, idx) => {
+        const Icon = act.icon;
+        return (
+          <button
+            key={idx}
+            onClick={() => {
+              onClose();
+              act.onClick();
+            }}
+            className={`w-full px-4 py-2 text-xs font-semibold flex items-center gap-2 hover:bg-[#FAF9FF] transition-colors ${
+              act.danger ? "text-red-600 hover:text-red-700 hover:bg-red-50" : "text-[#475569] hover:text-[#243744]"
+            }`}
+          >
+            {Icon && <Icon size={14} />}
+            {act.label}
+          </button>
+        );
+      })}
+    </div>,
+    document.body
+  );
+};
 
 const LabClientView = () => {
-  const params = useParams();
+  const { id } = useParams();
   const navigate = useNavigate();
-  const client_id = params?.id || params.client_id;
-  const clientId = client_id;
 
   const [client, setClient] = useState(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [loading, setLoading] = useState(false);
-  const [showActionDropdown, setShowActionDropdown] = useState(false);
-  const [dropdownPosition, setDropdownPosition] = useState("bottom");
 
-  const dropdownRef = useRef(null);
-  const buttonRef = useRef(null);
+  // Dropdown States
+  const [showActions, setShowActions] = useState(false);
+  const [activeAnchorEl, setActiveAnchorEl] = useState(null);
 
   const fetchClient = async () => {
     try {
       setLoading(true);
       setErrorMessage("");
-
-      const response = await getClientById(clientId);
+      const response = await getClientById(id);
       setClient(response.data?.data || null);
     } catch (error) {
       setErrorMessage(
@@ -38,316 +151,181 @@ const LabClientView = () => {
   };
 
   useEffect(() => {
-    if (clientId) {
-      fetchClient();
-    }
-  }, [clientId]);
+    if (id) fetchClient();
+  }, [id]);
 
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(event.target) &&
-        buttonRef.current &&
-        !buttonRef.current.contains(event.target)
-      ) {
-        setShowActionDropdown(false);
-      }
-    };
-
-    const handleResize = () => {
-      if (showActionDropdown) {
-        updateDropdownPosition();
-      }
-    };
-
-    const handleScroll = () => {
-      if (showActionDropdown) {
-        updateDropdownPosition();
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    window.addEventListener("resize", handleResize);
-    window.addEventListener("scroll", handleScroll, true);
-
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-      window.removeEventListener("resize", handleResize);
-      window.removeEventListener("scroll", handleScroll, true);
-    };
-  }, [showActionDropdown]);
-
-  const updateDropdownPosition = () => {
-    if (!buttonRef.current) return;
-
-    const rect = buttonRef.current.getBoundingClientRect();
-    const spaceBelow = window.innerHeight - rect.bottom;
-    const estimatedDropdownHeight = 110;
-
-    if (spaceBelow < estimatedDropdownHeight && rect.top > estimatedDropdownHeight) {
-      setDropdownPosition("top");
+  const handleToggleActions = (event) => {
+    if (showActions) {
+      setShowActions(false);
+      setActiveAnchorEl(null);
     } else {
-      setDropdownPosition("bottom");
+      setShowActions(true);
+      setActiveAnchorEl(event.currentTarget);
     }
   };
 
-  const handleDropdownToggle = () => {
-    if (!showActionDropdown) {
-      updateDropdownPosition();
-    }
-    setShowActionDropdown((prev) => !prev);
-  };
-
-  if (loading) {
-    return (
-      <MainLayout
-        headerTitle="Lab Client View"
-        headerSubtitle="Loading client data..."
-      >
-        <div className="p-6">
-          <div className="text-center">Loading client data...</div>
-        </div>
-      </MainLayout>
-    );
-  }
-
-  if (errorMessage) {
-    return (
-      <MainLayout
-        headerTitle="Lab Client View"
-        headerSubtitle="Error loading data"
-      >
-        <div className="p-6 text-red-500">{errorMessage}</div>
-      </MainLayout>
-    );
-  }
-
-  if (!client) {
-    return (
-      <MainLayout headerTitle="Lab Client View" headerSubtitle="No data found">
-        <div className="p-6">No client found</div>
-      </MainLayout>
-    );
-  }
+  const detailBoxClass = "px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 break-words min-h-[44px] flex items-center";
 
   return (
-    <MainLayout
-      headerTitle="Lab Client View"
-      headerSubtitle={`Viewing ${client?.client_name || "Client"}`}
-    >
-      <div className="p-4 sm:p-6">
-        <button
-          onClick={() => navigate("/labClients")}
-          className="mb-4 flex items-center gap-2 text-[#2d66b3] font-medium hover:text-[#1f5498] transition-colors"
-        >
-          <ArrowBackIcon fontSize="small" />
+    <MainLayout headerTitle="Lab Client Details" headerSubtitle={`Viewing Profile: ${client?.client_name || ""}`}>
+      <div className="mx-auto w-full max-w-[1800px] px-4 py-5 sm:px-5 lg:px-6">
+        <Button variant="ghost" size="sm" icon={ArrowLeft} onClick={() => navigate("/labClients")} className="mb-4">
           Back
-        </button>
+        </Button>
 
-        <div className="w-full">
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-visible">
-            <div className="p-4 sm:p-6 lg:p-8 border-b border-gray-200">
-              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
-                <div className="min-w-0 flex-1">
-                  <h1 className="text-xl sm:text-2xl font-bold text-gray-900 break-words">
-                    {client.client_name}
-                  </h1>
-                </div>
+        {errorMessage && (
+          <div className="mb-5 flex items-center gap-3 rounded-xl border border-[#FECACA] bg-[#FEF2F2] px-4 py-3 text-sm text-red-600 font-medium">
+            <Info size={16} />
+            {errorMessage}
+          </div>
+        )}
 
-                <div className="flex items-center justify-between sm:justify-end gap-3 relative">
-                  <span className="px-3 sm:px-4 py-1 sm:py-2 rounded-full text-xs sm:text-sm font-medium bg-blue-100 text-blue-700 whitespace-nowrap">
-                    {client.status}
-                  </span>
+        {loading ? (
+          <div className="bg-white rounded-2xl border border-[#E2E8F0] shadow-sm p-16 text-center text-sm font-semibold text-gray-500">
+            Loading client profile details...
+          </div>
+        ) : !client ? (
+          <div className="bg-white rounded-2xl border border-[#E2E8F0] shadow-sm p-16 text-center text-sm font-semibold text-gray-500">
+            No client records found.
+          </div>
+        ) : (
+          <div className="bg-white rounded-2xl border border-[#E2E8F0] shadow-sm p-6 sm:p-8 !overflow-visible">
+            {/* Header section inside the single box */}
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4 mb-6 pb-6 border-b border-[#F1F5F9]">
+              <div className="min-w-0 flex-1">
+                <h1 className="text-xl sm:text-2xl font-black text-gray-900 break-words tracking-tight">
+                  {client.client_name}
+                </h1>
+                <p className="text-xs text-slate-500 font-semibold mt-1">Client ID: {id}</p>
+              </div>
 
-                  <div className="relative shrink-0">
-                    <button
-                      ref={buttonRef}
-                      onClick={handleDropdownToggle}
-                      className="flex items-center justify-center p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors"
-                      title="Actions"
-                    >
-                      <MoreVertIcon className="w-5 h-5 text-gray-600" />
-                    </button>
+              <div className="flex items-center gap-3 shrink-0">
+                {getStatusBadge(client.status)}
+                
+                <button
+                  onClick={handleToggleActions}
+                  className="p-2 hover:bg-[#F1F5F9] rounded-xl transition-colors text-[#8A97A4] hover:text-[#1A2733] border border-[#E2E8F0]"
+                >
+                  <MoreHorizontal size={18} />
+                </button>
 
-                    {showActionDropdown && (
-                      <div
-                        ref={dropdownRef}
-                        className={`
-                          absolute right-0 z-[9999]
-                          w-44 sm:w-48
-                          bg-white rounded-lg shadow-xl border border-gray-200
-                          overflow-hidden
-                          ${dropdownPosition === "top" ? "bottom-full mb-2" : "top-full mt-2"}
-                          max-[480px]:right-0
-                          max-[480px]:w-40
-                        `}
-                      >
-                        <div className="py-1">
-                          <button
-                            onClick={() => {
-                              navigate(`/labClients/edit/${clientId}`);
-                              setShowActionDropdown(false);
-                            }}
-                            className="flex items-center gap-2 w-full px-4 py-3 text-sm text-gray-700 hover:bg-gray-100 transition-colors text-left"
-                          >
-                            <EditIcon className="w-4 h-4 shrink-0" />
-                            <span>Edit Client</span>
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
+                <PortalActionMenu
+                  anchorEl={showActions ? activeAnchorEl : null}
+                  open={showActions}
+                  onClose={() => { setShowActions(false); setActiveAnchorEl(null); }}
+                  actions={[
+                    {
+                      label: "Edit Client",
+                      icon: Edit,
+                      onClick: () => navigate(`/labClients/edit/${id}`)
+                    }
+                  ]}
+                />
               </div>
             </div>
 
-            <div className="p-4 sm:p-6 lg:p-8">
-              <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 lg:gap-6">
-                <div className="xl:col-span-2 space-y-4 lg:space-y-6">
-                  <div className="bg-gray-50 rounded-lg p-4 sm:p-6">
-                    <h2 className="text-base sm:text-lg font-semibold text-gray-800 mb-3 sm:mb-4 flex items-center">
-                      <span className="w-2 h-2 bg-[#2b63ae] rounded-full mr-2"></span>
-                      Basic Information
-                    </h2>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                      <div>
-                        <label className="block mb-2 text-sm font-medium text-gray-500">
-                          Company Name
-                        </label>
-                        <div className="px-3 sm:px-4 py-2 sm:py-3 bg-white border border-gray-200 rounded-lg">
-                          <p className="text-sm sm:text-base font-medium text-gray-900 break-words">
-                            {client.client_name || "-"}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="block mb-2 text-sm font-medium text-gray-500">
-                          Contact Person
-                        </label>
-                        <div className="px-3 sm:px-4 py-2 sm:py-3 bg-white border border-gray-200 rounded-lg">
-                          <p className="text-sm sm:text-base font-medium text-gray-900 break-words">
-                            {client.contact_person || "-"}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="block mb-2 text-sm font-medium text-gray-500">
-                          Email
-                        </label>
-                        <div className="px-3 sm:px-4 py-2 sm:py-3 bg-white border border-gray-200 rounded-lg">
-                          <p className="text-sm sm:text-base font-medium text-gray-900 break-words">
-                            {client.email || "-"}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="block mb-2 text-sm font-medium text-gray-500">
-                          Phone
-                        </label>
-                        <div className="px-3 sm:px-4 py-2 sm:py-3 bg-white border border-gray-200 rounded-lg">
-                          <p className="text-sm sm:text-base font-medium text-gray-900 break-words">
-                            {client.phone || "-"}
-                          </p>
-                        </div>
-                      </div>
+            {/* Content side-by-side details */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              {/* Left Column - Company details & Address */}
+              <div className="lg:col-span-2 space-y-6">
+                
+                {/* Basic Information */}
+                <div>
+                  <h3 className="text-sm font-bold text-[#1A2733] flex items-center gap-2 mb-4">
+                    <Briefcase size={16} className="text-[#3F6E8C]" />
+                    Basic Information
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Company Name</label>
+                      <div className={detailBoxClass}>{client.client_name || "—"}</div>
                     </div>
-                  </div>
-
-                  <div className="bg-gray-50 rounded-lg p-4 sm:p-6">
-                    <h2 className="text-base sm:text-lg font-semibold text-gray-800 mb-3 sm:mb-4 flex items-center">
-                      <span className="w-2 h-2 bg-[#2b63ae] rounded-full mr-2"></span>
-                      Address Information
-                    </h2>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                      <div className="sm:col-span-2">
-                        <label className="block mb-2 text-sm font-medium text-gray-500">
-                          Address
-                        </label>
-                        <div className="px-3 sm:px-4 py-2 sm:py-3 bg-white border border-gray-200 rounded-lg min-h-[80px] sm:min-h-[100px]">
-                          <p className="text-sm sm:text-base font-medium text-gray-900 break-words whitespace-pre-wrap">
-                            {client.address || "-"}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="block mb-2 text-sm font-medium text-gray-500">
-                          City
-                        </label>
-                        <div className="px-3 sm:px-4 py-2 sm:py-3 bg-white border border-gray-200 rounded-lg">
-                          <p className="text-sm sm:text-base font-medium text-gray-900 break-words">
-                            {client.city || "-"}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="block mb-2 text-sm font-medium text-gray-500">
-                          State
-                        </label>
-                        <div className="px-3 sm:px-4 py-2 sm:py-3 bg-white border border-gray-200 rounded-lg">
-                          <p className="text-sm sm:text-base font-medium text-gray-900 break-words">
-                            {client.state || "-"}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="block mb-2 text-sm font-medium text-gray-500">
-                          Pincode
-                        </label>
-                        <div className="px-3 sm:px-4 py-2 sm:py-3 bg-white border border-gray-200 rounded-lg">
-                          <p className="text-sm sm:text-base font-medium text-gray-900 break-words">
-                            {client.pincode || "-"}
-                          </p>
-                        </div>
-                      </div>
+                    <div>
+                      <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Contact Person</label>
+                      <div className={detailBoxClass}>{client.contact_person || "—"}</div>
+                    </div>
+                    <div>
+                      <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Email Address</label>
+                      <div className={detailBoxClass}>{client.email || "—"}</div>
+                    </div>
+                    <div>
+                      <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Phone Number</label>
+                      <div className={detailBoxClass}>{client.phone || "—"}</div>
                     </div>
                   </div>
                 </div>
 
-                <div className="space-y-4 lg:space-y-6">
-                  <div className="bg-gray-50 rounded-lg p-4 sm:p-6">
-                    <h2 className="text-base sm:text-lg font-semibold text-gray-800 mb-3 sm:mb-4 flex items-center">
-                      <span className="w-2 h-2 bg-[#2b63ae] rounded-full mr-2"></span>
-                      Tax Information
-                    </h2>
+                {/* Divider */}
+                <div className="h-px bg-[#F1F5F9]" />
 
-                    <div className="space-y-3 sm:space-y-4">
-                      <div>
-                        <label className="block mb-2 text-sm font-medium text-gray-500">
-                          GST Number
-                        </label>
-                        <div className="px-3 sm:px-4 py-2 sm:py-3 bg-white border border-gray-200 rounded-lg">
-                          <p className="text-sm sm:text-base font-medium text-gray-900 break-words">
-                            {client.gst_no || "-"}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="block mb-2 text-sm font-medium text-gray-500">
-                          PAN Number
-                        </label>
-                        <div className="px-3 sm:px-4 py-2 sm:py-3 bg-white border border-gray-200 rounded-lg">
-                          <p className="text-sm sm:text-base font-medium text-gray-900 break-words">
-                            {client.pan_no || "-"}
-                          </p>
-                        </div>
+                {/* Address Information */}
+                <div>
+                  <h3 className="text-sm font-bold text-[#1A2733] flex items-center gap-2 mb-4">
+                    <MapPin size={16} className="text-[#3F6E8C]" />
+                    Address Information
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="md:col-span-2">
+                      <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Address</label>
+                      <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 break-words min-h-[80px] whitespace-pre-wrap">
+                        {client.address || "—"}
                       </div>
                     </div>
+                    <div>
+                      <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">City</label>
+                      <div className={detailBoxClass}>{client.city || "—"}</div>
+                    </div>
+                    <div>
+                      <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">State</label>
+                      <div className={detailBoxClass}>{client.state || "—"}</div>
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Pincode</label>
+                      <div className={detailBoxClass}>{client.pincode || "—"}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Column - Tax details & Status */}
+              <div className="space-y-6 lg:border-l lg:border-[#F1F5F9] lg:pl-8">
+                
+                {/* Tax Information */}
+                <div>
+                  <h3 className="text-sm font-bold text-[#1A2733] flex items-center gap-2 mb-4">
+                    <CreditCard size={16} className="text-[#3F6E8C]" />
+                    Tax Information
+                  </h3>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">GST Number</label>
+                      <div className={detailBoxClass}>{client.gst_no || "—"}</div>
+                    </div>
+                    <div>
+                      <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">PAN Number</label>
+                      <div className={detailBoxClass}>{client.pan_no || "—"}</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Divider */}
+                <div className="h-px bg-[#F1F5F9]" />
+
+                {/* Status */}
+                <div>
+                  <h3 className="text-sm font-bold text-[#1A2733] flex items-center gap-2 mb-4">
+                    <Shield size={16} className="text-[#3F6E8C]" />
+                    Client Status
+                  </h3>
+                  <div>
+                    <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Status</label>
+                    <div className="mt-1">{getStatusBadge(client.status)}</div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
     </MainLayout>
   );

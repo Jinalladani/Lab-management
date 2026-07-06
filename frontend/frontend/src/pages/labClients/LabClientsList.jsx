@@ -1,23 +1,36 @@
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
+import { useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Plus, Eye, Pencil, Search, RefreshCw, Download, MoreHorizontal, Briefcase
+} from "lucide-react";
 import { getClients } from "../../api/clients";
-import { Link, useNavigate } from "react-router-dom";
 import { MainLayout } from "../../components/layout";
-import Visibility from "@mui/icons-material/Visibility";
-import Edit from "@mui/icons-material/Edit";
-import MoreVert from "@mui/icons-material/MoreVert";
+import { TableSkeleton } from "../../components/ui/Skeleton";
 
-const DROPDOWN_WIDTH = 180;
-const DROPDOWN_HEIGHT = 100;
-const DROPDOWN_GAP = 8;
+const stagger = {
+  container: { hidden: {}, visible: { transition: { staggerChildren: 0.04 } } },
+  item: {
+    hidden: { opacity: 0, y: 8 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.25, ease: [0.22, 0.68, 0, 1] } },
+  },
+};
 
-const ActionDropdownPortal = ({
-  anchorEl,
-  open,
-  onClose,
-  onView,
-  onEdit,
-}) => {
+const getStatusBadge = (status) => {
+  const isActive = String(status || "").toLowerCase() === "active";
+  return (
+    <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full ${
+      isActive ? "bg-[#ECFDF5] text-[#10B981]" : "bg-[#FEF2F2] text-[#EF4444]"
+    }`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${isActive ? "bg-[#10B981]" : "bg-[#EF4444]"}`} />
+      {status || "Active"}
+    </span>
+  );
+};
+
+// Reusable Portal Action Menu to prevent parent clip and handle screen boundary directions
+const PortalActionMenu = ({ anchorEl, open, onClose, actions }) => {
   const [style, setStyle] = useState(null);
 
   useEffect(() => {
@@ -28,83 +41,78 @@ const ActionDropdownPortal = ({
       const viewportWidth = window.innerWidth;
       const viewportHeight = window.innerHeight;
 
-      const spaceBelow = viewportHeight - rect.bottom;
-      const spaceAbove = rect.top;
+      // Estimate menu height based on actions count
+      const estimatedHeight = actions.length * 36 + 12;
+      const dropdownWidth = 150;
+      const gap = 6;
 
+      const spaceBelow = viewportHeight - rect.bottom;
+      
       let top;
-      if (spaceBelow >= DROPDOWN_HEIGHT + DROPDOWN_GAP) {
-        top = rect.bottom + DROPDOWN_GAP;
-      } else if (spaceAbove >= DROPDOWN_HEIGHT + DROPDOWN_GAP) {
-        top = rect.top - DROPDOWN_HEIGHT - DROPDOWN_GAP;
+      if (spaceBelow >= estimatedHeight + gap) {
+        top = rect.bottom + window.scrollY + gap;
       } else {
-        top =
-          spaceBelow >= spaceAbove
-            ? Math.max(8, rect.bottom + DROPDOWN_GAP)
-            : Math.max(8, rect.top - DROPDOWN_HEIGHT - DROPDOWN_GAP);
+        top = rect.top + window.scrollY - estimatedHeight - gap;
       }
 
-      let left = rect.right - DROPDOWN_WIDTH;
-
+      let left = rect.right - dropdownWidth + window.scrollX;
       if (left < 8) left = 8;
-      if (left + DROPDOWN_WIDTH > viewportWidth - 8) {
-        left = viewportWidth - DROPDOWN_WIDTH - 8;
+      if (left + dropdownWidth > viewportWidth - 8) {
+        left = viewportWidth - dropdownWidth - 8;
       }
 
       setStyle({
-        position: "fixed",
+        position: "absolute",
         top: `${top}px`,
         left: `${left}px`,
-        width: `${DROPDOWN_WIDTH}px`,
-        zIndex: 99999,
+        width: `${dropdownWidth}px`,
+        zIndex: 9999,
       });
     };
 
-    const handleClickOutside = (event) => {
-      if (
-        anchorEl &&
-        !anchorEl.contains(event.target) &&
-        !event.target.closest(".action-dropdown-portal")
-      ) {
-        onClose();
-      }
-    };
-
     updatePosition();
-
-    document.addEventListener("mousedown", handleClickOutside);
     window.addEventListener("resize", updatePosition);
     window.addEventListener("scroll", updatePosition, true);
 
+    const handleClickOutside = (event) => {
+      if (anchorEl && !anchorEl.contains(event.target) && !event.target.closest(".portal-action-menu")) {
+        onClose();
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
       window.removeEventListener("resize", updatePosition);
       window.removeEventListener("scroll", updatePosition, true);
+      document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, [open, anchorEl, onClose]);
+  }, [open, anchorEl, onClose, actions]);
 
   if (!open || !anchorEl || !style) return null;
 
   return createPortal(
     <div
       style={style}
-      className="action-dropdown-portal bg-white border border-gray-200 rounded-xl shadow-xl py-2 overflow-hidden"
+      className="portal-action-menu bg-white rounded-xl border border-[#E2E8F0] shadow-lg py-1.5 text-left text-slate-800"
     >
-      <button
-        type="button"
-        onClick={onView}
-        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left text-gray-700 hover:bg-gray-50"
-      >
-        <Visibility fontSize="small" />
-        <span>View Details</span>
-      </button>
-      <button
-        type="button"
-        onClick={onEdit}
-        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left text-gray-700 hover:bg-gray-50"
-      >
-        <Edit fontSize="small" />
-        <span>Edit Client</span>
-      </button>
+      {actions.map((act, idx) => {
+        const Icon = act.icon;
+        return (
+          <button
+            key={idx}
+            onClick={() => {
+              onClose();
+              act.onClick();
+            }}
+            className={`w-full px-4 py-2 text-xs font-semibold flex items-center gap-2 hover:bg-[#FAF9FF] transition-colors ${
+              act.danger ? "text-red-600 hover:text-red-700 hover:bg-red-50" : "text-[#475569] hover:text-[#243744]"
+            }`}
+          >
+            {Icon && <Icon size={14} />}
+            {act.label}
+          </button>
+        );
+      })}
     </div>,
     document.body
   );
@@ -116,24 +124,18 @@ const LabClientsList = () => {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [search, setSearch] = useState("");
+  
   const [activeDropdownId, setActiveDropdownId] = useState(null);
   const [activeAnchorEl, setActiveAnchorEl] = useState(null);
-  const actionButtonRefs = useRef({});
 
   const fetchClients = useCallback(async () => {
     try {
       setLoading(true);
       setErrorMessage("");
-
-      const response = await getClients({
-        search,
-      });
-
+      const response = await getClients({ search });
       setClients(response.data?.data || []);
     } catch (error) {
-      setErrorMessage(
-        error?.response?.data?.message || "Failed to fetch lab clients"
-      );
+      setErrorMessage(error?.response?.data?.message || "Failed to fetch lab clients");
     } finally {
       setLoading(false);
     }
@@ -141,291 +143,219 @@ const LabClientsList = () => {
 
   useEffect(() => {
     fetchClients();
-  }, [search]);
+  }, [fetchClients]);
 
-
-  const closeDropdown = () => {
-    setActiveDropdownId(null);
-    setActiveAnchorEl(null);
+  const handleExport = () => {
+    alert("Client export will be available in the next release.");
   };
 
   const handleToggleDropdown = (clientId, event) => {
-    const buttonEl = event.currentTarget;
-    
     if (activeDropdownId === clientId) {
-      closeDropdown();
+      setActiveDropdownId(null);
+      setActiveAnchorEl(null);
     } else {
       setActiveDropdownId(clientId);
-      setActiveAnchorEl(buttonEl);
+      setActiveAnchorEl(event.currentTarget);
     }
-  };
-
-  const handleView = (clientId) => {
-    closeDropdown();
-    navigate(`/labClients/view/${clientId}`);
-  };
-
-  const handleEdit = (clientId) => {
-    closeDropdown();
-    navigate(`/labClients/edit/${clientId}`);
   };
 
   return (
     <MainLayout headerTitle="Clients" headerSubtitle="Manage your lab clients">
-      <div className="p-4 sm:p-6">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
-          <input
-            type="text"
-            placeholder="Search lab clients..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full md:max-w-[320px] border border-gray-300 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-blue-100"
-          />
-          <Link
-            to="/labClients/add"
-            className="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-[#2d66b3] text-white font-medium hover:bg-[#1f5498] whitespace-nowrap"
-          >
-            Add Client
-          </Link>
+      <div className="mx-auto w-full max-w-[1800px] px-4 py-5 sm:px-5 lg:px-6">
+
+        {/* Toolbar */}
+        <div className="mb-6 flex flex-col xl:flex-row gap-4 items-stretch xl:items-center justify-between">
+          
+          {/* Search Box */}
+          <div className="flex-1 max-w-xl flex h-10 items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3 focus-within:border-[#243744] focus-within:ring-2 focus-within:ring-[#243744]/10 transition-all">
+            <Search size={16} className="text-[#94A3B8] shrink-0" />
+            <input
+              type="text"
+              placeholder="Search lab clients..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full bg-transparent text-sm text-[#0F172A] placeholder:text-[#94A3B8] outline-none"
+            />
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={fetchClients}
+              className="flex h-10 items-center justify-center gap-1.5 rounded-xl border border-[#E2E8F0] bg-white hover:bg-[#F8FAFC] px-4 text-xs font-bold text-[#475569] transition-colors"
+            >
+              <RefreshCw size={14} className="text-[#8A97A4]" />
+              Refresh
+            </button>
+
+            <button
+              onClick={handleExport}
+              className="flex h-10 items-center justify-center gap-1.5 rounded-xl border border-[#E2E8F0] bg-white hover:bg-[#F8FAFC] px-4 text-xs font-bold text-[#475569] transition-colors"
+            >
+              <Download size={14} className="text-[#8A97A4]" />
+              Export
+            </button>
+
+            <button
+              onClick={() => navigate("/labClients/add")}
+              className="flex h-10 items-center justify-center gap-1.5 rounded-xl bg-[#243744] hover:bg-[#1A2733] px-4 text-xs font-bold text-white shadow-sm transition-colors"
+            >
+              <Plus size={14} />
+              Add Client
+            </button>
+          </div>
         </div>
 
-
         {errorMessage && (
-          <p className="text-red-500 text-sm mb-4">{errorMessage}</p>
+          <div className="mb-4 rounded-xl border border-[#FECACA] bg-[#FEF2F2] px-4 py-3 text-sm font-semibold text-[#DC2626] animate-pulse">
+            {errorMessage}
+          </div>
         )}
 
         {/* Desktop Table View */}
-        <div className="hidden lg:block">
-          <div className="bg-white rounded-xl shadow border border-gray-200">
-            <div className="w-full overflow-x-auto">
-              <table className="w-full min-w-[1000px]">
-                <thead className="bg-[#eef5fd]">
-                  <tr>
-                    <th className="text-left px-4 py-3 font-semibold text-gray-700">
-                      Company Name
-                    </th>
-                    <th className="text-left px-4 py-3 font-semibold text-gray-700">
-                      Contact Person
-                    </th>
-                    <th className="text-left px-4 py-3 font-semibold text-gray-700">
-                      Email
-                    </th>
-                    <th className="text-left px-4 py-3 font-semibold text-gray-700">
-                      Phone
-                    </th>
-                    <th className="text-left px-4 py-3 font-semibold text-gray-700">
-                      City
-                    </th>
-                    <th className="text-left px-4 py-3 font-semibold text-gray-700">
-                      GST No
-                    </th>
-                    <th className="text-left px-4 py-3 font-semibold text-gray-700">
-                      Status
-                    </th>
-                    <th className="text-left px-4 py-3 font-semibold text-gray-700 w-[90px]">
-                      Action
-                    </th>
+        <div className="hidden lg:block bg-white rounded-2xl border border-[#E2E8F0] shadow-sm overflow-hidden">
+          {loading ? (
+            <TableSkeleton rows={5} cols={8} />
+          ) : clients.length === 0 ? (
+            <div className="p-16 text-center">
+              <Briefcase size={40} className="mx-auto text-[#94A3B8] mb-3" />
+              <h3 className="text-base font-bold text-[#1E293B]">No lab clients found</h3>
+              <p className="text-xs text-[#64748B] mt-1">Try adjusting your filters or search query.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-[#E2E8F0] bg-[#FAFBFD] text-[10px] font-bold text-[#64748B] uppercase tracking-wider">
+                    <th className="px-6 py-3.5">Company Name</th>
+                    <th className="px-6 py-3.5">Contact Person</th>
+                    <th className="px-6 py-3.5">Email</th>
+                    <th className="px-6 py-3.5">Phone</th>
+                    <th className="px-6 py-3.5">City</th>
+                    <th className="px-6 py-3.5">GST No</th>
+                    <th className="px-6 py-3.5">Status</th>
+                    <th className="px-6 py-3.5 text-right w-[90px]">Actions</th>
                   </tr>
                 </thead>
+                <motion.tbody variants={stagger.container} initial="hidden" animate="visible" className="divide-y divide-[#F1F5F9]">
+                  {clients.map((client) => (
+                    <motion.tr key={client.client_id} variants={stagger.item} className="hover:bg-[#FAF9FF] transition-colors">
+                      <td className="px-6 py-4 text-xs font-bold text-[#1E293B]">{client.client_name}</td>
+                      <td className="px-6 py-4 text-xs font-semibold text-[#475569]">{client.contact_person || "—"}</td>
+                      <td className="px-6 py-4 text-xs font-semibold text-[#475569]">{client.email || "—"}</td>
+                      <td className="px-6 py-4 text-xs font-semibold text-[#475569]">{client.phone || "—"}</td>
+                      <td className="px-6 py-4 text-xs font-semibold text-[#475569]">{client.city || "—"}</td>
+                      <td className="px-6 py-4 text-xs font-semibold text-[#475569]">{client.gst_no || "—"}</td>
+                      <td className="px-6 py-4">{getStatusBadge(client.status)}</td>
+                      <td className="px-6 py-4 text-right">
+                        <button
+                          onClick={(e) => handleToggleDropdown(client.client_id, e)}
+                          className="p-1.5 hover:bg-[#F1F5F9] rounded-lg transition-colors text-[#8A97A4] hover:text-[#1A2733]"
+                        >
+                          <MoreHorizontal size={16} />
+                        </button>
 
-                <tbody>
-                  {!loading && clients.length === 0 && (
-                    <tr>
-                      <td
-                        colSpan="8"
-                        className="px-4 py-8 text-center text-gray-500"
-                      >
-                        No lab clients found
+                        <PortalActionMenu
+                          anchorEl={activeDropdownId === client.client_id ? activeAnchorEl : null}
+                          open={activeDropdownId === client.client_id}
+                          onClose={() => { setActiveDropdownId(null); setActiveAnchorEl(null); }}
+                          actions={[
+                            { label: "View Details", icon: Eye, onClick: () => navigate(`/labClients/view/${client.client_id}`) },
+                            { label: "Edit Client", icon: Pencil, onClick: () => navigate(`/labClients/edit/${client.client_id}`) }
+                          ]}
+                        />
                       </td>
-                    </tr>
-                  )}
-
-                  {loading && (
-                    <tr>
-                      <td
-                        colSpan="8"
-                        className="px-4 py-8 text-center text-gray-500"
-                      >
-                        Loading...
-                      </td>
-                    </tr>
-                  )}
-
-                  {!loading &&
-                    clients.map((client) => (
-                      <tr
-                        key={client.client_id}
-                        className="border-t border-gray-200"
-                      >
-                        <td className="px-4 py-4 text-gray-900">
-                          <div className="max-w-[150px] break-words font-medium">
-                            {client.client_name}
-                          </div>
-                        </td>
-
-                        <td className="px-4 py-4 text-gray-900">
-                          <div className="max-w-[150px] break-words">
-                            {client.contact_person || "-"}
-                          </div>
-                        </td>
-
-                        <td className="px-4 py-4 text-gray-900">
-                          <div className="max-w-[180px] break-words">
-                            {client.email || "-"}
-                          </div>
-                        </td>
-
-                        <td className="px-4 py-4 text-gray-900">
-                          <div className="max-w-[120px] break-words">
-                            {client.phone || "-"}
-                          </div>
-                        </td>
-
-                        <td className="px-4 py-4 text-gray-900">
-                          <div className="max-w-[100px] break-words">
-                            {client.city || "-"}
-                          </div>
-                        </td>
-
-                        <td className="px-4 py-4 text-gray-900">
-                          <div className="max-w-[120px] break-words">
-                            {client.gst_no || "-"}
-                          </div>
-                        </td>
-
-                        <td className="px-4 py-4">
-                          <span className="px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-700 whitespace-nowrap">
-                            {client.status}
-                          </span>
-                        </td>
-
-                        <td className="px-4 py-4">
-                          <button
-                            type="button"
-                            ref={(el) => {
-                              actionButtonRefs.current[client.client_id] = el;
-                            }}
-                            onClick={(e) =>
-                              handleToggleDropdown(client.client_id, e)
-                            }
-                            className="h-9 w-9 inline-flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors"
-                            title="Actions"
-                          >
-                            <MoreVert fontSize="small" />
-                          </button>
-
-                          <ActionDropdownPortal
-                            anchorEl={
-                              activeDropdownId === client.client_id
-                                ? activeAnchorEl
-                                : null
-                            }
-                            open={activeDropdownId === client.client_id}
-                            onClose={closeDropdown}
-                            onView={() => handleView(client.client_id)}
-                            onEdit={() => handleEdit(client.client_id)}
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                </tbody>
+                    </motion.tr>
+                  ))}
+                </motion.tbody>
               </table>
+            </div>
+          )}
+
+          {/* Pagination */}
+          <div className="flex items-center justify-between border-t border-[#E2E8F0] px-6 py-4 bg-white select-none">
+            <p className="text-xs font-semibold text-[#64748B]">
+              Showing <span className="text-[#1E293B]">{clients.length}</span> of{" "}
+              <span className="text-[#1E293B]">{clients.length}</span> clients
+            </p>
+            <div className="flex items-center gap-1.5">
+              <button className="h-8 w-8 rounded-lg border border-[#E2E8F0] flex items-center justify-center text-xs font-semibold text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-40" disabled>&lt;</button>
+              <button className="h-8 w-8 rounded-lg bg-[#243744] text-white flex items-center justify-center text-xs font-bold shadow-sm">1</button>
+              <button className="h-8 w-8 rounded-lg border border-[#E2E8F0] flex items-center justify-center text-xs font-semibold text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-40" disabled>&gt;</button>
             </div>
           </div>
         </div>
 
-        {/* Mobile Card View */}
-        <div className="lg:hidden space-y-4">
-          {!loading && clients.length === 0 && (
-            <div className="bg-white rounded-xl shadow p-6 text-center text-gray-500 border border-gray-200">
-              No lab clients found
+        {/* Mobile View */}
+        <div className="lg:hidden">
+          {loading ? (
+            <div className="space-y-3">
+              {[0, 1, 2].map((i) => <div key={i} className="lab-skeleton h-44" />)}
             </div>
-          )}
-
-          {loading && (
-            <div className="bg-white rounded-xl shadow p-6 text-center text-gray-500 border border-gray-200">
-              Loading...
+          ) : clients.length === 0 ? (
+            <div className="p-8 text-center bg-white border border-[#E2E8F0] rounded-2xl">
+              <Briefcase size={32} className="mx-auto text-[#94A3B8] mb-2" />
+              <h3 className="text-sm font-bold text-[#1E293B]">No lab clients found</h3>
             </div>
+          ) : (
+            <motion.div className="space-y-4" variants={stagger.container} initial="hidden" animate="visible">
+              {clients.map((client) => (
+                <motion.div
+                  key={client.client_id}
+                  className="bg-white border border-[#E2E8F0] rounded-2xl shadow-sm overflow-hidden"
+                  variants={stagger.item}
+                >
+                  <div className="p-4">
+                    <div className="flex justify-between items-start mb-3 gap-3">
+                      <div className="min-w-0">
+                        <h3 className="font-bold text-sm text-[#1E293B] truncate">
+                          {client.client_name}
+                        </h3>
+                        <p className="text-xs text-[#64748B] truncate mt-0.5">{client.contact_person || "No contact person"}</p>
+                      </div>
+                      {getStatusBadge(client.status)}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 mb-4 text-xs pt-2">
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-[#8A97A4] mb-0.5">Email</p>
+                        <p className="font-semibold text-[#1E293B] truncate">{client.email || "—"}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-[#8A97A4] mb-0.5">Phone</p>
+                        <p className="font-semibold text-[#1E293B] truncate">{client.phone || "—"}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-[#8A97A4] mb-0.5">City</p>
+                        <p className="font-semibold text-[#1E293B] truncate">{client.city || "—"}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-[#8A97A4] mb-0.5">GST No</p>
+                        <p className="font-semibold text-[#1E293B] truncate">{client.gst_no || "—"}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-2 pt-3 border-t border-[#F1F5F9]">
+                      <button
+                        onClick={() => navigate(`/labClients/view/${client.client_id}`)}
+                        className="flex-1 py-2 text-xs font-bold text-[#475569] hover:bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl flex items-center justify-center gap-1.5 transition-colors"
+                      >
+                        <Eye size={14} />
+                        View
+                      </button>
+                      <button
+                        onClick={() => navigate(`/labClients/edit/${client.client_id}`)}
+                        className="flex-1 py-2 text-xs font-bold text-[#243744] hover:bg-[#243744]/5 border border-[#243744]/20 rounded-xl flex items-center justify-center gap-1.5 transition-colors"
+                      >
+                        <Pencil size={14} />
+                        Edit
+                      </button>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </motion.div>
           )}
-
-          {!loading &&
-            clients.map((client) => (
-              <div
-                key={client.client_id}
-                className="bg-white rounded-xl shadow border border-gray-200 p-5"
-              >
-                <div className="flex justify-between items-start mb-4 gap-3">
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-lg text-gray-900 break-words mb-1">
-                      {client.client_name}
-                    </h3>
-                    <p className="text-sm text-gray-500 break-words">
-                      {client.contact_person || "No contact person"}
-                    </p>
-                  </div>
-
-                  <span className="px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-700 whitespace-nowrap">
-                    {client.status}
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 mb-4">
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Email</p>
-                    <p className="text-sm font-medium break-words">
-                      {client.email || "-"}
-                    </p>
-                  </div>
-
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Phone</p>
-                    <p className="text-sm font-medium break-words">
-                      {client.phone || "-"}
-                    </p>
-                  </div>
-
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">City</p>
-                    <p className="text-sm font-medium break-words">
-                      {client.city || "-"}
-                    </p>
-                  </div>
-
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">GST No</p>
-                    <p className="text-sm font-medium break-words">
-                      {client.gst_no || "-"}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="pt-3 border-t">
-                  <button
-                    type="button"
-                    ref={(el) => {
-                      actionButtonRefs.current[client.client_id] = el;
-                    }}
-                    onClick={(e) => handleToggleDropdown(client.client_id, e)}
-                    className="flex items-center justify-center gap-2 w-full text-[#2d66b3] hover:bg-blue-50 py-2 rounded-lg transition-colors"
-                  >
-                    <MoreVert fontSize="small" />
-                    <span className="text-sm">Actions</span>
-                  </button>
-
-                  <ActionDropdownPortal
-                    anchorEl={
-                      activeDropdownId === client.client_id
-                        ? activeAnchorEl
-                        : null
-                    }
-                    open={activeDropdownId === client.client_id}
-                    onClose={closeDropdown}
-                    onView={() => handleView(client.client_id)}
-                    onEdit={() => handleEdit(client.client_id)}
-                  />
-                </div>
-              </div>
-            ))}
         </div>
       </div>
     </MainLayout>

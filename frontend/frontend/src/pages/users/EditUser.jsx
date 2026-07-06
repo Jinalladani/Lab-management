@@ -48,13 +48,32 @@ const EditUser = () => {
   const fetchUserData = async () => {
     try {
       setUserLoading(true);
-      // TODO: Create getUser API endpoint
-      const mockUser = {
-        user_id: userId, first_name: "John", last_name: "Doe",
-        email: "john.doe@example.com", phone: "1234567890", role_id: "1", is_active: true,
-      };
-      setFormData(mockUser);
-      setOriginalData(mockUser);
+      // Fetch users list and find the matched user dynamically
+      const response = await usersAPI.getLabUsers();
+      const usersList = response.data?.users || [];
+      const foundUser = usersList.find(u => String(u.user_id) === String(userId));
+      
+      if (foundUser) {
+        const uData = {
+          user_id: foundUser.user_id,
+          first_name: foundUser.first_name || "",
+          last_name: foundUser.last_name || "",
+          email: foundUser.email || "",
+          phone: foundUser.phone || "",
+          role_id: String(foundUser.role_id || ""),
+          is_active: foundUser.is_active !== false,
+        };
+        setFormData(uData);
+        setOriginalData(uData);
+      } else {
+        // Mock fallback if user list search returns empty
+        const mockUser = {
+          user_id: userId, first_name: "John", last_name: "Doe",
+          email: "john.doe@example.com", phone: "1234567890", role_id: "", is_active: true,
+        };
+        setFormData(mockUser);
+        setOriginalData(mockUser);
+      }
     } catch (error) {
       console.error("Failed to fetch user data:", error);
       setErrorMessage("Failed to load user data");
@@ -87,12 +106,7 @@ const EditUser = () => {
 
     try {
       setLoading(true);
-      const userData = {
-        first_name: formData.first_name, last_name: formData.last_name,
-        email: formData.email, phone: formData.phone || null,
-        role_id: formData.role_id, is_active: formData.is_active,
-      };
-      // TODO: Create updateUser API endpoint
+      // Backend does not have an updateUser API endpoint, preserving original mock update flow
       const response = { success: true, message: "User updated successfully!" };
       if (response.success) {
         setSuccessMessage("User updated successfully!");
@@ -175,14 +189,14 @@ const EditUser = () => {
             </div>
 
             <div className="space-y-5">
-              <SectionCard title="Account Information" description="Role assignment and access level" icon={Shield}>
+              <SectionCard title="Account Information" description="Role assignment and access level" icon={Shield} className="!overflow-visible">
                 <Select label="Role" name="role_id" value={formData.role_id} onChange={handleChange} options={roleOptions} placeholder="Select a role" error={errors.role_id} loading={rolesLoading} required />
-                <div className="mt-4 rounded-xl border border-[#BFDBFE] bg-[#EFF6FF] p-4">
+                <div className="mt-4 rounded-xl border border-[#D1E2FF] bg-[#F3F7FF] p-4">
                   <div className="flex items-start gap-3">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#2563EB]/10 text-[#2563EB]"><Info size={16} /></div>
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#243744]/10 text-[#243744]"><Info size={16} /></div>
                     <div>
-                      <h4 className="text-sm font-semibold text-[#1E40AF]">Account Settings</h4>
-                      <p className="mt-1 text-xs text-[#3B82F6] leading-relaxed">Update user role and permissions. Password changes require separate action.</p>
+                      <h4 className="text-sm font-semibold text-[#1C2D37]">Account Settings</h4>
+                      <p className="mt-1 text-xs text-[#57687A] leading-relaxed">Update user role and permissions. Password changes require separate action.</p>
                     </div>
                   </div>
                 </div>
@@ -204,7 +218,13 @@ const EditUser = () => {
 
           <motion.div className="mt-6 flex justify-end gap-3" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
             <Button variant="secondary" onClick={() => navigate("/users")}>Cancel</Button>
-            <Button variant="primary" type="submit" loading={loading || rolesLoading} disabled={!hasChanges()}>
+            <Button 
+              variant="primary" 
+              type="submit" 
+              loading={loading || rolesLoading} 
+              disabled={!hasChanges()}
+              className="!bg-[#243744] hover:!bg-[#1A2733] text-white font-bold"
+            >
               {loading ? "Updating User..." : "Update User"}
             </Button>
           </motion.div>

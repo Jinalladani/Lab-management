@@ -160,7 +160,7 @@ const Header = ({
           </div>
         </div>
 
-        <label className="hidden h-10 min-w-[240px] max-w-[420px] flex-1 items-center gap-2.5 rounded-xl border border-[#DDE4EA] bg-[#F8FAFB] px-3.5 transition-all duration-200 focus-within:border-[#3F6E8C] focus-within:bg-white focus-within:ring-2 focus-within:ring-[#3F6E8C]/12 md:flex"
+        {/* <label className="hidden h-10 min-w-[240px] max-w-[420px] flex-1 items-center gap-2.5 rounded-xl border border-[#DDE4EA] bg-[#F8FAFB] px-3.5 transition-all duration-200 focus-within:border-[#3F6E8C] focus-within:bg-white focus-within:ring-2 focus-within:ring-[#3F6E8C]/12 md:flex"
           style={{ boxShadow: "var(--shadow-xs)" }}
         >
           <Search size={16} strokeWidth={2} className="text-[#8A97A4] shrink-0" />
@@ -172,10 +172,10 @@ const Header = ({
             className="w-full bg-transparent text-sm text-[#1A2733] placeholder:text-[#A1ADB8] focus:outline-none"
             aria-label="Search dashboard"
           />
-        </label>
+        </label> */}
 
         {/* Notifications */}
-        <div className="relative">
+        {/* <div className="relative">
           <motion.button
             type="button"
             onClick={() => {
@@ -224,10 +224,10 @@ const Header = ({
               </motion.div>
             )}
           </AnimatePresence>
-        </div>
+        </div> */}
 
         {/* Quick Add */}
-        <div className="relative">
+        {/* <div className="relative">
           <motion.button
             type="button"
             onClick={() => {
@@ -274,7 +274,7 @@ const Header = ({
               </motion.div>
             )}
           </AnimatePresence>
-        </div>
+        </div> */}
 
         {/* Account */}
         <div className="relative">

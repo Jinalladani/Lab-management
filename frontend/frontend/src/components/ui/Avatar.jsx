@@ -40,9 +40,10 @@ const Avatar = ({
   size = "md",
   showOnline = false,
   className = "",
+  bgClass,
 }) => {
   const initials = getInitials(name);
-  const colorClass = colorPalette[getColorIndex(name)];
+  const colorClass = bgClass || colorPalette[getColorIndex(name)];
 
   return (
     <div className={`relative inline-flex shrink-0 ${className}`}>

@@ -1,14 +1,33 @@
-import React, { useEffect, useState } from "react";
-import { createClient } from "../../api/clients";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
+import {
+  ArrowLeft,
+  Briefcase,
+  User,
+  Shield,
+  Info,
+  MapPin,
+  CreditCard,
+  Mail,
+  Phone
+} from "lucide-react";
+import { createClient } from "../../api/clients";
 import { MainLayout } from "../../components/layout";
-import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import SaveIcon from "@mui/icons-material/Save";
+import {
+  PageHeader,
+  SectionCard,
+  Input,
+  Select,
+  Button
+} from "../../components/ui";
 
 const AddLabClient = () => {
   const navigate = useNavigate();
-
   const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
+  const [errors, setErrors] = useState({});
 
   const [formData, setFormData] = useState({
     client_name: "",
@@ -24,11 +43,8 @@ const AddLabClient = () => {
     status: "active",
   });
 
-  const [errors, setErrors] = useState({});
-
   const handleChange = (e) => {
     const { name, value } = e.target;
-
     setFormData((prev) => ({ ...prev, [name]: value }));
     setErrors((prev) => ({ ...prev, [name]: "" }));
   };
@@ -37,9 +53,11 @@ const AddLabClient = () => {
     const newErrors = {};
 
     if (!formData.client_name.trim()) {
-      newErrors.client_name = "Client name is required";
+      newErrors.client_name = "Company name is required";
     }
-
+    if (formData.email.trim() && !/\S+@\S+\.\S+/.test(formData.email)) {
+      newErrors.email = "Email format is invalid";
+    }
     if (!formData.status.trim()) {
       newErrors.status = "Status is required";
     }
@@ -50,237 +68,241 @@ const AddLabClient = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setErrorMessage("");
+    setSuccessMessage("");
 
     if (!validateForm()) return;
 
     try {
       setLoading(true);
+      await createClient(formData);
+      setSuccessMessage("Lab client created successfully!");
 
-      const payload = {
-        ...formData,
-      };
-
-      await createClient(payload);
-      alert("Lab client created successfully!");
-      
-      navigate("/labClients");
+      setTimeout(() => navigate("/labClients"), 2000);
     } catch (error) {
-      const errorMessage = error?.response?.data?.message || "Failed to create lab client";
-      alert(errorMessage);
+      setErrorMessage(error?.response?.data?.message || "Failed to create lab client");
     } finally {
       setLoading(false);
     }
   };
 
+  const statusOptions = [
+    { value: "active", label: "Active" },
+    { value: "inactive", label: "Inactive" },
+    { value: "suspended", label: "Suspended" },
+  ];
+
   return (
-    <MainLayout headerTitle="Add Lab Client" headerSubtitle="Create a new lab client">
-      <div className="p-6">
-        {/* Back Button */}
-        <button
-          onClick={() => navigate("/labClients")}
-          className="mb-4 flex items-center gap-2 text-[#2d66b3] font-medium hover:text-[#1f5498] transition-colors"
-        >
-          <ArrowBackIcon fontSize="small" />
+    <MainLayout headerTitle="Create Lab Client" headerSubtitle="Register a new laboratory client profile">
+      <div className="mx-auto w-full max-w-[1800px] px-4 py-5 sm:px-5 lg:px-6">
+        <Button variant="ghost" size="sm" icon={ArrowLeft} onClick={() => navigate("/labClients")}>
           Back
-        </button>
-        
-        <div className="w-full">
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
-            {/* Form Section */}
-            <div className="p-8">
-              <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Left Column - Basic Info */}
-                <div className="lg:col-span-2 space-y-6">
-                  <div className="bg-gray-50 rounded-lg p-6">
-                    <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-                      <span className="w-2 h-2 bg-[#2b63ae] rounded-full mr-2"></span>
-                      Basic Information
-                    </h2>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block mb-2 text-sm font-medium text-gray-700">Company Name</label>
-                        <input
-                          type="text"
-                          name="client_name"
-                          value={formData.client_name}
-                          onChange={handleChange}
-                          className="w-full border border-gray-300 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-[#2b63ae] focus:border-transparent"
-                        />
-                      </div>
+        </Button>
 
-                      <div>
-                        <label className="block mb-2 text-sm font-medium text-gray-700">Contact Person</label>
-                        <input
-                          type="text"
-                          name="contact_person"
-                          value={formData.contact_person}
-                          onChange={handleChange}
-                          className="w-full border border-gray-300 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-[#2b63ae] focus:border-transparent"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block mb-2 text-sm font-medium text-gray-700">Email</label>
-                        <input
-                          type="email"
-                          name="email"
-                          value={formData.email}
-                          onChange={handleChange}
-                          className="w-full border border-gray-300 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-[#2b63ae] focus:border-transparent"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block mb-2 text-sm font-medium text-gray-700">Phone</label>
-                        <input
-                          type="text"
-                          name="phone"
-                          value={formData.phone}
-                          onChange={handleChange}
-                          className="w-full border border-gray-300 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-[#2b63ae] focus:border-transparent"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Address Section */}
-                  <div className="bg-gray-50 rounded-lg p-6">
-                    <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-                      <span className="w-2 h-2 bg-[#2b63ae] rounded-full mr-2"></span>
-                      Address Information
-                    </h2>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="md:col-span-2">
-                        <label className="block mb-2 text-sm font-medium text-gray-700">Address</label>
-                        <textarea
-                          name="address"
-                          value={formData.address}
-                          onChange={handleChange}
-                          className="w-full border border-gray-300 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-[#2b63ae] focus:border-transparent min-h-[100px]"
-                          placeholder="Enter complete address..."
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block mb-2 text-sm font-medium text-gray-700">City</label>
-                        <input
-                          type="text"
-                          name="city"
-                          value={formData.city}
-                          onChange={handleChange}
-                          className="w-full border border-gray-300 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-[#2b63ae] focus:border-transparent"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block mb-2 text-sm font-medium text-gray-700">State</label>
-                        <input
-                          type="text"
-                          name="state"
-                          value={formData.state}
-                          onChange={handleChange}
-                          className="w-full border border-gray-300 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-[#2b63ae] focus:border-transparent"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block mb-2 text-sm font-medium text-gray-700">Pincode</label>
-                        <input
-                          type="text"
-                          name="pincode"
-                          value={formData.pincode}
-                          onChange={handleChange}
-                          className="w-full border border-gray-300 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-[#2b63ae] focus:border-transparent"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Right Column - Additional Info */}
-                <div className="space-y-6">
-                  {/* Tax Information */}
-                  <div className="bg-gray-50 rounded-lg p-6">
-                    <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-                      <span className="w-2 h-2 bg-[#2b63ae] rounded-full mr-2"></span>
-                      Tax Information
-                    </h2>
-                    
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block mb-2 text-sm font-medium text-gray-700">GST Number</label>
-                        <input
-                          type="text"
-                          name="gst_no"
-                          value={formData.gst_no}
-                          onChange={handleChange}
-                          className="w-full border border-gray-300 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-[#2b63ae] focus:border-transparent"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block mb-2 text-sm font-medium text-gray-700">PAN Number</label>
-                        <input
-                          type="text"
-                          name="pan_no"
-                          value={formData.pan_no}
-                          onChange={handleChange}
-                          className="w-full border border-gray-300 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-[#2b63ae] focus:border-transparent"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Client Status */}
-                  <div className="bg-gray-50 rounded-lg p-6">
-                    <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-                      <span className="w-2 h-2 bg-[#2b63ae] rounded-full mr-2"></span>
-                      Status
-                    </h2>
-                    
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block mb-2 text-sm font-medium text-gray-700">Status</label>
-                        <select
-                          name="status"
-                          value={formData.status}
-                          onChange={handleChange}
-                          className="w-full border border-gray-300 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-[#2b63ae] focus:border-transparent"
-                        >
-                          <option value="active">Active</option>
-                          <option value="inactive">Inactive</option>
-                          <option value="suspended">Suspended</option>
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Submit Button */}
-                <div className="lg:col-span-3 mt-8">
-                  <div className="flex justify-end gap-4">
-                    <button
-                      type="button"
-                      onClick={() => navigate("/labClients")}
-                      className="px-6 py-3 rounded-lg border-2 border-gray-300 text-gray-700 font-medium hover:bg-gray-50 transition-colors"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={loading}
-                      className="px-8 py-3 rounded-lg bg-gradient-to-r from-[#2b63ae] to-[#1e4a8c] text-white font-medium hover:from-[#1e4a8c] hover:to-[#2b63ae] transition-all disabled:opacity-70 shadow-lg"
-                    >
-                      {loading ? "Creating..." : "Create Lab Client"}
-                    </button>
-                  </div>
-                </div>
-              </form>
+        {/* Messages */}
+        {successMessage && (
+          <motion.div
+            className="mb-5 flex items-center gap-3 rounded-xl border border-[#BBF7D0] bg-[#F0FDF4] px-4 py-3"
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#16A34A]/10 text-[#16A34A]">
+              <Info size={16} />
             </div>
+            <p className="text-sm font-medium text-[#16A34A]">{successMessage}</p>
+          </motion.div>
+        )}
+
+        {errorMessage && (
+          <motion.div
+            className="mb-5 flex items-center gap-3 rounded-xl border border-[#FECACA] bg-[#FEF2F2] px-4 py-3"
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#DC2626]/10 text-[#DC2626]">
+              <Info size={16} />
+            </div>
+            <p className="text-sm font-medium text-[#DC2626]">{errorMessage}</p>
+          </motion.div>
+        )}
+
+        <form onSubmit={handleSubmit}>
+          <div className="bg-white rounded-2xl border border-[#E2E8F0] shadow-sm p-6 sm:p-8 !overflow-visible">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              {/* Left Column - Company details & Address */}
+              <div className="lg:col-span-2 space-y-6">
+                
+                {/* Basic Information */}
+                <div>
+                  <h3 className="text-sm font-bold text-[#1A2733] flex items-center gap-2 mb-4">
+                    <Briefcase size={16} className="text-[#3F6E8C]" />
+                    Basic Information
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Input
+                      label="Company Name"
+                      name="client_name"
+                      value={formData.client_name}
+                      onChange={handleChange}
+                      placeholder="Enter client company name"
+                      error={errors.client_name}
+                      required
+                      icon={Briefcase}
+                    />
+                    <Input
+                      label="Contact Person"
+                      name="contact_person"
+                      value={formData.contact_person}
+                      onChange={handleChange}
+                      placeholder="Enter contact person's name"
+                      icon={User}
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                    <Input
+                      label="Email Address"
+                      name="email"
+                      type="email"
+                      value={formData.email}
+                      onChange={handleChange}
+                      placeholder="client@company.com"
+                      error={errors.email}
+                      icon={Mail}
+                    />
+                    <Input
+                      label="Phone Number"
+                      name="phone"
+                      type="tel"
+                      value={formData.phone}
+                      onChange={handleChange}
+                      placeholder="Enter contact phone"
+                      icon={Phone}
+                    />
+                  </div>
+                </div>
+
+                {/* Divider */}
+                <div className="h-px bg-[#F1F5F9]" />
+
+                {/* Address Information */}
+                <div>
+                  <h3 className="text-sm font-bold text-[#1A2733] flex items-center gap-2 mb-4">
+                    <MapPin size={16} className="text-[#3F6E8C]" />
+                    Address Information
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="md:col-span-2">
+                      <label htmlFor="address" className="app-label">Address</label>
+                      <textarea
+                        id="address"
+                        name="address"
+                        value={formData.address}
+                        onChange={handleChange}
+                        placeholder="Enter company billing or office address..."
+                        className="w-full border border-gray-300 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-[#243744]/10 focus:border-[#243744] bg-white text-sm transition-all min-h-[100px]"
+                      />
+                    </div>
+                    <Input
+                      label="City"
+                      name="city"
+                      value={formData.city}
+                      onChange={handleChange}
+                      placeholder="Enter city"
+                    />
+                    <Input
+                      label="State"
+                      name="state"
+                      value={formData.state}
+                      onChange={handleChange}
+                      placeholder="Enter state"
+                    />
+                    <div className="md:col-span-2">
+                      <Input
+                        label="Pincode"
+                        name="pincode"
+                        value={formData.pincode}
+                        onChange={handleChange}
+                        placeholder="Enter postal pincode"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Column - Tax details & Status */}
+              <div className="space-y-6 lg:border-l lg:border-[#F1F5F9] lg:pl-8">
+                
+                {/* Tax Information */}
+                <div>
+                  <h3 className="text-sm font-bold text-[#1A2733] flex items-center gap-2 mb-4">
+                    <CreditCard size={16} className="text-[#3F6E8C]" />
+                    Tax Information
+                  </h3>
+                  <div className="space-y-4">
+                    <Input
+                      label="GST Number"
+                      name="gst_no"
+                      value={formData.gst_no}
+                      onChange={handleChange}
+                      placeholder="e.g. 22AAAAA0000A1Z5"
+                    />
+                    <Input
+                      label="PAN Number"
+                      name="pan_no"
+                      value={formData.pan_no}
+                      onChange={handleChange}
+                      placeholder="e.g. ABCDE1234F"
+                    />
+                  </div>
+                </div>
+
+                {/* Divider */}
+                <div className="h-px bg-[#F1F5F9]" />
+
+                {/* Status */}
+                <div className="!overflow-visible">
+                  <h3 className="text-sm font-bold text-[#1A2733] flex items-center gap-2 mb-4">
+                    <Shield size={16} className="text-[#3F6E8C]" />
+                    Client Status
+                  </h3>
+                  <Select
+                    label="Status"
+                    name="status"
+                    value={formData.status}
+                    onChange={handleChange}
+                    options={statusOptions}
+                    placeholder="Select status"
+                    error={errors.status}
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Divider */}
+            <div className="h-px bg-[#F1F5F9] my-6" />
+
+            {/* Actions */}
+            <motion.div
+              className="flex justify-end gap-3"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+            >
+              <Button variant="secondary" onClick={() => navigate("/labClients")}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                type="submit"
+                loading={loading}
+                className="!bg-[#243744] hover:!bg-[#1A2733] text-white font-bold"
+              >
+                {loading ? "Creating Client..." : "Create Client"}
+              </Button>
+            </motion.div>
           </div>
-        </div>
+        </form>
       </div>
     </MainLayout>
   );

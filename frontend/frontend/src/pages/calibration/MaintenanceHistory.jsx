@@ -1,18 +1,134 @@
 import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Search,
+  Plus,
+  X,
+  Wrench,
+  Trash2,
+  Eye,
+  CheckCircle,
+  RefreshCw,
+  MoreHorizontal
+} from "lucide-react";
 import MainLayout from "../../components/layout/MainLayout";
 import { mockEquipmentDb } from "../../utils/mockEquipmentData";
 import { getMaintenanceList, createMaintenance, getEquipmentList } from "../../api";
-import {
-  Search,
-  Add,
-  Close,
-  Build,
-  Engineering,
-  Delete,
-  Visibility,
-  CheckCircle
-} from "@mui/icons-material";
+import { TableSkeleton } from "../../components/ui/Skeleton";
+
+const stagger = {
+  container: { hidden: {}, visible: { transition: { staggerChildren: 0.04 } } },
+  item: {
+    hidden: { opacity: 0, y: 8 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.25, ease: [0.22, 0.68, 0, 1] } },
+  },
+};
+
+const getStatusBadge = (status) => {
+  const norm = String(status || "").toLowerCase();
+  const map = {
+    completed: { text: "Completed", bg: "bg-[#ECFDF5] text-[#10B981] border-[#D1FAE5]", dot: "bg-[#10B981]" },
+    "in progress": { text: "In Progress", bg: "bg-[#EFF6FF] text-[#2563EB] border-[#DBEAFE]", dot: "bg-[#2563EB]" },
+    scheduled: { text: "Scheduled", bg: "bg-[#FFFBEB] text-[#D97706] border-[#FEF3C7]", dot: "bg-[#D97706]" },
+  };
+  const config = map[norm] || { text: status, bg: "bg-slate-50 text-slate-600 border-slate-200", dot: "bg-slate-500" };
+  return (
+    <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full border ${config.bg}`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${config.dot}`} />
+      {config.text}
+    </span>
+  );
+};
+
+// Reusable Portal Action Menu to prevent parent clip and handle screen boundary directions
+const PortalActionMenu = ({ anchorEl, open, onClose, actions }) => {
+  const [style, setStyle] = useState(null);
+
+  useEffect(() => {
+    if (!open || !anchorEl) return;
+
+    const updatePosition = () => {
+      const rect = anchorEl.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+
+      const estimatedHeight = actions.length * 36 + 12;
+      const dropdownWidth = 160;
+      const gap = 6;
+
+      const spaceBelow = viewportHeight - rect.bottom;
+      
+      let top;
+      if (spaceBelow >= estimatedHeight + gap) {
+        top = rect.bottom + window.scrollY + gap;
+      } else {
+        top = rect.top + window.scrollY - estimatedHeight - gap;
+      }
+
+      let left = rect.right - dropdownWidth + window.scrollX;
+      if (left < 8) left = 8;
+      if (left + dropdownWidth > viewportWidth - 8) {
+        left = viewportWidth - dropdownWidth - 8;
+      }
+
+      setStyle({
+        position: "absolute",
+        top: `${top}px`,
+        left: `${left}px`,
+        width: `${dropdownWidth}px`,
+        zIndex: 9999,
+      });
+    };
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+
+    const handleClickOutside = (event) => {
+      if (anchorEl && !anchorEl.contains(event.target) && !event.target.closest(".portal-action-menu")) {
+        onClose();
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [open, anchorEl, onClose, actions]);
+
+  if (!open || !anchorEl || !style) return null;
+
+  return createPortal(
+    <div
+      style={style}
+      className="portal-action-menu bg-white rounded-xl border border-[#E2E8F0] shadow-lg py-1.5 text-left text-slate-800"
+    >
+      {actions.map((act, idx) => {
+        const Icon = act.icon;
+        return (
+          <button
+            key={idx}
+            onClick={() => {
+              onClose();
+              act.onClick();
+            }}
+            className={`w-full px-4 py-2 text-xs font-semibold flex items-center gap-2 hover:bg-[#FAF9FF] transition-colors ${
+              act.danger ? "text-red-600 hover:text-red-700 hover:bg-red-50" : "text-[#475569] hover:text-[#243744]"
+            }`}
+          >
+            {Icon && <Icon size={14} />}
+            {act.label}
+          </button>
+        );
+      })}
+    </div>,
+    document.body
+  );
+};
 
 const MaintenanceHistory = () => {
   const navigate = useNavigate();
@@ -20,11 +136,16 @@ const MaintenanceHistory = () => {
   // Data States
   const [maintenance, setMaintenance] = useState([]);
   const [equipmentList, setEquipmentList] = useState([]);
+  const [loading, setLoading] = useState(false);
 
   // Search & Filter
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedType, setSelectedType] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("");
+
+  // Dropdown States
+  const [activeDropdownId, setActiveDropdownId] = useState(null);
+  const [activeAnchorEl, setActiveAnchorEl] = useState(null);
 
   // Modals
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -40,6 +161,7 @@ const MaintenanceHistory = () => {
 
   const fetchData = async () => {
     try {
+      setLoading(true);
       const resMaint = await getMaintenanceList();
       if (resMaint.success && resMaint.data?.maintenance) {
         setMaintenance(resMaint.data.maintenance);
@@ -49,6 +171,8 @@ const MaintenanceHistory = () => {
     } catch (err) {
       console.warn("Using fallback local data for Maintenance Logs:", err.message);
       setMaintenance(mockEquipmentDb.getMaintenance());
+    } finally {
+      setLoading(false);
     }
 
     try {
@@ -120,6 +244,16 @@ const MaintenanceHistory = () => {
     });
   };
 
+  const handleToggleDropdown = (maintId, event) => {
+    if (activeDropdownId === maintId) {
+      setActiveDropdownId(null);
+      setActiveAnchorEl(null);
+    } else {
+      setActiveDropdownId(maintId);
+      setActiveAnchorEl(event.currentTarget);
+    }
+  };
+
   // Filter
   const filteredMaintenance = maintenance.filter(m => {
     const matchesSearch = 
@@ -136,28 +270,40 @@ const MaintenanceHistory = () => {
   const maintenanceTypes = ["Preventive", "Repair", "Calibration Support"];
   const statuses = ["Completed", "In Progress", "Scheduled"];
 
-  return (
-    <MainLayout headerTitle="Maintenance Work Orders" headerSubtitle="Prevention scheduling & repair registry logbook">
-      <div className="p-6 max-w-7xl mx-auto space-y-6">
+  const inputClass = "w-full border border-gray-300 rounded-xl px-3 py-2.5 outline-none focus:ring-2 focus:ring-[#243744]/10 focus:border-[#243744] bg-white/90 text-sm transition-all";
 
-        {/* Filter Toolbar */}
-        <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-2.5 text-gray-400 w-5 h-5" />
+  return (
+    <MainLayout headerTitle="Maintenance Logs" headerSubtitle="Prevention scheduling & repair registry logbook">
+      <div className="mx-auto w-full max-w-[1800px] px-4 py-5 sm:px-5 lg:px-6">
+
+        {/* Toolbar - Search & Add button in a single row */}
+        <div className="mb-6 flex flex-col xl:flex-row gap-4 items-stretch xl:items-center justify-between">
+          
+          {/* Search Box */}
+          <div className="flex-1 max-w-xl flex h-10 items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3 focus-within:border-[#243744] focus-within:ring-2 focus-within:ring-[#243744]/10 transition-all">
+            <Search size={16} className="text-[#94A3B8] shrink-0" />
             <input
               type="text"
-              placeholder="Search work orders..."
+              placeholder="Search work orders by ID, name, contractor or engineer..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 pr-4 py-2 w-full bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#2562AA]"
+              className="w-full bg-transparent text-sm text-[#0F172A] placeholder:text-[#94A3B8] outline-none"
             />
           </div>
 
+          {/* Action Row */}
           <div className="flex flex-wrap items-center gap-3">
             <select
               value={selectedType}
               onChange={(e) => setSelectedType(e.target.value)}
-              className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-gray-600 focus:outline-none"
+              className="h-10 px-3.5 py-2 text-xs font-semibold text-[#475569] border border-[#E2E8F0] bg-white rounded-xl outline-none focus:border-[#243744] focus:ring-2 focus:ring-[#243744]/10 transition-all shrink-0 max-w-[200px] appearance-none"
+              style={{
+                backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%238A97A4' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
+                backgroundPosition: "right 10px center",
+                backgroundRepeat: "no-repeat",
+                backgroundSize: "16px",
+                paddingRight: "30px"
+              }}
             >
               <option value="">All Types</option>
               {maintenanceTypes.map(t => <option key={t} value={t}>{t}</option>)}
@@ -166,203 +312,243 @@ const MaintenanceHistory = () => {
             <select
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
-              className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-gray-600 focus:outline-none"
+              className="h-10 px-3.5 py-2 text-xs font-semibold text-[#475569] border border-[#E2E8F0] bg-white rounded-xl outline-none focus:border-[#243744] focus:ring-2 focus:ring-[#243744]/10 transition-all shrink-0 max-w-[200px] appearance-none"
+              style={{
+                backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%238A97A4' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
+                backgroundPosition: "right 10px center",
+                backgroundRepeat: "no-repeat",
+                backgroundSize: "16px",
+                paddingRight: "30px"
+              }}
             >
               <option value="">All Statuses</option>
               {statuses.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
 
             <button
-              onClick={() => setIsModalOpen(true)}
-              className="flex items-center gap-1 bg-[#2562AA] hover:bg-blue-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-md transition-all active:scale-[0.98]"
+              onClick={fetchData}
+              className="flex h-10 items-center justify-center gap-1.5 rounded-xl border border-[#E2E8F0] bg-white hover:bg-[#F8FAFC] px-4 text-xs font-bold text-[#475569] transition-colors"
             >
-              <Add className="w-4 h-4" /> Add Maintenance
+              <RefreshCw size={14} className="text-[#8A97A4]" />
+              Refresh
+            </button>
+
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="flex h-10 items-center justify-center gap-1.5 rounded-xl bg-[#243744] hover:bg-[#1A2733] px-4 text-xs font-bold text-white shadow-sm transition-colors"
+            >
+              <Plus size={14} /> Add Maintenance
             </button>
           </div>
         </div>
 
         {/* Datatable */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-150 text-sm">
-              <thead>
-                <tr className="bg-gray-50 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">
-                  <th className="py-3.5 px-4">Maintenance Date</th>
-                  <th className="py-3.5 px-4">EQ ID</th>
-                  <th className="py-3.5 px-4">Equipment Name</th>
-                  <th className="py-3.5 px-4">Type</th>
-                  <th className="py-3.5 px-4">Contractor / Engineer</th>
-                  <th className="py-3.5 px-4">Cost (INR)</th>
-                  <th className="py-3.5 px-4">Status</th>
-                  <th className="py-3.5 px-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {filteredMaintenance.map((m) => (
-                  <tr key={m.id} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="py-3.5 px-4 text-gray-600 font-semibold">
-                      {new Date(m.date).toLocaleDateString("en-IN", { day: '2-digit', month: 'short', year: 'numeric' })}
-                    </td>
-                    <td onClick={() => navigate(`/equipment/view/${m.eqId}`)} className="py-3.5 px-4 font-bold text-[#2562AA] hover:underline cursor-pointer">
-                      {m.eqId}
-                    </td>
-                    <td className="py-3.5 px-4 font-semibold text-gray-800">{m.eqName}</td>
-                    <td className="py-3.5 px-4">
-                      <span className={`inline-flex px-2 py-0.25 text-xs font-bold rounded ${
-                        m.type === "Preventive" ? "text-blue-700 bg-blue-50" : "text-purple-700 bg-purple-50"
-                      }`}>{m.type}</span>
-                    </td>
-                    <td className="py-3.5 px-4 text-gray-600 font-medium flex items-center gap-1.5 mt-1.5">
-                      <Engineering className="text-gray-400 w-4 h-4" /> {m.engineer}
-                    </td>
-                    <td className="py-3.5 px-4 font-bold text-gray-800">
-                      ₹ {m.cost.toLocaleString("en-IN")}
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <span className={`inline-flex px-2 py-0.25 text-[10px] font-extrabold rounded uppercase ${
-                        m.status === "Completed" ? "text-emerald-700 bg-emerald-50 border border-emerald-100" : m.status === "In Progress" ? "text-amber-700 bg-amber-50" : "text-gray-600 bg-gray-100"
-                      }`}>{m.status}</span>
-                    </td>
-                    <td className="py-3.5 px-4 text-right">
-                      <button onClick={() => navigate(`/equipment/view/${m.eqId}`)} className="p-1 hover:bg-gray-100 text-gray-400 hover:text-gray-700 rounded-lg">
-                        <Visibility className="w-4 h-4" />
-                      </button>
-                    </td>
+        <div className="bg-white rounded-2xl shadow-sm border border-[#E2E8F0] overflow-hidden">
+          {loading ? (
+            <TableSkeleton rows={5} cols={8} />
+          ) : filteredMaintenance.length === 0 ? (
+            <div className="p-16 text-center">
+              <Wrench size={40} className="mx-auto text-[#94A3B8] mb-3" />
+              <h3 className="text-base font-bold text-[#1E293B]">No work orders found</h3>
+              <p className="text-xs text-[#64748B] mt-1">Try adjusting your filters or search query.</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-[#E2E8F0] bg-[#FAFBFD] text-[10px] font-bold text-[#64748B] uppercase tracking-wider">
+                    <th className="px-6 py-3.5">Maintenance Date</th>
+                    <th className="px-6 py-3.5">EQ ID</th>
+                    <th className="px-6 py-3.5">Equipment Name</th>
+                    <th className="px-6 py-3.5">Type</th>
+                    <th className="px-6 py-3.5">Contractor / Engineer</th>
+                    <th className="px-6 py-3.5 text-right">Cost (INR)</th>
+                    <th className="px-6 py-3.5 text-center">Status</th>
+                    <th className="px-6 py-3.5 text-right w-[90px]">Actions</th>
                   </tr>
-                ))}
-                {filteredMaintenance.length === 0 && (
-                  <tr>
-                    <td colSpan="8" className="py-8 text-center text-gray-400 font-semibold bg-gray-50/10">
-                      No maintenance work orders stored.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <motion.tbody variants={stagger.container} initial="hidden" animate="visible" className="divide-y divide-[#F1F5F9]">
+                  {filteredMaintenance.map((m, idx) => {
+                    const orderId = m.id || idx;
+                    return (
+                      <motion.tr key={orderId} variants={stagger.item} className="hover:bg-[#FAF9FF] transition-colors">
+                        <td className="px-6 py-4 text-xs font-semibold text-[#475569]">
+                          {new Date(m.date).toLocaleDateString("en-IN", { day: '2-digit', month: 'short', year: 'numeric' })}
+                        </td>
+                        <td onClick={() => navigate(`/equipment/view/${m.eqId}`)} className="px-6 py-4 text-xs font-bold text-[#243744] hover:underline cursor-pointer">
+                          {m.eqId}
+                        </td>
+                        <td className="px-6 py-4 text-xs font-bold text-[#1E293B]">{m.eqName}</td>
+                        <td className="px-6 py-4">
+                          <span className={`inline-flex px-2 py-0.5 text-xs font-bold rounded-lg ${
+                            m.type === "Preventive" ? "text-blue-700 bg-blue-50/80 border border-blue-100" : "text-purple-700 bg-purple-50/80 border border-purple-100"
+                          }`}>{m.type}</span>
+                        </td>
+                        <td className="px-6 py-4 text-xs font-semibold text-[#475569]">{m.engineer}</td>
+                        <td className="px-6 py-4 text-xs font-bold text-right text-slate-800">
+                          ₹ {m.cost.toLocaleString("en-IN")}
+                        </td>
+                        <td className="px-6 py-4 text-center">{getStatusBadge(m.status)}</td>
+                        <td className="px-6 py-4 text-right">
+                          <button
+                            onClick={(e) => handleToggleDropdown(orderId, e)}
+                            className="p-1.5 hover:bg-[#F1F5F9] rounded-lg transition-colors text-[#8A97A4] hover:text-[#1A2733]"
+                          >
+                            <MoreHorizontal size={16} />
+                          </button>
+
+                          <PortalActionMenu
+                            anchorEl={activeDropdownId === orderId ? activeAnchorEl : null}
+                            open={activeDropdownId === orderId}
+                            onClose={() => { setActiveDropdownId(null); setActiveAnchorEl(null); }}
+                            actions={[
+                              {
+                                label: "View Device Detail",
+                                icon: Eye,
+                                onClick: () => navigate(`/equipment/view/${m.eqId}`)
+                              }
+                            ]}
+                          />
+                        </td>
+                      </motion.tr>
+                    );
+                  })}
+                </motion.tbody>
+              </table>
+            </div>
+          )}
         </div>
 
-        {/* ========================================================================= */}
-        {/* ADD MAINTENANCE DRAWER */}
-        {/* ========================================================================= */}
-        {/* Drawer Backdrop */}
-        <div 
-          className={`fixed inset-0 bg-black/45 backdrop-blur-xs z-50 transition-opacity duration-300 ${
-            isModalOpen ? "opacity-100 visible" : "opacity-0 invisible"
-          }`} 
-          onClick={() => setIsModalOpen(false)} 
-        />
+        {/* Sliding Drawer */}
+        <AnimatePresence>
+          {isModalOpen && (
+            <>
+              {/* Drawer Backdrop */}
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 bg-slate-900/45 backdrop-blur-sm z-50"
+                onClick={() => setIsModalOpen(false)} 
+              />
 
-        {/* Sliding Drawer Container */}
-        <div 
-          className={`fixed top-0 right-0 h-full w-full sm:w-[450px] bg-white shadow-2xl z-50 transform transition-transform duration-300 ${
-            isModalOpen ? "translate-x-0" : "translate-x-full"
-          } flex flex-col`}
-        >
-          <div className="bg-[#2562AA] text-white px-5 py-5 flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-bold">Add Maintenance Order</h3>
-              <p className="text-[10px] text-white/80 mt-0.5 font-semibold">Log preventive repairs or service reports</p>
-            </div>
-            <button onClick={() => setIsModalOpen(false)} className="p-1.5 hover:bg-white/10 rounded-full text-white transition-colors">
-              <Close className="w-5 h-5" />
-            </button>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-6 space-y-4">
-            <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Select Equipment *</label>
-              <select
-                value={newMaint.eqId}
-                onChange={(e) => setNewMaint({...newMaint, eqId: e.target.value})}
-                className="px-3.5 py-2.5 w-full border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#2562AA]"
+              {/* Sliding Drawer Container */}
+              <motion.aside 
+                initial={{ x: "100%" }}
+                animate={{ x: 0 }}
+                exit={{ x: "100%" }}
+                transition={{ type: "spring", damping: 25, stiffness: 220 }}
+                className="fixed top-0 right-0 h-full w-full sm:w-[460px] bg-white shadow-2xl z-50 flex flex-col"
               >
-                {equipmentList.map(eq => (
-                  <option key={eq.id} value={eq.id}>{eq.id} - {eq.name}</option>
-                ))}
-              </select>
-            </div>
+                <div className="sticky top-0 z-20 border-b border-slate-100 bg-[#243744] text-white px-5 py-4 backdrop-blur-xl">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <h3 className="text-lg font-bold text-white">Add Maintenance Order</h3>
+                      <p className="text-xs text-white/70 mt-0.5 font-semibold">Log preventive repairs or service reports</p>
+                    </div>
+                    <button onClick={() => setIsModalOpen(false)} className="rounded-xl p-2 hover:bg-white/10 text-white transition-colors">
+                      <X size={18} />
+                    </button>
+                  </div>
+                </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Work Date *</label>
-                <input
-                  type="date"
-                  value={newMaint.date}
-                  onChange={(e) => setNewMaint({...newMaint, date: e.target.value})}
-                  className="px-3.5 py-2.5 w-full border border-gray-200 rounded-xl text-sm focus:outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Work Type *</label>
-                <select
-                  value={newMaint.type}
-                  onChange={(e) => setNewMaint({...newMaint, type: e.target.value})}
-                  className="px-3.5 py-2.5 w-full border border-gray-200 rounded-xl text-sm focus:outline-none"
-                >
-                  {maintenanceTypes.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
-              </div>
-            </div>
+                <div className="flex-1 overflow-y-auto p-6 space-y-5 bg-[#FAFCFF]">
+                  <div>
+                    <label className="mb-1.5 block text-xs font-bold text-gray-600 uppercase tracking-wider">Select Equipment *</label>
+                    <select
+                      value={newMaint.eqId}
+                      onChange={(e) => setNewMaint({...newMaint, eqId: e.target.value})}
+                      className={inputClass}
+                    >
+                      {equipmentList.map(eq => (
+                        <option key={eq.id} value={eq.id}>{eq.id} - {eq.name}</option>
+                      ))}
+                    </select>
+                  </div>
 
-            <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Engineer / Service Contractor *</label>
-              <input
-                type="text"
-                placeholder="e.g. Aimil Service Team"
-                value={newMaint.engineer}
-                onChange={(e) => setNewMaint({...newMaint, engineer: e.target.value})}
-                className="px-3.5 py-2.5 w-full border border-gray-200 rounded-xl text-sm focus:outline-none"
-              />
-            </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="mb-1.5 block text-xs font-bold text-gray-600 uppercase tracking-wider">Work Date *</label>
+                      <input
+                        type="date"
+                        value={newMaint.date}
+                        onChange={(e) => setNewMaint({...newMaint, date: e.target.value})}
+                        className={inputClass}
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-xs font-bold text-gray-600 uppercase tracking-wider">Work Type *</label>
+                      <select
+                        value={newMaint.type}
+                        onChange={(e) => setNewMaint({...newMaint, type: e.target.value})}
+                        className={inputClass}
+                      >
+                        {maintenanceTypes.map(t => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                    </div>
+                  </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Cost (₹) *</label>
-                <input
-                  type="number"
-                  placeholder="INR"
-                  value={newMaint.cost}
-                  onChange={(e) => setNewMaint({...newMaint, cost: e.target.value})}
-                  className="px-3.5 py-2.5 w-full border border-gray-200 rounded-xl text-sm focus:outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Job Status</label>
-                <select
-                  value={newMaint.status}
-                  onChange={(e) => setNewMaint({...newMaint, status: e.target.value})}
-                  className="px-3.5 py-2.5 w-full border border-gray-200 rounded-xl text-sm focus:outline-none"
-                >
-                  {statuses.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
-            </div>
+                  <div>
+                    <label className="mb-1.5 block text-xs font-bold text-gray-600 uppercase tracking-wider">Engineer / Service Contractor *</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Aimil Service Team"
+                      value={newMaint.engineer}
+                      onChange={(e) => setNewMaint({...newMaint, engineer: e.target.value})}
+                      className={inputClass}
+                    />
+                  </div>
 
-            <div>
-              <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Remarks</label>
-              <input
-                type="text"
-                placeholder="Describe maintenance logs..."
-                value={newMaint.remarks}
-                onChange={(e) => setNewMaint({...newMaint, remarks: e.target.value})}
-                className="px-3.5 py-2.5 w-full border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#2562AA]"
-              />
-            </div>
-          </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="mb-1.5 block text-xs font-bold text-gray-600 uppercase tracking-wider">Cost (₹) *</label>
+                      <input
+                        type="number"
+                        placeholder="INR"
+                        value={newMaint.cost}
+                        onChange={(e) => setNewMaint({...newMaint, cost: e.target.value})}
+                        className={inputClass}
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-xs font-bold text-gray-600 uppercase tracking-wider">Job Status</label>
+                      <select
+                        value={newMaint.status}
+                        onChange={(e) => setNewMaint({...newMaint, status: e.target.value})}
+                        className={inputClass}
+                      >
+                        {statuses.map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </div>
+                  </div>
 
-          <div className="bg-gray-50 border-t border-gray-100 p-5 flex items-center justify-end gap-2">
-            <button onClick={() => setIsModalOpen(false)} className="px-4 py-2.5 text-xs font-bold text-gray-500 hover:text-gray-700 flex-1">
-              Cancel
-            </button>
-            <button
-              onClick={handleSaveMaintenance}
-              className="px-6 py-2.5 bg-[#2562AA] hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md transition-all active:scale-[0.98] flex-1"
-            >
-              Save Order
-            </button>
-          </div>
-        </div>
+                  <div>
+                    <label className="mb-1.5 block text-xs font-bold text-gray-600 uppercase tracking-wider">Remarks</label>
+                    <textarea
+                      rows={3}
+                      placeholder="Describe maintenance logs..."
+                      value={newMaint.remarks}
+                      onChange={(e) => setNewMaint({...newMaint, remarks: e.target.value})}
+                      className={inputClass}
+                    />
+                  </div>
+                </div>
+
+                <div className="sticky bottom-0 z-20 border-t border-slate-100 bg-white/95 px-5 py-4 backdrop-blur-xl flex items-center justify-end gap-2">
+                  <button onClick={() => setIsModalOpen(false)} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-gray-700 hover:bg-slate-50 transition-colors flex-1">
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSaveMaintenance}
+                    className="rounded-xl bg-[#243744] hover:bg-[#1A2733] px-6 py-2.5 text-sm font-bold text-white shadow-sm transition-colors flex-1"
+                  >
+                    Save Order
+                  </button>
+                </div>
+              </motion.aside>
+            </>
+          )}
+        </AnimatePresence>
 
       </div>
     </MainLayout>

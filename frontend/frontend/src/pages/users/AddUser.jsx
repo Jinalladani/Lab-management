@@ -35,7 +35,6 @@ const AddUser = () => {
     try {
       setRolesLoading(true);
       const response = await rolesAPI.getLabRoles();
-      console.log(response.data);
       setRoles(response.data?.roles?.filter((role) => role.role_name !== "super_admin") || []);
     } catch (error) {
       console.error("Failed to fetch roles:", error);
@@ -201,6 +200,7 @@ const AddUser = () => {
                 title="Account Information"
                 description="Role assignment and access level"
                 icon={Shield}
+                className="!overflow-visible"
               >
                 <Select
                   label="Role"
@@ -214,14 +214,14 @@ const AddUser = () => {
                   required
                 />
 
-                <div className="mt-4 rounded-xl border border-[#BFDBFE] bg-[#EFF6FF] p-4">
+                <div className="mt-4 rounded-xl border border-[#D1E2FF] bg-[#F3F7FF] p-4">
                   <div className="flex items-start gap-3">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#2563EB]/10 text-[#2563EB]">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#243744]/10 text-[#243744]">
                       <Info size={16} />
                     </div>
                     <div>
-                      <h4 className="text-sm font-semibold text-[#1E40AF]">Password Auto-Generated</h4>
-                      <p className="mt-1 text-xs text-[#3B82F6] leading-relaxed">
+                      <h4 className="text-sm font-semibold text-[#1C2D37]">Password Auto-Generated</h4>
+                      <p className="mt-1 text-xs text-[#57687A] leading-relaxed">
                         A secure password will be automatically generated and sent to the user's email address.
                       </p>
                     </div>
@@ -269,6 +269,7 @@ const AddUser = () => {
               variant="primary"
               type="submit"
               loading={loading || rolesLoading}
+              className="!bg-[#243744] hover:!bg-[#1A2733] text-white font-bold"
             >
               {loading ? "Creating User..." : "Create User"}
             </Button>

@@ -39,6 +39,25 @@ import BiotechIcon from "@mui/icons-material/Biotech";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import {
+  ArrowLeft,
+  Briefcase,
+  User,
+  Shield,
+  Info,
+  MapPin,
+  CreditCard,
+  Upload,
+  Trash2,
+  Plus,
+  Minus,
+  FlaskConical,
+  Check,
+  FileText,
+  Eye,
+  MoreHorizontal
+} from "lucide-react";
+import { Button } from "../../components/ui";
 
 const SAMPLE_ACTION_DROPDOWN_WIDTH = 190;
 const SAMPLE_ACTION_DROPDOWN_HEIGHT = 150;
@@ -1056,21 +1075,16 @@ const ProjectView = () => {
 
         </div>
       )}
-      <div className="p-4 sm:p-6">
-        {/* Back Button */}
-        <button
-          onClick={() => navigate("/projects")}
-          className="mb-4 flex items-center gap-2 text-[#2d66b3] font-medium hover:text-[#1f5498] transition-colors"
-        >
-          <ArrowBackIcon fontSize="small" />
+      <div className="mx-auto w-full max-w-[1800px] px-4 py-5 sm:px-5 lg:px-6">
+        <Button variant="ghost" size="sm" icon={ArrowLeft} onClick={() => navigate("/projects")} className="mb-4">
           Back
-        </button>
+        </Button>
 
         <div className="w-full">
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-visible">
+          <div className="bg-white rounded-2xl border border-[#E2E8F0] shadow-sm p-4 sm:p-6 lg:p-8 !overflow-visible">
             {/* Header Section */}
-            <div className="p-4 sm:p-6 lg:p-8 border-b border-gray-200">
-              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
+            <div className="p-4 border-b border-[#F1F5F9]">
+              <div className="flex flex-col lg:flex-row lg:justify-between lg:items-start gap-4">
                 <div className="min-w-0 flex-1">
                   <h1 className="text-xl sm:text-2xl font-bold text-gray-900 break-words">
                     {project.project_name}
@@ -1080,8 +1094,26 @@ const ProjectView = () => {
                   </p>
                 </div>
 
-                <div className="flex items-center justify-between sm:justify-end gap-3 relative">
-                  <span className="px-3 sm:px-4 py-1 sm:py-2 rounded-full text-xs sm:text-sm font-medium bg-blue-100 text-blue-700 whitespace-nowrap">
+                <div className="flex flex-wrap items-center justify-start lg:justify-end gap-2 sm:gap-3 w-full lg:w-auto relative">
+                  {registrationCode ? (
+                    <button
+                      onClick={openRegistrationDialog}
+                      className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-[#243744] rounded-lg text-xs sm:text-sm font-semibold border border-blue-200 shadow-sm whitespace-nowrap"
+                      title="Edit Registration / Job No"
+                    >
+                      {registrationCode}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={openRegistrationDialog}
+                      disabled={registrationLoading}
+                      className="px-3 py-1.5 bg-[#243744] hover:bg-[#1A2733] text-white rounded-lg text-xs sm:text-sm font-semibold shadow-sm disabled:opacity-60 whitespace-nowrap"
+                    >
+                      {registrationLoading ? "Loading..." : "Registration No / Job No"}
+                    </button>
+                  )}
+
+                  <span className="px-2.5 py-1.5 rounded-full text-xs sm:text-sm font-semibold bg-blue-100 text-blue-700 whitespace-nowrap">
                     {formatStatusForDisplay(project.status)}
                   </span>
 
@@ -1164,498 +1196,282 @@ const ProjectView = () => {
 
             {/* Content Section */}
             <div className="p-4 sm:p-6 lg:p-8">
-              {/* Tabs */}
-              <div className="mb-6">
-                <div className="border-b border-gray-200 flex items-center justify-between">
-
-                  <nav className="flex space-x-1 overflow-x-auto">
-
-                    <button
-                      onClick={() => setActiveTab("project")}
-                      className={`px-5 py-3 text-sm font-medium border-b-2 transition-all whitespace-nowrap ${activeTab === "project"
-                          ? "border-[#2d66b3] text-[#2d66b3]"
-                          : "border-transparent text-gray-500 hover:text-gray-700"
-                        }`}
-                    >
-                      Project Details
-                    </button>
-
-                    <button
-                      onClick={() => setActiveTab("samples")}
-                      className={`px-5 py-3 text-sm font-medium border-b-2 transition-all whitespace-nowrap ${activeTab === "samples"
-                          ? "border-[#2d66b3] text-[#2d66b3]"
-                          : "border-transparent text-gray-500 hover:text-gray-700"
-                        }`}
-                    >
-                      Sample Details
-                    </button>
-
-                    <button
-                      onClick={() => setActiveTab("testAssignment")}
-                      className={`px-5 py-3 text-sm font-medium border-b-2 transition-all whitespace-nowrap ${activeTab === "testAssignment"
-                          ? "border-[#2d66b3] text-[#2d66b3]"
-                          : "border-transparent text-gray-500 hover:text-gray-700"
-                        }`}
-                    >
-                      Test Assignment
-                    </button>
-
-                    <button
-                      onClick={() => setActiveTab("observation")}
-                      className={`px-5 py-3 text-sm font-medium border-b-2 transition-all whitespace-nowrap ${activeTab === "observation"
-                          ? "border-[#2d66b3] text-[#2d66b3]"
-                          : "border-transparent text-gray-500 hover:text-gray-700"
-                        }`}
-                    >
-                      Observation
-                    </button>
-
-                    <button
-                      onClick={() => setActiveTab("report")}
-                      className={`px-5 py-3 text-sm font-medium border-b-2 transition-all whitespace-nowrap ${activeTab === "report"
-                          ? "border-[#2d66b3] text-[#2d66b3]"
-                          : "border-transparent text-gray-500 hover:text-gray-700"
-                        }`}
-                    >
-                      Report
-                    </button>
-
-                  </nav>
-
-                  <div className="pr-4">
-                    {registrationCode ? (
-                      <button
-                        onClick={openRegistrationDialog}
-                        className="px-4 py-2 bg-blue-50 hover:bg-blue-100 text-[#2d66b3] rounded-lg text-sm font-semibold border border-blue-200 shadow-sm"
-                        title="Edit Registration / Job No"
-                      >
-                        {registrationCode}
-                      </button>
-                    ) : (
-                      <button
-                        onClick={openRegistrationDialog}
-                        disabled={registrationLoading}
-                        className="px-4 py-2 bg-[#2d66b3] hover:bg-[#1f5498] text-white rounded-lg text-sm font-medium shadow-sm disabled:opacity-60"
-                      >
-                        {registrationLoading ? "Loading..." : "Registration No / Job No"}
-                      </button>
-                    )}
-                  </div>
-
-                </div>
-              </div>
-              {activeTab === "project" && (
-                <>
-                  <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 lg:gap-6">
-                    {/* Left Column */}
-                    <div className="xl:col-span-2 space-y-4 lg:space-y-6">
-                      <div className="bg-gray-50 rounded-lg p-4 sm:p-6">
-                        <h2 className="text-base sm:text-lg font-semibold text-gray-800 mb-3 sm:mb-4 flex items-center">
-                          <span className="w-2 h-2 bg-[#2b63ae] rounded-full mr-2"></span>
-                          Basic Information
-                        </h2>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                          <div>
-                            <label className="block mb-2 text-sm font-medium text-gray-500">
-                              Client
-                            </label>
-                            <div className="px-3 sm:px-4 py-2 sm:py-3 bg-white border border-gray-200 rounded-lg">
-                              <p className="text-sm sm:text-base font-medium text-gray-900 break-words">
-                                {project.client_name || "-"}
-                              </p>
-                            </div>
-                          </div>
-
-                          <div>
-                            <label className="block mb-2 text-sm font-medium text-gray-500">
-                              Project Code
-                            </label>
-                            <div className="px-3 sm:px-4 py-2 sm:py-3 bg-white border border-gray-200 rounded-lg">
-                              <p className="text-sm sm:text-base font-medium text-gray-900 break-words">
-                                {project.project_code || "-"}
-                              </p>
-                            </div>
-                          </div>
-
-                          <div>
-                            <label className="block mb-2 text-sm font-medium text-gray-500">
-                              Project Name
-                            </label>
-                            <div className="px-4 py-3 bg-white border border-gray-200 rounded-lg">
-                              <p className="text-sm sm:text-base font-medium text-gray-900 break-words">
-                                {project.project_name || "-"}
-                              </p>
-                            </div>
-                          </div>
-
-                          <div>
-                            <label className="block mb-2 text-sm font-medium text-gray-500">
-                              Location Name
-                            </label>
-                            <div className="px-4 py-3 bg-white border border-gray-200 rounded-lg">
-                              <p className="text-sm sm:text-base font-medium text-gray-900 break-words">
-                                {project.location_name || "-"}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="mt-3 sm:mt-4">
-                          <label className="block mb-2 text-sm font-medium text-gray-500">
-                            Name of work & other Details
-                          </label>
-                          <div className="px-3 sm:px-4 py-2 sm:py-3 bg-white border border-gray-200 rounded-lg min-h-[100px] sm:min-h-[120px]">
-                            <p className="text-sm sm:text-base font-medium text-gray-900 break-words whitespace-pre-wrap">
-                              {project.name_of_work_and_other_details || "-"}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-                          <div>
-                            <label className="block mb-2 text-sm font-medium text-gray-700">NABL Scope</label>
-                            <div className="px-3 sm:px-4 py-2 sm:py-3 bg-white border border-gray-200 rounded-lg">
-                              <p className="text-sm sm:text-base font-medium text-gray-900">
-                                {project.nabl_scope ? "Yes" : "No"}
-                              </p>
-                            </div>
-                          </div>
-                          <div>
-                            {/* Empty div for grid layout */}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Address Section */}
-                      <div className="bg-gray-50 rounded-lg p-4 sm:p-6">
-                        <h2 className="text-base sm:text-lg font-semibold text-gray-800 mb-3 sm:mb-4 flex items-center">
-                          <span className="w-2 h-2 bg-[#2b63ae] rounded-full mr-2"></span>
-                          Address Information
-                        </h2>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                          <div className="sm:col-span-2">
-                            <label className="block mb-2 text-sm font-medium text-gray-500">
-                              Address
-                            </label>
-                            <div className="px-3 sm:px-4 py-2 sm:py-3 bg-white border border-gray-200 rounded-lg min-h-[80px] sm:min-h-[100px]">
-                              <p className="text-sm sm:text-base font-medium text-gray-900 break-words whitespace-pre-wrap">
-                                {project.address || "-"}
-                              </p>
-                            </div>
-                          </div>
-
-                          <div>
-                            <label className="block mb-2 text-sm font-medium text-gray-500">
-                              City
-                            </label>
-                            <div className="px-3 sm:px-4 py-2 sm:py-3 bg-white border border-gray-200 rounded-lg">
-                              <p className="text-sm sm:text-base font-medium text-gray-900 break-words">
-                                {project.city || "-"}
-                              </p>
-                            </div>
-                          </div>
-
-                          <div>
-                            <label className="block mb-2 text-sm font-medium text-gray-500">
-                              State
-                            </label>
-                            <div className="px-3 sm:px-4 py-2 sm:py-3 bg-white border border-gray-200 rounded-lg">
-                              <p className="text-sm sm:text-base font-medium text-gray-900 break-words">
-                                {project.state || "-"}
-                              </p>
-                            </div>
-                          </div>
-
-                          <div>
-                            <label className="block mb-2 text-sm font-medium text-gray-500">
-                              Pincode
-                            </label>
-                            <div className="px-3 sm:px-4 py-2 sm:py-3 bg-white border border-gray-200 rounded-lg">
-                              <p className="text-sm sm:text-base font-medium text-gray-900 break-words">
-                                {project.pincode || "-"}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Scope Section */}
-                      <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-4 sm:p-6 border border-blue-100">
-                        <h2 className="text-base sm:text-lg font-semibold text-gray-800 mb-3 sm:mb-4 flex items-center">
-                          <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
-                          Testing Scope
-                        </h2>
-
-                        {project.scopes && project.scopes.length > 0 ? (
-                          <div className="space-y-3">
-                            <div className="bg-white rounded-lg p-4 border border-gray-200">
-                              <div className="flex items-center justify-between mb-3 gap-2">
-                                <h3 className="font-medium text-gray-800">
-                                  Selected Tests ({project.scopes.length})
-                                </h3>
-                                <div className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full font-medium whitespace-nowrap">
-                                  {project.scopes.length} Test
-                                  {project.scopes.length !== 1 ? "s" : ""}
-                                </div>
-                              </div>
-
-                              <div className="space-y-2 max-h-64 overflow-y-auto">
-                                {project.scopes.map((scope, index) => (
-                                  <div
-                                    key={scope.project_scope_test_id || index}
-                                    className="flex items-center gap-2 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200"
-                                  >
-                                    <div className="flex-1 min-w-0">
-                                      <div className="flex flex-wrap items-center gap-2 text-sm">
-                                        <span className="font-semibold text-blue-800 break-words">
-                                          {scope.group_name || scope.group?.group_name}
-                                        </span>
-                                        <span className="text-blue-600">›</span>
-                                        <span className="font-medium text-blue-700 break-words">
-                                          {scope.material_name ||
-                                            scope.material?.material_name}
-                                        </span>
-                                        <span className="text-blue-600">›</span>
-                                        <span className="text-blue-700 break-words">
-                                          {scope.test_name || scope.test?.test_name}
-                                        </span>
-                                      </div>
-                                      <div className="flex items-center gap-4 mt-1 text-xs text-gray-600">
-                                        {scope.test_method && (
-                                          <span className="break-words">
-                                            Method: {scope.test_method}
-                                          </span>
-                                        )}
-                                      </div>
-                                      {scope.remarks && (
-                                        <div className="text-xs text-gray-500 mt-1 break-words">
-                                          Remarks: {scope.remarks}
-                                        </div>
-                                      )}
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="text-center py-8">
-                            <div className="text-gray-400 mb-2">
-                              <ScienceIcon className="w-8 h-8 mx-auto" />
-                            </div>
-                            <p className="text-gray-500 font-medium">
-                              No testing scope selected
-                            </p>
-                            <p className="text-sm text-gray-400 mt-1">
-                              Edit project to add testing scope
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Right Column */}
-                    <div className="space-y-4 lg:space-y-6">
-                      {/* Client Information */}
-                      <div className="bg-gray-50 rounded-lg p-4 sm:p-6">
-                        <h2 className="text-base sm:text-lg font-semibold text-gray-800 mb-3 sm:mb-4 flex items-center">
-                          <span className="w-2 h-2 bg-[#2b63ae] rounded-full mr-2"></span>
-                          Client Information
-                        </h2>
-
-                        <div className="space-y-3 sm:space-y-4">
-                          <div>
-                            <label className="block mb-2 text-sm font-medium text-gray-500">
-                              Client Representative Name
-                            </label>
-                            <div className="px-3 sm:px-4 py-2 sm:py-3 bg-white border border-gray-200 rounded-lg">
-                              <p className="text-sm sm:text-base font-medium text-gray-900 break-words">
-                                {project.client_representative_name || "-"}
-                              </p>
-                            </div>
-                          </div>
-
-                          <div>
-                            <label className="block mb-2 text-sm font-medium text-gray-500">
-                              Dispatch Mode
-                            </label>
-                            <div className="px-3 sm:px-4 py-2 sm:py-3 bg-white border border-gray-200 rounded-lg">
-                              <p className="text-sm sm:text-base font-medium text-gray-900 break-words">
-                                {project.dispatch_mode || "-"}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Assignment Information */}
-                      <div className="bg-gray-50 rounded-lg p-4 sm:p-6">
-                        <h2 className="text-base sm:text-lg font-semibold text-gray-800 mb-3 sm:mb-4 flex items-center">
-                          <span className="w-2 h-2 bg-[#2b63ae] rounded-full mr-2"></span>
-                          Assignment Information
-                        </h2>
-
-                        <div className="space-y-3 sm:space-y-4">
-                          <div>
-                            <label className="block mb-2 text-sm font-medium text-gray-500">
-                              Request Collected By
-                            </label>
-                            <div className="px-3 sm:px-4 py-2 sm:py-3 bg-white border border-gray-200 rounded-lg">
-                              <p className="text-sm sm:text-base font-medium text-gray-900 break-words">
-                                {project.request_collected_by_name || project.request_collected_by || "-"}
-                              </p>
-                            </div>
-                          </div>
-
-                          <div>
-                            <label className="block mb-2 text-sm font-medium text-gray-500">
-                              Test Assigned To
-                            </label>
-                            <div className="px-3 sm:px-4 py-2 sm:py-3 bg-white border border-gray-200 rounded-lg">
-                              <p className="text-sm sm:text-base font-medium text-gray-900 break-words">
-                                {project.test_assigned_to_name || project.test_assigned_to || "-"}
-                              </p>
-                            </div>
-                          </div>
-
-                          <div>
-                            <label className="block mb-2 text-sm font-medium text-gray-500">
-                              Reviewed By
-                            </label>
-                            <div className="px-3 sm:px-4 py-2 sm:py-3 bg-white border border-gray-200 rounded-lg">
-                              <p className="text-sm sm:text-base font-medium text-gray-900 break-words">
-                                {project.reviewed_by_name || project.reviewed_by || "-"}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Project Status */}
-                      <div className="bg-gray-50 rounded-lg p-4 sm:p-6">
-                        <h2 className="text-base sm:text-lg font-semibold text-gray-800 mb-3 sm:mb-4 flex items-center">
-                          <span className="w-2 h-2 bg-[#2b63ae] rounded-full mr-2"></span>
-                          Project Status
-                        </h2>
-
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                  {/* Left Column - Basic Info, Address & Scope */}
+                  <div className="lg:col-span-2 space-y-6">
+                    
+                    {/* Basic Information */}
+                    <div>
+                      <h3 className="text-sm font-bold text-[#1A2733] flex items-center gap-2 mb-4">
+                        <Briefcase size={16} className="text-[#3F6E8C]" />
+                        Basic Information
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                          <label className="block mb-2 text-sm font-medium text-gray-500">
-                            Status
-                          </label>
-                          <div className="px-3 sm:px-4 py-2 sm:py-3 bg-white border border-gray-200 rounded-lg">
-                            <p className="text-sm sm:text-base font-medium text-gray-900 break-words">
-                              {formatStatusForDisplay(project.status)}
-                            </p>
-                          </div>
+                          <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Client</label>
+                          <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 break-words">{project.client_name || "—"}</div>
+                        </div>
+                        <div>
+                          <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Project Code</label>
+                          <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 break-words">{project.project_code || "—"}</div>
+                        </div>
+                        <div>
+                          <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Project Name</label>
+                          <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 break-words">{project.project_name || "—"}</div>
+                        </div>
+                        <div>
+                          <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Location Name</label>
+                          <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 break-words">{project.location_name || "—"}</div>
                         </div>
                       </div>
 
-                      {/* Project Metrics */}
-                      <div className="bg-gradient-to-br from-50 to-emerald-50 rounded-lg p-4 sm:p-6 border border-green-100">
-                        <h2 className="text-base sm:text-lg font-semibold text-gray-800 mb-3 sm:mb-4 flex items-center">
-                          <span className="w-2 h-2 bg-[#2b63ae] rounded-full mr-2"></span>
-                          Project Metrics
-                        </h2>
+                      <div className="mt-4">
+                        <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Name of work & other Details</label>
+                        <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 break-words min-h-[80px] whitespace-pre-wrap">
+                          {project.name_of_work_and_other_details || "—"}
+                        </div>
+                      </div>
 
-                        <div className="space-y-3 sm:space-y-4">
-                          <div>
-                            <label className="block mb-2 text-sm font-medium text-gray-500">
-                              Total Reports
-                            </label>
-                            <div className="px-3 sm:px-4 py-2 sm:py-3 bg-white border border-gray-200 rounded-lg">
-                              <p className="text-sm sm:text-base font-medium text-gray-900">
-                                {project.total_reports || 0}
-                              </p>
-                            </div>
+                      <div className="mt-4">
+                        <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">NABL Scope</label>
+                        <div className="mt-1">
+                          <span className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full border ${
+                            project.nabl_scope ? 'bg-[#ECFDF5] text-[#10B981] border-[#D1FAE5]' : 'bg-[#FFF7ED] text-[#F97316] border-[#FFEDD5]'
+                          }`}>
+                            {project.nabl_scope ? "Yes (NABL Certified)" : "No (Non-NABL)"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Divider */}
+                    <div className="h-px bg-[#F1F5F9]" />
+
+                    {/* Address Information */}
+                    <div>
+                      <h3 className="text-sm font-bold text-[#1A2733] flex items-center gap-2 mb-4">
+                        <MapPin size={16} className="text-[#3F6E8C]" />
+                        Address Information
+                      </h3>
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Address</label>
+                          <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 break-words min-h-[80px] whitespace-pre-wrap">
+                            {project.address || "—"}
                           </div>
-
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                           <div>
-                            <label className="block mb-2 text-sm font-medium text-gray-500">
-                              Total Samples
-                            </label>
-                            <div className="px-3 sm:px-4 py-2 sm:py-3 bg-white border border-gray-200 rounded-lg">
-                              <div className="flex items-center justify-between">
-                                <p className="text-sm sm:text-base font-medium text-gray-900">
-                                  {project.total_samples || 0}
-                                </p>
-                                <button
-                                  onClick={() => navigate(`/samples?project_id=${projectId}`)}
-                                  className="text-blue-600 hover:text-blue-800 text-sm font-medium hover:underline"
+                            <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">City</label>
+                            <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 break-words">{project.city || "—"}</div>
+                          </div>
+                          <div>
+                            <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">State</label>
+                            <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 break-words">{project.state || "—"}</div>
+                          </div>
+                          <div>
+                            <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Pincode</label>
+                            <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 break-words">{project.pincode || "—"}</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Divider */}
+                    <div className="h-px bg-[#F1F5F9]" />
+
+                    {/* Testing Scope */}
+                    <div>
+                      <h3 className="text-sm font-bold text-[#1A2733] flex items-center gap-2 mb-4">
+                        <FlaskConical size={16} className="text-[#3F6E8C]" />
+                        Testing Scope
+                      </h3>
+
+                      {project.scopes && project.scopes.length > 0 ? (
+                        <div className="space-y-3">
+                          <div className="bg-white rounded-xl p-4 border border-[#E2E8F0]">
+                            <div className="flex items-center justify-between mb-3 gap-2 pb-2 border-b border-[#F1F5F9]">
+                              <span className="text-xs font-bold text-[#243744] uppercase tracking-wider">
+                                Selected Tests ({project.scopes.length})
+                              </span>
+                            </div>
+
+                            <div className="space-y-2 max-h-64 overflow-y-auto">
+                              {project.scopes.map((scope, index) => (
+                                <div
+                                  key={scope.project_scope_test_id || index}
+                                  className="flex items-center gap-2 p-2.5 bg-slate-50 rounded-lg border border-[#E2E8F0] text-xs"
                                 >
-                                  View Samples
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Project Documents */}
-                      <div className="bg-gray-50 rounded-lg p-4 sm:p-6">
-                        <h2 className="text-base sm:text-lg font-semibold text-gray-800 mb-3 sm:mb-4 flex items-center">
-                          <span className="w-2 h-2 bg-[#2b63ae] rounded-full mr-2"></span>
-                          Project Documents
-                        </h2>
-
-                        {project.documents && project.documents.length > 0 ? (
-                          <div className="space-y-2">
-                            {project.documents.map((doc, index) => (
-                              <div
-                                key={index}
-                                className="bg-white rounded-lg p-3 border border-gray-200 hover:shadow-md transition-shadow"
-                              >
-                                <div className="flex items-center justify-between gap-3">
-                                  <div className="flex items-center gap-3 min-w-0 flex-1">
-                                    <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center shrink-0">
-                                      <DescriptionIcon className="w-4 h-4 text-blue-600" />
+                                  <div className="flex-1 min-w-0">
+                                    <div className="font-bold text-[#1A2733]">
+                                      {scope.group_name || scope.group?.group_name} › {scope.material_name || scope.material?.material_name} › {scope.test_name || scope.test?.test_name}
                                     </div>
-                                    <div className="min-w-0">
-                                      <p className="font-medium text-gray-900 truncate text-sm">
-                                        {doc.file_name}
-                                      </p>
-                                      <p className="text-xs text-gray-500 truncate">
-                                        {doc.file_size &&
-                                          `${(doc.file_size / 1024).toFixed(1)} KB`}
-                                        {doc.mime_type && ` • ${doc.mime_type}`}
-                                      </p>
-                                    </div>
-                                  </div>
-
-                                  <div className="flex items-center gap-1 shrink-0">
-                                    <button
-                                      onClick={() => handleViewDocument(doc)}
-                                      className="text-green-600 hover:bg-green-50 p-1.5 rounded transition-colors"
-                                      title="View in new tab"
-                                    >
-                                      <VisibilityIcon className="w-3.5 h-3.5" />
-                                    </button>
-
+                                    {scope.test_method && (
+                                      <div className="text-[10px] text-slate-500 font-semibold mt-0.5">
+                                        Method: {scope.test_method}
+                                      </div>
+                                    )}
+                                    {scope.remarks && (
+                                      <div className="text-[10px] text-slate-500 font-semibold mt-0.5">
+                                        Remarks: {scope.remarks}
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="text-center py-6 sm:py-8">
-                            <div className="text-gray-400 mb-2">
-                              <DescriptionIcon className="w-6 h-6 sm:w-8 sm:h-8 mx-auto" />
+                              ))}
                             </div>
-                            <p className="text-gray-500 font-medium text-sm sm:text-base">
-                              No documents uploaded
-                            </p>
-                            <p className="text-xs sm:text-sm text-gray-400 mt-1">
-                              Edit project to add documents
-                            </p>
                           </div>
-                        )}
+                        </div>
+                      ) : (
+                        <div className="text-center py-8 border border-dashed border-[#E2E8F0] rounded-xl bg-[#FCFDFE]">
+                          <FlaskConical className="mx-auto h-8 w-8 text-gray-400 mb-2" />
+                          <p className="text-xs font-bold text-gray-500">No testing scope selected</p>
+                          <p className="text-[10px] text-gray-400 mt-1 font-semibold">Edit project to add testing scope</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Right Column - Client Representative, Docs, Assign, Status & Metrics */}
+                  <div className="space-y-6 lg:border-l lg:border-[#F1F5F9] lg:pl-8">
+                    
+                    {/* Client Information */}
+                    <div>
+                      <h3 className="text-sm font-bold text-[#1A2733] flex items-center gap-2 mb-4">
+                        <User size={16} className="text-[#3F6E8C]" />
+                        Client Representative
+                      </h3>
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Representative Name</label>
+                          <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 break-words">{project.client_representative_name || "—"}</div>
+                        </div>
+                        <div>
+                          <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Dispatch Mode</label>
+                          <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 break-words">
+                            {project.dispatch_mode === "by_post" ? "By Post (Mail Office)" : project.dispatch_mode === "collect_personally" ? "Collect Personally" : project.dispatch_mode || "—"}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Divider */}
+                    <div className="h-px bg-[#F1F5F9]" />
+
+                    {/* Project Documents */}
+                    <div>
+                      <h3 className="text-sm font-bold text-[#1A2733] flex items-center gap-2 mb-4">
+                        <FileText size={16} className="text-[#3F6E8C]" />
+                        Project Documents
+                      </h3>
+                      
+                      {project.documents && project.documents.length > 0 ? (
+                        <div className="space-y-2">
+                          {project.documents.map((doc, index) => (
+                            <div
+                              key={index}
+                              className="bg-white rounded-lg p-2.5 border border-[#E2E8F0] flex items-center justify-between text-xs"
+                            >
+                              <div className="min-w-0 flex-1 pr-2">
+                                <span className="font-bold text-gray-900 truncate block">{doc.file_name}</span>
+                                <span className="text-[10px] text-gray-500 font-semibold block mt-0.5">
+                                  {doc.file_size && `${(doc.file_size / 1024).toFixed(1)} KB`}
+                                </span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleViewDocument(doc)}
+                                className="text-green-600 hover:bg-green-50 p-1.5 rounded transition-colors shrink-0"
+                                title="View document"
+                              >
+                                <Eye size={14} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-center py-6 border border-dashed border-[#E2E8F0] rounded-xl bg-[#FCFDFE]">
+                          <FileText className="mx-auto h-6 w-6 text-gray-400 mb-1" />
+                          <p className="text-[10px] font-bold text-gray-500">No documents uploaded</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Divider */}
+                    <div className="h-px bg-[#F1F5F9]" />
+
+                    {/* Assignment Information */}
+                    <div>
+                      <h3 className="text-sm font-bold text-[#1A2733] flex items-center gap-2 mb-4">
+                        <User size={16} className="text-[#3F6E8C]" />
+                        Assignment & Review
+                      </h3>
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Request Collected By</label>
+                          <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 break-words">{project.request_collected_by_name || project.request_collected_by || "—"}</div>
+                        </div>
+                        <div>
+                          <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Test Assigned To</label>
+                          <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 break-words">{project.test_assigned_to_name || project.test_assigned_to || "—"}</div>
+                        </div>
+                        <div>
+                          <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Reviewed By</label>
+                          <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 break-words">{project.reviewed_by_name || project.reviewed_by || "—"}</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Divider */}
+                    <div className="h-px bg-[#F1F5F9]" />
+
+                    {/* Project Status */}
+                    <div>
+                      <h3 className="text-sm font-bold text-[#1A2733] flex items-center gap-2 mb-4">
+                        <Shield size={16} className="text-[#3F6E8C]" />
+                        Project Status
+                      </h3>
+                      <div>
+                        <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Status</label>
+                        <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 break-words">{formatStatusForDisplay(project.status)}</div>
+                      </div>
+                    </div>
+
+                    {/* Divider */}
+                    <div className="h-px bg-[#F1F5F9]" />
+
+                    {/* Project Metrics */}
+                    <div>
+                      <h3 className="text-sm font-bold text-[#1A2733] flex items-center gap-2 mb-4">
+                        <Shield size={16} className="text-[#3F6E8C]" />
+                        Project Metrics
+                      </h3>
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Total Reports</label>
+                          <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 break-words">{project.total_reports || 0}</div>
+                        </div>
+                        <div>
+                          <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Total Samples</label>
+                          <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 break-words">
+                            <div className="flex items-center justify-between">
+                              <span>{project.total_samples || 0}</span>
+                              <button
+                                type="button"
+                                onClick={() => navigate(`/samples?project_id=${projectId}`)}
+                                className="text-[#243744] hover:text-[#1A2733] text-xs font-bold"
+                              >
+                                View Samples
+                              </button>
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </>
-              )}
-              {activeTab === "samples" && (
+                </div>
+              
+              {false && activeTab === "samples" && (
                 <div className="space-y-6">
 
                   <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
@@ -1804,7 +1620,7 @@ const ProjectView = () => {
                   )}
 
                   {/* ========================= TEST ASSIGNMENT TAB ========================= */}
-                  {activeTab === "testAssignment" && (
+                  {false && activeTab === "testAssignment" && (
                     <div className="space-y-6">
                       <div className="flex items-start justify-between gap-4">
                         <div>
@@ -2384,7 +2200,7 @@ const ProjectView = () => {
   </div>
 )}
 
-                  {activeTab === "observation" && (
+                  {false && activeTab === "observation" && (
                     <div className="space-y-6">
                       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                         {/* Observation content will be implemented here */}
@@ -2392,7 +2208,7 @@ const ProjectView = () => {
                     </div>
                   )}
 
-                  {activeTab === "report" && (
+                  {false && activeTab === "report" && (
                     <div className="space-y-6">
                       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                         {/* <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">

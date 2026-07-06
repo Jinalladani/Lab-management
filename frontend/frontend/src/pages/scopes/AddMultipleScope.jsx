@@ -136,7 +136,7 @@ CHEMICAL- BUILDING MATERIAL,Cement,Compressive Strength,IS 4031,2,TRUE`;
         {/* Back Button */}
         <button
           onClick={() => navigate("/scope")}
-          className="mb-4 flex items-center gap-2 text-[#2d66b3] font-medium hover:text-[#1f5498] transition-colors"
+          className="mb-4 flex items-center gap-2 text-[#243744] font-medium hover:text-[#1A2733] transition-colors"
         >
           <ArrowBackIcon fontSize="small" />
           Back
@@ -174,8 +174,8 @@ CHEMICAL- BUILDING MATERIAL,Cement,Compressive Strength,IS 4031,2,TRUE`;
 
               {/* Large Icon and Instructions */}
               <div className="text-center mb-8">
-                <div className="w-24 h-24 bg-gradient-to-br from-[#2d66b3] to-[#1f5498] rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
-                  <CloudUploadIcon className="w-12 h-12 text-white" />
+                <div className="w-24 h-24 bg-[#243744]/10 rounded-full flex items-center justify-center mx-auto mb-6 shadow-md">
+                  <CloudUploadIcon className="w-12 h-12 text-[#243744]" />
                 </div>
                 <h3 className="text-xl font-bold text-gray-900 mb-3">Import Multiple Scopes</h3>
                 <p className="text-gray-600 max-w-2xl mx-auto">
@@ -189,33 +189,33 @@ CHEMICAL- BUILDING MATERIAL,Cement,Compressive Strength,IS 4031,2,TRUE`;
                 {/* Column Sequence */}
                 <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
                   <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                    <span className="w-2 h-2 bg-[#2b63ae] rounded-full mr-2"></span>
+                    <span className="w-2 h-2 bg-[#243744] rounded-full mr-2"></span>
                     Required Column Sequence
                   </h4>
                   
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
-                      <span className="w-6 h-6 bg-[#2d66b3] text-white rounded-full flex items-center justify-center text-xs font-bold">1</span>
+                      <span className="w-6 h-6 bg-[#243744] text-white rounded-full flex items-center justify-center text-xs font-bold">1</span>
                       <span className="font-medium text-gray-700">Group Name</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="w-6 h-6 bg-[#2d66b3] text-white rounded-full flex items-center justify-center text-xs font-bold">2</span>
+                      <span className="w-6 h-6 bg-[#243744] text-white rounded-full flex items-center justify-center text-xs font-bold">2</span>
                       <span className="font-medium text-gray-700">Material Name</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="w-6 h-6 bg-[#2d66b3] text-white rounded-full flex items-center justify-center text-xs font-bold">3</span>
+                      <span className="w-6 h-6 bg-[#243744] text-white rounded-full flex items-center justify-center text-xs font-bold">3</span>
                       <span className="font-medium text-gray-700">Test Name</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="w-6 h-6 bg-[#2d66b3] text-white rounded-full flex items-center justify-center text-xs font-bold">4</span>
+                      <span className="w-6 h-6 bg-[#243744] text-white rounded-full flex items-center justify-center text-xs font-bold">4</span>
                       <span className="font-medium text-gray-700">Test Method</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="w-6 h-6 bg-[#2d66b3] text-white rounded-full flex items-center justify-center text-xs font-bold">5</span>
+                      <span className="w-6 h-6 bg-[#243744] text-white rounded-full flex items-center justify-center text-xs font-bold">5</span>
                       <span className="font-medium text-gray-700">Sort Order</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="w-6 h-6 bg-[#2d66b3] text-white rounded-full flex items-center justify-center text-xs font-bold">6</span>
+                      <span className="w-6 h-6 bg-[#243744] text-white rounded-full flex items-center justify-center text-xs font-bold">6</span>
                       <span className="font-medium text-gray-700">Is Active</span>
                     </div>
                   </div>
@@ -226,13 +226,13 @@ CHEMICAL- BUILDING MATERIAL,Cement,Compressive Strength,IS 4031,2,TRUE`;
                 </div>
 
                 {/* Instructions */}
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-                  <h4 className="text-lg font-semibold text-blue-900 mb-4 flex items-center">
-                    <span className="w-2 h-2 bg-blue-600 rounded-full mr-2"></span>
+                <div className="bg-[#243744]/5 border border-[#243744]/15 rounded-lg p-6">
+                  <h4 className="text-lg font-semibold text-[#243744] mb-4 flex items-center">
+                    <span className="w-2 h-2 bg-[#243744] rounded-full mr-2"></span>
                     Instructions
                   </h4>
                   
-                  <div className="space-y-3 text-sm text-blue-800">
+                  <div className="space-y-3 text-sm text-[#243744]">
                     <p><strong>1. Download Template:</strong> Click the button below to get the Excel format</p>
                     <p><strong>2. Fill Data:</strong> Enter your scope data following the column sequence</p>
                     <p><strong>3. Upload File:</strong> Drag & drop or click to select your file</p>
@@ -246,8 +246,8 @@ CHEMICAL- BUILDING MATERIAL,Cement,Compressive Strength,IS 4031,2,TRUE`;
                 <div
                   className={`border-2 border-dashed rounded-xl p-12 text-center transition-all cursor-pointer ${
                     isDragging 
-                      ? 'border-[#2d66b3] bg-[#f0f7ff]' 
-                      : 'border-gray-300 hover:border-[#2d66b3] bg-gray-50 hover:bg-[#f8fafc]'
+                      ? 'border-[#243744] bg-[#243744]/5' 
+                      : 'border-gray-300 hover:border-[#243744] bg-gray-50 hover:bg-[#f8fafc]'
                   }`}
                   onDragOver={handleDragOver}
                   onDragLeave={handleDragLeave}
@@ -312,7 +312,7 @@ CHEMICAL- BUILDING MATERIAL,Cement,Compressive Strength,IS 4031,2,TRUE`;
               <div className="flex justify-between items-center">
                 <button
                   onClick={downloadTemplate}
-                  className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
+                  className="flex items-center gap-2 px-6 py-3 bg-[#243744]/10 text-[#243744] border border-[#243744]/15 rounded-lg hover:bg-[#243744]/15 transition-colors font-semibold"
                 >
                   <DownloadIcon className="w-5 h-5" />
                   Download Template
@@ -328,7 +328,7 @@ CHEMICAL- BUILDING MATERIAL,Cement,Compressive Strength,IS 4031,2,TRUE`;
                   <button
                     onClick={handleUpload}
                     disabled={!selectedFile || uploading}
-                    className="px-8 py-3 bg-gradient-to-r from-[#2d66b3] to-[#1e4a8c] text-white rounded-lg hover:from-[#1e4a8c] hover:to-[#2d66b3] disabled:opacity-70 disabled:cursor-not-allowed transition-all font-medium shadow-lg"
+                    className="px-8 py-3 bg-[#243744] text-white rounded-lg hover:bg-[#1A2733] disabled:opacity-70 disabled:cursor-not-allowed transition-all font-semibold shadow-sm"
                   >
                     {uploading ? "Uploading..." : "Upload & Import"}
                   </button>

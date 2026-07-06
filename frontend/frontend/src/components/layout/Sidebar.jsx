@@ -1,10 +1,10 @@
-import React, { useMemo } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import React, { useMemo, useState, useEffect } from "react";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard, User, Users, Briefcase, FlaskConical,
   Microscope, CheckSquare, FileText, Wrench, Calendar,
-  Table2, X, Building2, Menu,
+  Table2, X, Building2, Menu, ChevronDown,
 } from "lucide-react";
 
 const iconComponents = {
@@ -25,7 +25,7 @@ const SidebarLink = ({ to, icon, label, collapsed, onClick, end = false, activeW
       onClick={onClick}
       className={({ isActive }) =>
         [
-          "group relative flex items-center gap-3 rounded-xl text-sm font-medium transition-all duration-200 focus:outline-none",
+          "group relative flex items-center gap-3 rounded-xl text-sm font-medium transition-all duration-200 focus:outline-none w-full",
           collapsed ? "h-11 justify-center px-2.5" : "h-11 px-3.5",
           isActive || activeWhen?.(location.pathname)
             ? "bg-white text-[#1A2733] shadow-[0_2px_8px_rgba(0,0,0,0.08)]"
@@ -36,25 +36,125 @@ const SidebarLink = ({ to, icon, label, collapsed, onClick, end = false, activeW
       {({ isActive }) => {
         const active = isActive || activeWhen?.(location.pathname);
         return (
+          <motion.div
+            className="flex items-center gap-3 w-full"
+            whileHover={!active ? { x: 2 } : {}}
+            transition={{ duration: 0.2, ease: [0.22, 0.68, 0, 1] }}
+          >
+            <motion.div
+              animate={{
+                scale: active ? 1 : 0.95,
+              }}
+              transition={{ duration: 0.2 }}
+            >
+              <IconComp size={18} strokeWidth={active ? 2.2 : 1.8} />
+            </motion.div>
+            {!collapsed && (
+              <span className="truncate">{label}</span>
+            )}
+          </motion.div>
+        );
+      }}
+    </NavLink>
+  );
+};
+
+const SidebarSubmenu = ({ label, icon, subItems, collapsed, onClose, activeWhen, path }) => {
+  const IconComp = iconComponents[icon] || LayoutDashboard;
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const isChildActive = useMemo(() => {
+    if (activeWhen) return activeWhen(location.pathname);
+    return subItems.some(item => location.pathname.startsWith(item.path));
+  }, [location.pathname, activeWhen, subItems]);
+
+  const [isOpen, setIsOpen] = useState(false);
+
+  useEffect(() => {
+    if (isChildActive && !collapsed) {
+      setIsOpen(true);
+    }
+  }, [isChildActive, collapsed]);
+
+  const handleHeaderClick = () => {
+    if (collapsed) {
+      navigate(path || subItems[0].path);
+      if (onClose) onClose();
+    } else {
+      setIsOpen((prev) => !prev);
+      if (path) {
+        navigate(path);
+        if (onClose) onClose();
+      }
+    }
+  };
+
+  return (
+    <div className="w-full">
+      <button
+        type="button"
+        onClick={handleHeaderClick}
+        className={[
+          "group relative flex items-center gap-3 rounded-xl text-sm font-medium transition-all duration-200 focus:outline-none w-full text-left",
+          collapsed ? "h-11 justify-center px-2.5" : "h-11 px-3.5",
+          isChildActive && !isOpen
+            ? "bg-white/10 text-white"
+            : "text-white/70 hover:bg-white/[0.08] hover:text-white",
+        ].join(" ")}
+      >
         <motion.div
           className="flex items-center gap-3 w-full"
-          whileHover={!active ? { x: 2 } : {}}
+          whileHover={!isChildActive ? { x: 2 } : {}}
           transition={{ duration: 0.2, ease: [0.22, 0.68, 0, 1] }}
         >
-          <motion.div
-            animate={{
-              scale: active ? 1 : 0.95,
-            }}
-            transition={{ duration: 0.2 }}
-          >
-            <IconComp size={18} strokeWidth={active ? 2.2 : 1.8} />
-          </motion.div>
+          <IconComp size={18} strokeWidth={isChildActive ? 2.2 : 1.8} />
           {!collapsed && (
-            <span className="truncate">{label}</span>
+            <>
+              <span className="truncate">{label}</span>
+              <ChevronDown
+                size={14}
+                className={[
+                  "ml-auto transition-transform duration-200 text-white/50 group-hover:text-white",
+                  isOpen ? "rotate-180" : "",
+                ].join(" ")}
+              />
+            </>
           )}
         </motion.div>
-      );}}
-    </NavLink>
+      </button>
+
+      <AnimatePresence initial={false}>
+        {isOpen && !collapsed && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: [0.22, 0.68, 0, 1] }}
+            className="mt-1 ml-4 border-l border-white/10 pl-3 space-y-1 overflow-hidden"
+          >
+            {subItems.map((subItem) => {
+              const isSubActive = location.pathname.startsWith(subItem.path);
+              return (
+                <NavLink
+                  key={subItem.path}
+                  to={subItem.path}
+                  onClick={onClose}
+                  className={[
+                    "flex items-center h-8 rounded-lg px-3 text-xs font-semibold transition-all duration-200",
+                    isSubActive
+                      ? "bg-white text-[#1A2733] shadow-[0_2px_4px_rgba(0,0,0,0.06)]"
+                      : "text-white/60 hover:text-white hover:bg-white/[0.04]",
+                  ].join(" ")}
+                >
+                  {subItem.label}
+                </NavLink>
+              );
+            })}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 };
 
@@ -71,25 +171,52 @@ const Sidebar = ({ isOpen, isCollapsed, onClose, onToggleCollapse }) => {
   const navItems =
     user?.role === "superadmin" || user?.role === "super_admin"
       ? [
-          { path: "/dashboard", label: "Dashboard", icon: "layoutDashboard" },
-          { path: "/labs/manage", label: "Lab Management", icon: "building" },
-        ]
+        { path: "/dashboard", label: "Dashboard", icon: "layoutDashboard" },
+        { path: "/labs/manage", label: "Lab Management", icon: "building" },
+      ]
       : [
-          { path: "/dashboard", label: "Dashboard", icon: "layoutDashboard" },
-          { path: "/users", label: "Users", icon: "user" },
-          { path: "/labClients", label: "Clients", icon: "users" },
-          { path: "/projects", label: "Projects", icon: "briefcase" },
-          { path: "/scope", label: "Testing Scope", icon: "flask" },
-          { path: "/samples", label: "Samples", icon: "microscope" },
-          { path: "/test-assignments", label: "Test Assign", icon: "checkSquare" },
-          { path: "/reports", label: "Reports", icon: "fileText" },
-        ];
+        { path: "/dashboard", label: "Dashboard", icon: "layoutDashboard" },
+        { path: "/users", label: "Users", icon: "user" },
+        { path: "/labClients", label: "Clients", icon: "users" },
+        { path: "/projects", label: "Projects", icon: "briefcase" },
+        { path: "/samples", label: "Samples", icon: "microscope" },
+        { path: "/test-assignments", label: "Test Assign", icon: "checkSquare" },
+        {
+          label: "Observation",
+          icon: "table",
+          path: "/observation-entry",
+          activeWhen: (pathname) => pathname.startsWith("/observation") || pathname === "/observation-entry" || pathname === "/observation-builder",
+          subItems: [
+            { path: "/observation-builder", label: "Sheet Builder" },
+          ]
+        },
+        { path: "/reports", label: "Reports", icon: "fileText" },
+        { path: "/scope", label: "Testing Scope", icon: "flask" },
+      ];
 
   const moduleItems = [
-    { path: "/equipment/dashboard", label: "Equipment", icon: "wrench", activeWhen: (pathname) => pathname.startsWith("/equipment") },
-    { path: "/calibration/dashboard", label: "Calibration", icon: "calendar", activeWhen: (pathname) => pathname.startsWith("/calibration") },
+    {
+      label: "Equipment",
+      icon: "wrench",
+      path: "/equipment/dashboard",
+      activeWhen: (pathname) => pathname.startsWith("/equipment"),
+      subItems: [
+        { path: "/equipment/list", label: "Equipment List" },
+        { path: "/equipment/locations", label: "Locations" },
+      ]
+    },
+    {
+      label: "Calibration",
+      icon: "calendar",
+      path: "/calibration/dashboard",
+      activeWhen: (pathname) => pathname.startsWith("/calibration"),
+      subItems: [
+        { path: "/calibration/register", label: "Register" },
+        { path: "/calibration/calendar", label: "Calendar" },
+        { path: "/calibration/due-overdue", label: "Due / Overdue" },
+      ]
+    },
     { path: "/maintenance/history", label: "Maintenance", icon: "wrench", activeWhen: (pathname) => pathname.startsWith("/maintenance") },
-    { path: "/observation-entry", label: "Observation", icon: "table", activeWhen: (pathname) => pathname.startsWith("/observation") },
   ];
 
   return (
@@ -185,30 +312,62 @@ const Sidebar = ({ isOpen, isCollapsed, onClose, onToggleCollapse }) => {
         {/* Navigation */}
         <div className="sidebar-scroll flex-1 overflow-y-auto overflow-x-hidden px-3 py-4">
           <nav className="space-y-1.5 pb-4">
-            {navItems.map(({ path, label, icon }) => (
-              <SidebarLink
-                key={path}
-                to={path}
-                label={label}
-                icon={icon}
-                collapsed={isCollapsed}
-                onClick={onClose}
-                end={path === "/dashboard"}
-              />
-            ))}
-
-            <div className="!mt-3 pt-3 border-t border-white/8">
-              {moduleItems.map(({ path, label, icon, activeWhen }) => (
+            {navItems.map((item) => {
+              if (item.subItems) {
+                return (
+                  <SidebarSubmenu
+                    key={item.label}
+                    label={item.label}
+                    icon={item.icon}
+                    subItems={item.subItems}
+                    collapsed={isCollapsed}
+                    onClose={onClose}
+                    activeWhen={item.activeWhen}
+                    path={item.path}
+                  />
+                );
+              }
+              return (
                 <SidebarLink
-                  key={path}
-                  to={path}
-                  label={label}
-                  icon={icon}
+                  key={item.path}
+                  to={item.path}
+                  label={item.label}
+                  icon={item.icon}
                   collapsed={isCollapsed}
                   onClick={onClose}
-                  activeWhen={activeWhen}
+                  end={item.path === "/dashboard"}
                 />
-              ))}
+              );
+            })}
+
+            <div className="!mt-3 pt-3 border-t border-white/8 space-y-1.5">
+              {moduleItems.map((item) => {
+                if (item.subItems) {
+                  return (
+                    <SidebarSubmenu
+                      key={item.label}
+                      label={item.label}
+                      icon={item.icon}
+                      subItems={item.subItems}
+                      collapsed={isCollapsed}
+                      onClose={onClose}
+                      activeWhen={item.activeWhen}
+                      path={item.path}
+                    />
+                  );
+                }
+                return (
+                  <SidebarLink
+                    key={item.path}
+                    to={item.path}
+                    label={item.label}
+                    icon={item.icon}
+                    collapsed={isCollapsed}
+                    onClick={onClose}
+                    activeWhen={item.activeWhen}
+                  />
+                );
+              })}
             </div>
           </nav>
         </div>

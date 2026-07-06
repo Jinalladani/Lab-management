@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { MainLayout } from "../../components/layout";
 import {
   Undo as UndoIcon,
@@ -39,7 +39,29 @@ import {
   ZoomOut as ZoomOutIcon,
   ZoomIn as ZoomInIcon,
 } from "@mui/icons-material";
-import { getScopeTests } from "../../api/scope";
+import { createPortal } from "react-dom";
+import { motion, AnimatePresence } from "framer-motion";
+import { 
+  Plus as LucidePlus, 
+  Search as LucideSearch, 
+  Eye as LucideEye, 
+  Pencil as LucidePencil, 
+  Trash2 as LucideTrash, 
+  MoreHorizontal as LucideMoreHorizontal,
+  RefreshCw,
+  CircleDot,
+  ChevronDown,
+  ChevronRight,
+  FlaskConical,
+  Beaker,
+  Droplet,
+  Settings,
+  Layers3,
+  Activity,
+  TestTube2,
+  HelpCircle
+} from "lucide-react";
+import { getScopeTests, getScopeHierarchy } from "../../api/scope";
 import {
   getObservationTemplates,
   getObservationTemplate,
@@ -58,11 +80,97 @@ function roundVal(val, decimals) {
 const CELL_BORDER_STYLE = "0.02px solid #757679";
 const CELL_BORDER_KEYS = ["borderTop", "borderRight", "borderBottom", "borderLeft"];
 
-export default function ObservationBuilder() {
-  // View states: 'list' | 'builder'
-  const [view, setView] = useState("list");
+const PortalActionMenu = ({ anchorEl, open, onClose, actions }) => {
+  const [style, setStyle] = useState(null);
 
-  // Mode: 'design' | 'preview'
+  useEffect(() => {
+    if (!open || !anchorEl) return;
+
+    const updatePosition = () => {
+      const rect = anchorEl.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+
+      const estimatedHeight = actions.length * 36 + 12;
+      const dropdownWidth = 150;
+      const gap = 6;
+
+      const spaceBelow = viewportHeight - rect.bottom;
+      
+      let top;
+      if (spaceBelow >= estimatedHeight + gap) {
+        top = rect.bottom + window.scrollY + gap;
+      } else {
+        top = rect.top + window.scrollY - estimatedHeight - gap;
+      }
+
+      let left = rect.right - dropdownWidth + window.scrollX;
+      if (left < 8) left = 8;
+      if (left + dropdownWidth > viewportWidth - 8) {
+        left = viewportWidth - dropdownWidth - 8;
+      }
+
+      setStyle({
+        position: "absolute",
+        top: `${top}px`,
+        left: `${left}px`,
+        width: `${dropdownWidth}px`,
+        zIndex: 9999,
+      });
+    };
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+
+    const handleClickOutside = (event) => {
+      if (anchorEl && !anchorEl.contains(event.target) && !event.target.closest(".portal-action-menu")) {
+        onClose();
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [open, anchorEl, onClose, actions]);
+
+  if (!open || !anchorEl || !style) return null;
+
+  return createPortal(
+    <div
+      style={style}
+      className="portal-action-menu bg-white rounded-xl border border-[#E2E8F0] shadow-lg py-1.5 text-left text-slate-800"
+    >
+      {actions.map((act, idx) => {
+        const Icon = act.icon;
+        return (
+          <button
+            key={idx}
+            onClick={() => {
+              onClose();
+              act.onClick();
+            }}
+            className={`w-full px-4 py-2 text-xs font-semibold flex items-center gap-2 hover:bg-[#FAF9FF] transition-colors ${
+              act.danger ? "text-red-600 hover:text-red-700 hover:bg-red-50" : "text-[#475569] hover:text-[#243744]"
+            }`}
+          >
+            {Icon && <Icon size={14} />}
+            {act.label}
+          </button>
+        );
+      })}
+    </div>,
+    document.body
+  );
+};
+
+export default function ObservationBuilder() {
+  const [view, setView] = useState("list");
+  const [activeDropdownId, setActiveDropdownId] = useState(null);
+  const [activeAnchorEl, setActiveAnchorEl] = useState(null);
   const [mode, setMode] = useState("design");
 
   // Database managed templates
@@ -101,6 +209,18 @@ export default function ObservationBuilder() {
 
   // Search in templates list view
   const [listSearch, setListSearch] = useState("");
+  const [scopeHierarchy, setScopeHierarchy] = useState([]);
+  const [hierarchyLoading, setHierarchyLoading] = useState(false);
+  const [selectedGroupId, setSelectedGroupId] = useState(null);
+  const [expandedMaterials, setExpandedMaterials] = useState({});
+  const [errorMessage, setErrorMessage] = useState("");
+
+  const toggleMaterial = (materialKey) => {
+    setExpandedMaterials((prev) => ({
+      ...prev,
+      [materialKey]: !prev[materialKey],
+    }));
+  };
 
   // Sheets management states
   const [activeSheetId, setActiveSheetId] = useState("sheet1");
@@ -132,6 +252,7 @@ export default function ObservationBuilder() {
   const fetchTemplates = async () => {
     try {
       setTemplatesLoading(true);
+      setErrorMessage("");
       const res = await getObservationTemplates();
       if (res.data && res.data.success) {
         setTemplates(res.data.data || []);
@@ -139,6 +260,7 @@ export default function ObservationBuilder() {
     } catch (err) {
       console.error("Failed to load templates from database:", err);
       setTemplates([]);
+      setErrorMessage("Failed to load templates from database.");
     } finally {
       setTemplatesLoading(false);
     }
@@ -162,9 +284,31 @@ export default function ObservationBuilder() {
     }
   };
 
+  const fetchHierarchy = async () => {
+    try {
+      setHierarchyLoading(true);
+      const res = await getScopeHierarchy();
+      const nextScopeData = res.data?.data || [];
+      setScopeHierarchy(nextScopeData);
+      if (nextScopeData.length > 0) {
+        const exists = nextScopeData.some(g => g.group_id === selectedGroupId);
+        if (!exists) {
+          setSelectedGroupId(nextScopeData[0].group_id);
+        }
+      } else {
+        setSelectedGroupId(null);
+      }
+    } catch (error) {
+      console.error("Failed to fetch scope hierarchy:", error);
+    } finally {
+      setHierarchyLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchScopes();
     fetchTemplates();
+    fetchHierarchy();
     setHistory([{ sheetsData, merges }]);
     setHistoryIndex(0);
   }, []);
@@ -462,20 +606,16 @@ export default function ObservationBuilder() {
     }
   };
 
-  const handleCreateNew = () => {
+  const handleCreateNew = (scopeTestId, testName) => {
     setActiveTemplateId(null);
-    setTemplateName("New Lab Observation Template");
+    setTemplateName(testName ? `${testName} Observation Sheet` : "New Lab Observation Template");
     setVersion("1.0.0");
-    if (scopes.length > 0) {
+    if (scopeTestId) {
+      setSelectedScope(scopeTestId);
+    } else if (scopes.length > 0) {
       setSelectedScope(scopes[0].scope_test_id);
     }
-    setSheetsData({
-      // sheet1: {
-      //   "A1": { value: "Observations Entry", type: "label", style: { fontWeight: "bold", backgroundColor: "#f1f5f9" } },
-      //   "B1": { value: "100", type: "number" },
-      //   "C1": { value: "200", type: "formula", formula: "=B1*2", style: { backgroundColor: "#f0fdf4" } },
-      // }
-    });
+    setSheetsData({});
     setSheets([{ id: "sheet1", name: "Sheet 1" }]);
     setActiveSheetId("sheet1");
     setMerges([]);
@@ -517,101 +657,400 @@ export default function ObservationBuilder() {
     toast.success(`Created Sheet ${nextNum}`);
   };
 
-  const filteredTemplates = templates.filter((t) =>
-    t.name.toLowerCase().includes(listSearch.toLowerCase()) ||
-    (t.test_name && t.test_name.toLowerCase().includes(listSearch.toLowerCase()))
-  );
+  const getGroupVisuals = (name = "") => {
+    const norm = name.toLowerCase();
+    let IconComp = Beaker;
+    if (norm.includes("water")) {
+      IconComp = Droplet;
+    } else if (norm.includes("metal") || norm.includes("mechanical")) {
+      IconComp = Settings;
+    } else if (norm.includes("soil") || norm.includes("geotechnical")) {
+      IconComp = Layers3;
+    } else if (norm.includes("destructive")) {
+      IconComp = Activity;
+    } else if (norm.includes("chemical")) {
+      IconComp = FlaskConical;
+    }
+    return {
+      icon: IconComp,
+      bgColor: "bg-[#243744]/5",
+      iconColor: "text-[#243744]",
+    };
+  };
+
+  const visibleGroups = useMemo(() => {
+    const query = listSearch.toLowerCase().trim();
+
+    // Show only tests that already have created templates
+    const templatesCreatedOnly = scopeHierarchy
+      .map((group) => {
+        const materials = (group.materials || [])
+          .map((material) => {
+            const tests = (material.tests || []).filter((test) => {
+              return templates.some((t) => t.scope_test_id === test.scope_test_id);
+            });
+
+            if (tests.length > 0) {
+              return { ...material, tests };
+            }
+            return null;
+          })
+          .filter(Boolean);
+
+        if (materials.length > 0) {
+          return { ...group, materials };
+        }
+        return null;
+      })
+      .filter(Boolean);
+
+    if (!query) return templatesCreatedOnly;
+
+    return templatesCreatedOnly
+      .map((group) => {
+        const groupMatches = group.group_name.toLowerCase().includes(query);
+        const materials = (group.materials || [])
+          .map((material) => {
+            const materialMatches = material.material_name.toLowerCase().includes(query);
+            const tests = material.tests || [];
+            const matchingTests = tests.filter((test) =>
+              test.test_name.toLowerCase().includes(query) ||
+              (test.test_method && test.test_method.toLowerCase().includes(query))
+            );
+
+            if (groupMatches || materialMatches) return material;
+            if (matchingTests.length) return { ...material, tests: matchingTests };
+            return null;
+          })
+          .filter(Boolean);
+
+        if (groupMatches || materials.length) {
+          return { ...group, materials };
+        }
+        return null;
+      })
+      .filter(Boolean);
+  }, [scopeHierarchy, templates, listSearch]);
+
+  const activeGroup = useMemo(() => {
+    if (visibleGroups.length === 0) return null;
+    const found = visibleGroups.find((g) => g.group_id === selectedGroupId);
+    return found || visibleGroups[0];
+  }, [visibleGroups, selectedGroupId]);
 
   return (
-    <MainLayout>
+    <MainLayout headerTitle="Sheet Builder" headerSubtitle="Observation Sheets Template Catalogue">
       <Toaster position="top-right" richColors />
 
       {view === "list" ? (
-        /* 1. Templates List View */
-        <div className="p-6 space-y-6 max-w-6xl mx-auto">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-xl font-black text-slate-900 tracking-tight">Observation Templates Master</h1>
-              <p className="text-xs text-slate-500 font-semibold mt-1">
-                Configure NABL-compliant observation input matrices and calculation rules for lab test scopes.
-              </p>
+        /* 1. Dual Pane Templates & Scopes View */
+        <div className="mx-auto w-full max-w-[1800px] h-full p-4 sm:p-5 lg:p-6 flex flex-col lg:h-[calc(100vh-100px)] lg:overflow-hidden select-none">
+          
+          {/* Controls & Stats Bar */}
+          <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-[#E2E8F0] pb-4 shrink-0">
+            <div className="flex items-center gap-3">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-[#243744]/5 text-[#243744] px-3 py-1 text-xs font-bold border border-[#243744]/15">
+                <Layers3 size={13} />
+                {scopeHierarchy.length} Groups
+              </span>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-[#243744]/5 text-[#243744] px-3 py-1 text-xs font-bold border border-[#243744]/15">
+                <TestTube2 size={13} />
+                {templates.length} Templates Created
+              </span>
             </div>
-            <button
-              onClick={handleCreateNew}
-              className="px-4.5 py-2.5 bg-[#2562AA] text-white hover:bg-[#1e4f8a] rounded-xl text-xs font-bold transition-all shadow flex items-center gap-1.5"
-            >
-              <AddIcon fontSize="small" />
-              Create Template
-            </button>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex h-10 items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3 focus-within:border-[#243744] focus-within:ring-2 focus-within:ring-[#243744]/10 transition-all min-w-[240px]">
+                <LucideSearch size={16} className="text-[#94A3B8] shrink-0" />
+                <input
+                  type="text"
+                  placeholder="Search scopes, materials, or tests..."
+                  value={listSearch}
+                  onChange={(e) => setListSearch(e.target.value)}
+                  className="w-full bg-transparent text-sm text-[#0F172A] placeholder:text-[#94A3B8] outline-none"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={async () => {
+                  await fetchTemplates();
+                  await fetchHierarchy();
+                }}
+                className="flex h-10 items-center justify-center gap-1.5 rounded-xl border border-[#E2E8F0] bg-white hover:bg-[#F8FAFC] px-4 text-xs font-bold text-[#475569] transition-colors"
+              >
+                <RefreshCw size={14} className="text-[#8A97A4]" />
+                Refresh
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleCreateNew()}
+                className="flex h-10 items-center gap-1.5 rounded-xl bg-[#243744] px-4 text-xs font-bold text-white shadow-sm hover:bg-[#1A2733] transition-colors"
+              >
+                <LucidePlus size={14} />
+                Create Blank Sheet
+              </button>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2 border border-slate-200/80 bg-white rounded-xl px-3.5 py-2 max-w-md shadow-2xs">
-            <SearchIcon style={{ fontSize: 18 }} className="text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search templates or test scopes..."
-              value={listSearch}
-              onChange={(e) => setListSearch(e.target.value)}
-              className="w-full bg-transparent border-none text-xs outline-none text-slate-800"
-            />
-          </div>
+          {/* Error Message */}
+          {errorMessage && (
+            <div className="mb-4 rounded-xl border border-[#FEE2E2] bg-[#FEF2F2] px-4 py-3 text-sm font-semibold text-[#EF4444] shrink-0">
+              {errorMessage}
+            </div>
+          )}
 
-          <div className="bg-white rounded-2xl border border-slate-200/85 overflow-hidden shadow-xs">
-            {templatesLoading ? (
-              <div className="p-10 text-center text-xs font-bold text-slate-400 animate-pulse">Loading templates from database...</div>
-            ) : filteredTemplates.length === 0 ? (
-              <div className="p-10 text-center text-xs font-bold text-slate-400">No templates found. Click 'Create Template' to design one.</div>
-            ) : (
-              <table className="w-full border-collapse text-left text-xs">
-                <thead>
-                  <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-400 font-black h-10 select-none text-[10px] uppercase tracking-wider">
-                    <th className="px-5">Template Name</th>
-                    <th className="px-5">Associated Scope Test</th>
-                    <th className="px-5">Test Method</th>
-                    <th className="px-4 text-center">Version</th>
-                    <th className="px-4 text-center">Status</th>
-                    <th className="px-5 text-center">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-slate-700 font-semibold">
-                  {filteredTemplates.map((tmpl) => (
-                    <tr key={tmpl.template_id} className="hover:bg-slate-50/30 transition-all h-12">
-                      <td className="px-5 font-bold text-slate-900">{tmpl.name}</td>
-                      <td className="px-5 font-bold text-[#2562AA]">
-                        {tmpl.test_name || `Scope ID: ${tmpl.scope_test_id}`}
-                      </td>
-                      <td className="px-5 text-slate-500 font-bold">{tmpl.test_method || "N/A"}</td>
-                      <td className="px-4 text-center">{tmpl.version}</td>
-                      <td className="px-4 text-center">
-                        <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider ${tmpl.status === "Published"
-                            ? "bg-emerald-50 text-emerald-700 border border-emerald-100"
-                            : "bg-amber-50 text-amber-700 border border-amber-100"
-                          }`}>
-                          {tmpl.status}
-                        </span>
-                      </td>
-                      <td className="px-5 text-center">
-                        <div className="flex items-center justify-center gap-1.5">
-                          <button
-                            onClick={() => handleEditTemplate(tmpl)}
-                            className="p-1.5 border border-slate-200 bg-white hover:bg-slate-50 rounded-lg text-slate-600 transition-all flex items-center justify-center"
-                          >
-                            <EditIcon style={{ fontSize: 14 }} />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteTemplate(tmpl.template_id)}
-                            className="p-1.5 border border-red-100 bg-white hover:bg-red-50 text-red-650 rounded-lg transition-all flex items-center justify-center"
-                          >
-                            <DeleteIcon style={{ fontSize: 14 }} />
-                          </button>
+          {/* Loading state */}
+          {templatesLoading || hierarchyLoading ? (
+            <div className="flex-1 flex flex-col lg:flex-row gap-6 min-h-0">
+              {/* Left Pane Skeleton */}
+              <div className="w-full lg:w-[360px] shrink-0 bg-white rounded-2xl border border-[#E2E8F0] p-4 space-y-4 shadow-sm h-[280px] lg:h-full">
+                <div className="h-6 bg-[#F1F5F9] rounded w-1/2 animate-pulse" />
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="h-16 bg-[#F8FAFC] rounded-xl animate-pulse" />
+                ))}
+              </div>
+              {/* Right Pane Skeleton */}
+              <div className="flex-1 bg-white rounded-2xl border border-[#E2E8F0] p-6 space-y-6 shadow-sm">
+                <div className="space-y-2 animate-pulse">
+                  <div className="h-8 bg-[#F1F5F9] rounded w-1/3" />
+                  <div className="h-4 bg-[#F1F5F9] rounded w-1/4" />
+                </div>
+                <div className="h-48 bg-[#F8FAFC] rounded-xl animate-pulse" />
+              </div>
+            </div>
+          ) : visibleGroups.length === 0 ? (
+            <div className="flex-1 bg-white rounded-2xl border border-[#E2E8F0] p-8 shadow-sm flex items-center justify-center">
+              <div className="rounded-xl border border-dashed border-[#E2E8F0] bg-white px-6 py-14 text-center w-full max-w-md">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-[#243744]/5 text-[#243744]">
+                  <FlaskConical size={22} />
+                </div>
+                <h2 className="mt-4 text-lg font-bold text-[#1A2733]">No matching scope found</h2>
+                <p className="mt-1 text-sm text-[#64748B]">Try searching a group, material, or test name.</p>
+              </div>
+            </div>
+          ) : (
+            /* Responsive Dual Pane Layout */
+            <div className="flex-1 flex flex-col lg:flex-row gap-6 min-h-0 overflow-visible lg:overflow-hidden">
+              
+              {/* Left Pane: Groups Selector */}
+              <div className="w-full lg:w-[360px] shrink-0 bg-white rounded-2xl border border-[#E2E8F0] shadow-sm flex flex-col h-[280px] lg:h-full overflow-hidden">
+                <div className="p-4 border-b border-[#F1F5F9] flex items-center justify-between shrink-0">
+                  <div>
+                    <h2 className="text-base font-bold text-[#1E293B]">Material Groups</h2>
+                    <p className="text-xs text-[#64748B] mt-0.5 font-medium">{visibleGroups.length} Groups matched</p>
+                  </div>
+                </div>
+
+                {/* Group Cards Container */}
+                <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                  {visibleGroups.map((group) => {
+                    const isActive = group.group_id === activeGroup?.group_id;
+                    const groupMaterialsCount = group.materials?.length || 0;
+                    const groupTestsCount = group.materials?.reduce((sum, material) => sum + (material.tests?.length || 0), 0) || 0;
+                    const visuals = getGroupVisuals(group.group_name);
+                    const IconComponent = visuals.icon;
+                    
+                    return (
+                      <div
+                        key={group.group_id}
+                        onClick={() => setSelectedGroupId(group.group_id)}
+                        className={`w-full text-left p-3 rounded-xl border transition-all duration-200 cursor-pointer flex items-center gap-3 relative ${
+                          isActive 
+                            ? "bg-[#243744] border-[#243744] shadow-md text-white" 
+                            : "bg-white border-[#E2E8F0] hover:bg-[#F8FAFC] hover:border-[#CBD5E1]"
+                        }`}
+                      >
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                          isActive 
+                            ? "bg-white/12 text-white" 
+                            : `${visuals.bgColor} ${visuals.iconColor}`
+                        }`}>
+                          <IconComponent size={18} strokeWidth={2.2} />
                         </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
+                        
+                        <div className="min-w-0 flex-1">
+                          <h3 className={`font-bold text-xs truncate ${isActive ? "text-white" : "text-[#1E293B]"}`}>
+                            {group.group_name || "Unnamed Group"}
+                          </h3>
+                          <p className={`text-[11px] mt-0.5 flex items-center gap-1.5 font-medium ${
+                            isActive ? "text-white/70" : "text-[#64748B]"
+                          }`}>
+                            <span>{groupMaterialsCount} Material{groupMaterialsCount === 1 ? "" : "s"}</span>
+                            <span className={isActive ? "text-white/30" : "text-[#CBD5E1]"}>•</span>
+                            <span>{groupTestsCount} Test{groupTestsCount === 1 ? "" : "s"}</span>
+                          </p>
+                        </div>
+                        
+                        <ChevronRight size={14} className={`shrink-0 ${isActive ? "text-white/80" : "text-[#94A3B8]"}`} />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Right Pane: Active Group Details */}
+              {activeGroup && (
+                <div className="flex-1 bg-white rounded-2xl border border-[#E2E8F0] shadow-sm flex flex-col overflow-visible lg:h-full lg:overflow-hidden">
+                  
+                  {/* Details Header */}
+                  <div className="p-6 border-b border-[#F1F5F9] shrink-0 bg-white">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                      <div>
+                        <div className="flex items-center gap-2.5 flex-wrap">
+                          <h1 className="text-xl font-extrabold text-[#0F172A] tracking-tight">
+                            {activeGroup.group_name}
+                          </h1>
+                          <span className="inline-flex items-center rounded-full bg-[#F1F5F9] text-[#475569] px-2.5 py-0.5 text-[10px] font-bold border border-[#E2E8F0]">
+                            {activeGroup.testing_scope_type === "permanent_testing" ? "Permanent Testing" : "Site Testing"}
+                          </span>
+                        </div>
+                        <p className="text-[11px] font-semibold text-[#64748B] mt-1 uppercase tracking-wider">
+                          Test Observation Sheets Template Catalogue
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Materials & Tests Template List */}
+                  <div className="flex-1 overflow-y-auto min-h-0 divide-y divide-[#E2E8F0]">
+                    {(activeGroup.materials || []).length === 0 ? (
+                      <div className="p-8 text-center text-sm text-[#64748B] flex flex-col items-center justify-center h-full min-h-[200px]">
+                        <HelpCircle size={24} className="text-[#94A3B8] mb-2" />
+                        <p>No materials found under this group.</p>
+                      </div>
+                    ) : (
+                      (activeGroup.materials || []).map((material) => {
+                        const materialKey = `${activeGroup.group_id}-${material.material_id}`;
+                        const isExpanded = expandedMaterials[materialKey] !== false;
+                        const testsCount = material.tests?.length || 0;
+                        
+                        return (
+                          <div key={materialKey} className="bg-white">
+                            {/* Material Header */}
+                            <div 
+                              onClick={() => toggleMaterial(materialKey)}
+                              className="flex items-center justify-between bg-[#F8FAFC] border-y border-[#E2E8F0] px-6 py-2.5 cursor-pointer hover:bg-[#F1F5F9] transition-colors select-none"
+                            >
+                              <div className="flex items-center gap-3">
+                                <ChevronDown 
+                                  size={15} 
+                                  className={`text-[#243744] transition-transform duration-200 ${isExpanded ? "" : "-rotate-90"}`} 
+                                />
+                                <CircleDot size={15} className="text-[#243744]" />
+                                <span className="text-xs font-bold text-[#243744]">
+                                  {material.material_name}
+                                </span>
+                              </div>
+                              <span className="inline-flex items-center rounded-full bg-white text-[#243744] px-2.5 py-0.5 text-[10px] font-bold border border-[#E2E8F0]">
+                                {testsCount} Test{testsCount === 1 ? "" : "s"}
+                              </span>
+                            </div>
+
+                            {/* Tests rows */}
+                            <AnimatePresence initial={false}>
+                              {isExpanded && (
+                                <motion.div
+                                  initial={{ height: 0, opacity: 0 }}
+                                  animate={{ height: "auto", opacity: 1 }}
+                                  exit={{ height: 0, opacity: 0 }}
+                                  transition={{ duration: 0.18 }}
+                                  className="overflow-hidden"
+                                >
+                                  {testsCount === 0 ? (
+                                    <div className="px-6 py-4 text-[11px] text-[#64748B] italic bg-[#F8FAFC]">
+                                      No tests associated with this material.
+                                    </div>
+                                  ) : (
+                                    <div className="bg-white overflow-x-auto">
+                                      <div className="grid grid-cols-[1.2fr_1fr_1.2fr_150px_90px] gap-4 px-6 py-2 bg-[#F8FAFC] border-b border-[#E2E8F0] text-[9px] font-bold text-[#243744] uppercase tracking-wider min-w-[650px]">
+                                        <span>Test Name</span>
+                                        <span>Test Method</span>
+                                        <span>Template Name / Version</span>
+                                        <span>Status</span>
+                                        <span className="text-right">Actions</span>
+                                      </div>
+                                      
+                                      {(material.tests || []).map((test) => {
+                                        const testKey = test.scope_test_id || `${material.material_id}-${test.test_name}`;
+                                        const tmpl = templates.find(t => t.scope_test_id === test.scope_test_id);
+                                        
+                                        return (
+                                          <div key={testKey} className="grid grid-cols-[1.2fr_1fr_1.2fr_150px_90px] gap-4 px-6 py-3 items-center border-b border-[#F1F5F9] hover:bg-[#F8FAFC]/50 transition-colors min-w-[650px]">
+                                            <span className="text-xs font-semibold text-[#1E293B] truncate" title={test.test_name}>
+                                              {test.test_name}
+                                            </span>
+                                            <span className="text-xs font-medium text-[#475569] font-mono truncate" title={test.test_method}>
+                                              {test.test_method || "N/A"}
+                                            </span>
+                                            
+                                            {tmpl ? (
+                                              <>
+                                                <span className="text-xs font-bold text-[#243744] truncate" title={tmpl.name}>
+                                                  {tmpl.name} <span className="text-[10px] font-semibold text-[#64748B] ml-1 bg-[#F1F5F9] px-1.5 py-0.5 rounded">v{tmpl.version}</span>
+                                                </span>
+                                                <span className="flex items-center gap-1.5 text-xs font-semibold">
+                                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#ECFDF5] text-[#10B981] border border-[#D1FAE5]">
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-[#10B981]" />
+                                                    {tmpl.status}
+                                                  </span>
+                                                </span>
+                                                <div className="flex items-center justify-end gap-1.5">
+                                                  <button
+                                                    onClick={() => handleEditTemplate(tmpl)}
+                                                    className="p-1 hover:bg-[#F1F5F9] rounded text-slate-500 hover:text-[#243744] transition-colors"
+                                                    title="Edit Template"
+                                                  >
+                                                    <LucidePencil size={14} />
+                                                  </button>
+                                                  <button
+                                                    onClick={() => handleDeleteTemplate(tmpl.template_id)}
+                                                    className="p-1 hover:bg-red-50 rounded text-red-500 hover:text-red-700 transition-colors"
+                                                    title="Delete Template"
+                                                  >
+                                                    <LucideTrash size={14} />
+                                                  </button>
+                                                </div>
+                                              </>
+                                            ) : (
+                                              <>
+                                                <span className="text-xs text-slate-400 italic font-medium">No template designed</span>
+                                                <span className="flex items-center gap-1.5 text-xs font-semibold">
+                                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#FFFBEB] text-[#D97706] border border-[#FEF3C7]">
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-[#D97706]" />
+                                                    Pending
+                                                  </span>
+                                                </span>
+                                                <div className="flex items-center justify-end">
+                                                  <button
+                                                    onClick={() => handleCreateNew(test.scope_test_id, test.test_name)}
+                                                    className="flex items-center gap-1 px-2 py-1 bg-[#243744]/5 text-[#243744] hover:bg-[#243744]/10 rounded font-bold text-[10px] transition-colors"
+                                                    title="Create Template"
+                                                  >
+                                                    <LucidePlus size={10} />
+                                                    Design
+                                                  </button>
+                                                </div>
+                                              </>
+                                            )}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       ) : (
         /* 2. Full-Width Spreadsheet Form Builder */
@@ -840,7 +1279,7 @@ export default function ObservationBuilder() {
 
           {/* Central canvas workspace */}
           <div className="flex-1 overflow-y-auto p-6 bg-[#F8FAFC]" onMouseUp={() => setIsSelecting(false)}>
-            <div className="max-w-[1100px] mx-auto space-y-5">
+            <div className="w-full space-y-5">
 
               {/* [1] PREVIEW MODE ONLY: HEADER TEMPLATE */}
               {mode === "preview" && (

@@ -31,6 +31,18 @@ import {
   ZoomOut as ZoomOutIcon,
   ZoomIn as ZoomInIcon,
 } from "@mui/icons-material";
+import { createPortal } from "react-dom";
+import { motion, AnimatePresence } from "framer-motion";
+import { useLocation } from "react-router-dom";
+import { 
+  Plus as LucidePlus, 
+  Search as LucideSearch, 
+  Eye as LucideEye, 
+  Pencil as LucidePencil, 
+  Trash2 as LucideTrash, 
+  MoreHorizontal as LucideMoreHorizontal,
+  RefreshCw
+} from "lucide-react";
 import { getProjects } from "../../api/projects";
 import { getSampleEntries } from "../../api/sampleEntries";
 import { getAssignmentsBySample } from "../../api/testAssignments";
@@ -58,12 +70,104 @@ function getCellLabel(row, col) {
   return `${letter}${row + 1}`;
 }
 
-export default function ObservationEntry() {
-  // Navigation views: 'list' | 'entry'
-  const [view, setView] = useState("list");
+const PortalActionMenu = ({ anchorEl, open, onClose, actions }) => {
+  const [style, setStyle] = useState(null);
 
-  // Dynamic observations register from database
+  useEffect(() => {
+    if (!open || !anchorEl) return;
+
+    const updatePosition = () => {
+      const rect = anchorEl.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+
+      const estimatedHeight = actions.length * 36 + 12;
+      const dropdownWidth = 150;
+      const gap = 6;
+
+      const spaceBelow = viewportHeight - rect.bottom;
+      
+      let top;
+      if (spaceBelow >= estimatedHeight + gap) {
+        top = rect.bottom + window.scrollY + gap;
+      } else {
+        top = rect.top + window.scrollY - estimatedHeight - gap;
+      }
+
+      let left = rect.right - dropdownWidth + window.scrollX;
+      if (left < 8) left = 8;
+      if (left + dropdownWidth > viewportWidth - 8) {
+        left = viewportWidth - dropdownWidth - 8;
+      }
+
+      setStyle({
+        position: "absolute",
+        top: `${top}px`,
+        left: `${left}px`,
+        width: `${dropdownWidth}px`,
+        zIndex: 9999,
+      });
+    };
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+
+    const handleClickOutside = (event) => {
+      if (anchorEl && !anchorEl.contains(event.target) && !event.target.closest(".portal-action-menu")) {
+        onClose();
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [open, anchorEl, onClose, actions]);
+
+  if (!open || !anchorEl || !style) return null;
+
+  return createPortal(
+    <div
+      style={style}
+      className="portal-action-menu bg-white rounded-xl border border-[#E2E8F0] shadow-lg py-1.5 text-left text-slate-800"
+    >
+      {actions.map((act, idx) => {
+        const Icon = act.icon;
+        return (
+          <button
+            key={idx}
+            onClick={() => {
+              onClose();
+              act.onClick();
+            }}
+            className={`w-full px-4 py-2 text-xs font-semibold flex items-center gap-2 hover:bg-[#FAF9FF] transition-colors ${
+              act.danger ? "text-red-600 hover:text-red-700 hover:bg-red-50" : "text-[#475569] hover:text-[#243744]"
+            }`}
+          >
+            {Icon && <Icon size={14} />}
+            {act.label}
+          </button>
+        );
+      })}
+    </div>,
+    document.body
+  );
+};
+
+export default function ObservationEntry() {
+  const [view, setView] = useState("list");
   const [observations, setObservations] = useState([]);
+  const location = useLocation();
+  const [projectsList, setProjectsList] = useState([]);
+  const [projectFilter, setProjectFilter] = useState(() => {
+    const queryId = new URLSearchParams(window.location.search).get("project_id");
+    return queryId || "all";
+  });
+  const [activeDropdownId, setActiveDropdownId] = useState(null);
+  const [activeAnchorEl, setActiveAnchorEl] = useState(null);
   const [observationsLoading, setObservationsLoading] = useState(false);
 
   // Editing state tracker
@@ -147,7 +251,8 @@ export default function ObservationEntry() {
   const fetchObservations = async () => {
     try {
       setObservationsLoading(true);
-      const res = await getSampleObservations();
+      const params = projectFilter !== "all" ? { project_id: projectFilter } : {};
+      const res = await getSampleObservations(params);
       if (res.data && res.data.success) {
         setObservations(res.data.data || []);
       }
@@ -187,6 +292,31 @@ export default function ObservationEntry() {
     };
     init();
   }, []);
+
+  useEffect(() => {
+    const fetchProjectsList = async () => {
+      try {
+        const res = await getProjects();
+        if (res.data && res.data.success) {
+          setProjectsList(res.data.data || []);
+        }
+      } catch (err) {
+        console.error("Failed to load projects list:", err);
+      }
+    };
+    fetchProjectsList();
+  }, []);
+
+  useEffect(() => {
+    const queryId = new URLSearchParams(location.search).get("project_id");
+    setProjectFilter(queryId || "all");
+  }, [location.search]);
+
+  useEffect(() => {
+    if (view === "list") {
+      fetchObservations();
+    }
+  }, [projectFilter, view]);
 
   // Fetch initial select items on Wizard load
   const loadSetupResources = async () => {
@@ -781,103 +911,164 @@ export default function ObservationEntry() {
     toast.success("Split active merged range");
   };
 
-  const filteredObservations = observations.filter(
-    (obs) =>
-      obs.sample_no?.toLowerCase().includes(listSearch.toLowerCase()) ||
-      obs.test_name?.toLowerCase().includes(listSearch.toLowerCase()) ||
-      obs.project_code?.toLowerCase().includes(listSearch.toLowerCase())
-  );
+  const filteredObservations = observations.filter((obs) => {
+    if (projectFilter !== "all" && String(obs.project_id) !== String(projectFilter)) {
+      return false;
+    }
+    const searchNeedle = listSearch.toLowerCase();
+    return (
+      obs.sample_no?.toLowerCase().includes(searchNeedle) ||
+      obs.test_name?.toLowerCase().includes(searchNeedle) ||
+      obs.project_code?.toLowerCase().includes(searchNeedle) ||
+      obs.project_name?.toLowerCase().includes(searchNeedle)
+    );
+  });
 
   return (
-    <MainLayout>
+    <MainLayout headerTitle="Observations" headerSubtitle="Observations Entry Register">
       <Toaster position="top-right" richColors />
 
       {view === "list" ? (
         /* View 1: Observation Records Dashboard */
-        <div className="p-6 space-y-6 max-w-6xl mx-auto">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-xl font-black text-slate-900 tracking-tight">Observations Entry Register</h1>
-              <p className="text-xs text-slate-500 font-semibold mt-1">
-                Select test assignments to record physical laboratory observations and execute standard calculations.
-              </p>
+        <div className="mx-auto w-full max-w-[1800px] px-4 py-5 sm:px-5 lg:px-6">
+          
+          {/* Unified Toolbar */}
+          <div className="mb-6 flex flex-col xl:flex-row gap-4 items-stretch xl:items-center justify-between">
+            {/* Search Box */}
+            <div className="flex-1 max-w-xl flex h-10 items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3 focus-within:border-[#243744] focus-within:ring-2 focus-within:ring-[#243744]/10 transition-all">
+              <LucideSearch size={16} className="text-[#94A3B8] shrink-0" />
+              <input
+                type="text"
+                placeholder="Search observations by sample, project or test..."
+                value={listSearch}
+                onChange={(e) => setListSearch(e.target.value)}
+                className="w-full bg-transparent text-sm text-[#0F172A] placeholder:text-[#94A3B8] outline-none"
+              />
             </div>
-            <button
-              onClick={handleCreateNew}
-              className="px-4.5 py-2.5 bg-[#2562AA] text-white hover:bg-[#1e4f8a] rounded-xl text-xs font-bold transition-all shadow flex items-center gap-1.5"
-            >
-              <PlusIcon fontSize="small" />
-              Add Observation
-            </button>
+            
+            {/* Actions */}
+            <div className="flex flex-wrap items-center gap-3">
+              <select
+                value={projectFilter}
+                onChange={(e) => setProjectFilter(e.target.value)}
+                className="h-10 px-3.5 py-2 text-xs font-semibold text-[#475569] border border-[#E2E8F0] bg-white rounded-xl outline-none focus:border-[#243744] focus:ring-2 focus:ring-[#243744]/10 transition-all shrink-0 max-w-[200px] appearance-none"
+                style={{
+                  backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%238A97A4' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
+                  backgroundPosition: "right 10px center",
+                  backgroundRepeat: "no-repeat",
+                  backgroundSize: "16px",
+                  paddingRight: "30px"
+                }}
+                aria-label="Filter observations by project"
+              >
+                <option value="all">All Projects</option>
+                {projectsList.map((project) => (
+                  <option key={project.project_id} value={project.project_id}>
+                    {project.project_code} - {project.project_name}
+                  </option>
+                ))}
+              </select>
+
+              <button
+                onClick={fetchObservations}
+                className="flex h-10 items-center justify-center gap-1.5 rounded-xl border border-[#E2E8F0] bg-white hover:bg-[#F8FAFC] px-4 text-xs font-bold text-[#475569] transition-colors"
+              >
+                <RefreshCw size={14} className="text-[#8A97A4]" />
+                Refresh
+              </button>
+
+              <button
+                onClick={handleCreateNew}
+                className="flex h-10 items-center justify-center gap-1.5 rounded-xl bg-[#243744] hover:bg-[#1A2733] px-4 text-xs font-bold text-white shadow-sm transition-colors"
+              >
+                <LucidePlus size={14} />
+                Add Observation
+              </button>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2 border border-slate-200/80 bg-white rounded-xl px-3.5 py-2 max-w-md shadow-2xs">
-            <SearchIcon style={{ fontSize: 18 }} className="text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search observations by sample, project or test..."
-              value={listSearch}
-              onChange={(e) => setListSearch(e.target.value)}
-              className="w-full bg-transparent border-none text-xs outline-none text-slate-800"
-            />
-          </div>
-
-          <div className="bg-white rounded-2xl border border-slate-200/85 overflow-hidden shadow-xs">
+          <div className="bg-white rounded-2xl border border-[#E2E8F0] shadow-sm overflow-hidden">
             {observationsLoading ? (
-              <div className="p-10 text-center text-xs font-bold text-slate-450 animate-pulse">Loading observations from database...</div>
+              <div className="p-16 text-center text-xs font-bold text-slate-500">Loading observations from database...</div>
             ) : filteredObservations.length === 0 ? (
-              <div className="p-10 text-center text-xs font-bold text-slate-400">No observation records logged. Click 'Add Observation' to record one.</div>
+              <div className="p-16 text-center text-xs font-bold text-slate-500">No observation records logged. Click 'Add Observation' to record one.</div>
             ) : (
-              <table className="w-full border-collapse text-left text-xs">
-                <thead>
-                  <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-400 font-black h-10 select-none text-[10px] uppercase tracking-wider">
-                    <th className="px-5">Project Code</th>
-                    <th className="px-5">Sample ID</th>
-                    <th className="px-5">Test Name</th>
-                    <th className="px-5">NABL Standard</th>
-                    <th className="px-5">Operator</th>
-                    <th className="px-4 text-center">Status</th>
-                    <th className="px-5 text-center">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-slate-700 font-semibold">
-                  {filteredObservations.map((obs) => (
-                    <tr key={obs.observation_id} className="hover:bg-slate-50/30 transition-all h-12">
-                      <td className="px-5 font-bold text-slate-500">{obs.project_code || "N/A"}</td>
-                      <td className="px-5 font-bold text-slate-900">{obs.sample_no || `Sample #${obs.sample_id}`}</td>
-                      <td className="px-5 font-bold text-[#2562AA]">{obs.test_name}</td>
-                      <td className="px-5 text-slate-550 font-bold">{obs.test_method || "N/A"}</td>
-                      <td className="px-5 text-slate-450">{obs.operator_name || "Lab Technician"}</td>
-                      <td className="px-4 text-center">
-                        <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider ${
-                          obs.status === "Completed"
-                            ? "bg-emerald-50 text-emerald-700 border border-emerald-100"
-                            : "bg-amber-50 text-amber-700 border border-amber-100"
-                        }`}>
-                          {obs.status}
-                        </span>
-                      </td>
-                      <td className="px-5 text-center">
-                        <div className="flex items-center justify-center gap-1.5">
-                          <button
-                            onClick={() => handleEditObservation(obs)}
-                            className="p-1.5 border border-slate-200 bg-white hover:bg-slate-50 rounded-lg text-slate-650 transition-all flex items-center justify-center"
-                          >
-                            <EditIcon style={{ fontSize: 14 }} />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteObservation(obs.observation_id)}
-                            className="p-1.5 border border-red-100 bg-white hover:bg-red-50 text-red-650 rounded-lg transition-all flex items-center justify-center"
-                          >
-                            <DeleteIcon style={{ fontSize: 14 }} />
-                          </button>
-                        </div>
-                      </td>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-[#E2E8F0] bg-[#FAFBFD] text-[10px] font-bold text-[#64748B] uppercase tracking-wider">
+                      <th className="px-6 py-3.5">Project Code</th>
+                      <th className="px-6 py-3.5">Sample ID</th>
+                      <th className="px-6 py-3.5">Test Name</th>
+                      <th className="px-6 py-3.5">NABL Standard</th>
+                      <th className="px-6 py-3.5">Operator</th>
+                      <th className="px-6 py-3.5 text-center">Status</th>
+                      <th className="px-6 py-3.5 text-right w-[90px]">Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-[#F1F5F9]">
+                    {filteredObservations.map((obs) => (
+                      <tr key={obs.observation_id} className="hover:bg-[#FAF9FF] transition-colors">
+                        <td className="px-6 py-4 text-xs font-bold text-slate-500">{obs.project_code || "N/A"}</td>
+                        <td className="px-6 py-4 text-xs font-bold text-slate-900">{obs.sample_no || `Sample #${obs.sample_id}`}</td>
+                        <td className="px-6 py-4 text-xs font-bold text-[#243744]">{obs.test_name}</td>
+                        <td className="px-6 py-4 text-xs font-semibold text-slate-600">{obs.test_method || "N/A"}</td>
+                        <td className="px-6 py-4 text-xs font-semibold text-slate-500">{obs.operator_name || "Lab Technician"}</td>
+                        <td className="px-6 py-4 text-center">
+                          <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full ${
+                            obs.status === "Completed"
+                              ? "bg-[#ECFDF5] text-[#10B981]"
+                              : "bg-[#FFFBEB] text-[#D97706]"
+                          }`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${obs.status === "Completed" ? "bg-[#10B981]" : "bg-[#D97706]"}`} />
+                            {obs.status}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <button
+                            onClick={(e) => {
+                              if (activeDropdownId === obs.observation_id) {
+                                setActiveDropdownId(null);
+                                setActiveAnchorEl(null);
+                              } else {
+                                setActiveDropdownId(obs.observation_id);
+                                setActiveAnchorEl(e.currentTarget);
+                              }
+                            }}
+                            className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-700 transition-colors inline-flex"
+                          >
+                            <LucideMoreHorizontal size={15} />
+                          </button>
+                          
+                          <PortalActionMenu
+                            anchorEl={activeDropdownId === obs.observation_id ? activeAnchorEl : null}
+                            open={activeDropdownId === obs.observation_id}
+                            onClose={() => { setActiveDropdownId(null); setActiveAnchorEl(null); }}
+                            actions={[
+                              { label: "Edit Observation", icon: LucidePencil, onClick: () => handleEditObservation(obs) },
+                              { label: "Delete Entry", icon: LucideTrash, danger: true, onClick: () => handleDeleteObservation(obs.observation_id) }
+                            ]}
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
+            
+            {/* Pagination */}
+            <div className="flex items-center justify-between border-t border-[#E2E8F0] px-6 py-4 bg-white select-none">
+              <p className="text-xs font-semibold text-[#64748B]">
+                Showing <span className="text-[#1E293B]">{filteredObservations.length}</span> of{" "}
+                <span className="text-[#1E293B]">{observations.length}</span> entries
+              </p>
+              <div className="flex items-center gap-1.5">
+                <button className="h-8 w-8 rounded-lg border border-[#E2E8F0] flex items-center justify-center text-xs font-semibold text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-40" disabled>&lt;</button>
+                <button className="h-8 w-8 rounded-lg bg-[#243744] text-white flex items-center justify-center text-xs font-bold shadow-sm">1</button>
+                <button className="h-8 w-8 rounded-lg border border-[#E2E8F0] flex items-center justify-center text-xs font-semibold text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-40" disabled>&gt;</button>
+              </div>
+            </div>
           </div>
         </div>
       ) : (
@@ -1123,7 +1314,7 @@ export default function ObservationEntry() {
 
           {/* Worksheet grid area */}
           <div className="flex-1 overflow-y-auto p-6 bg-[#F8FAFC]">
-            <div className="max-w-[1100px] mx-auto space-y-5">
+            <div className="w-full space-y-5">
 
               {Object.keys(cells).length === 0 ? (
                 <div className="bg-white rounded-2xl border border-dashed border-slate-300 p-16 text-center select-none">

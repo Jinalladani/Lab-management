@@ -79,9 +79,9 @@ const ScopeView = () => {
   const getScopeTypeColor = (scopeType) => {
     switch (scopeType) {
       case 'permanent_testing':
-        return 'bg-blue-100 text-blue-800';
+        return 'bg-[#243744]/10 text-[#243744] border border-[#243744]/15';
       case 'site_testing':
-        return 'bg-green-100 text-green-800';
+        return 'bg-[#10B981]/10 text-[#10B981] border border-[#10B981]/15';
       default:
         return 'bg-gray-100 text-gray-800';
     }
@@ -161,7 +161,7 @@ const ScopeView = () => {
         {/* Back Button */}
         <button
           onClick={() => navigate("/scope")}
-          className="mb-4 flex items-center gap-2 text-[#2d66b3] font-medium hover:text-[#1f5498] transition-colors"
+          className="mb-4 flex items-center gap-2 text-[#243744] font-medium hover:text-[#1A2733] transition-colors"
         >
           <ArrowBackIcon fontSize="small" />
           Back to Scope List
@@ -169,7 +169,7 @@ const ScopeView = () => {
 
         {/* Group Information */}
         <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden mb-6">
-          <div className="p-6 bg-gradient-to-r from-[#2d66b3] to-[#1e4a8c]">
+          <div className="p-6 bg-[#243744]">
             <div className="flex items-center gap-4">
               <div className="w-16 h-16 bg-white/20 rounded-xl flex items-center justify-center">
                 <ScienceIcon className="w-8 h-8 text-white" />
@@ -193,8 +193,8 @@ const ScopeView = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <div className="bg-white rounded-xl shadow p-6 border border-gray-200">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                <ScienceIcon className="w-6 h-6 text-blue-600" />
+              <div className="w-12 h-12 bg-[#243744]/5 rounded-lg flex items-center justify-center">
+                <ScienceIcon className="w-6 h-6 text-[#243744]" />
               </div>
               <div>
                 <p className="text-sm text-gray-500">Total Materials</p>
@@ -205,8 +205,8 @@ const ScopeView = () => {
 
           <div className="bg-white rounded-xl shadow p-6 border border-gray-200">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                <BiotechIcon className="w-6 h-6 text-green-600" />
+              <div className="w-12 h-12 bg-[#243744]/5 rounded-lg flex items-center justify-center">
+                <BiotechIcon className="w-6 h-6 text-[#243744]" />
               </div>
               <div>
                 <p className="text-sm text-gray-500">Total Tests</p>
@@ -217,8 +217,8 @@ const ScopeView = () => {
 
           <div className="bg-white rounded-xl shadow p-6 border border-gray-200">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                <BuildIcon className="w-6 h-6 text-purple-600" />
+              <div className="w-12 h-12 bg-[#243744]/5 rounded-lg flex items-center justify-center">
+                <BuildIcon className="w-6 h-6 text-[#243744]" />
               </div>
               <div>
                 <p className="text-sm text-gray-500">Active Tests</p>
@@ -234,7 +234,7 @@ const ScopeView = () => {
         <div className="bg-white rounded-xl shadow border border-gray-200 overflow-hidden">
           <div className="p-6 border-b border-gray-200">
             <h2 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
-              <BuildIcon className="w-5 h-5 text-[#2d66b3]" />
+              <BuildIcon className="w-5 h-5 text-[#243744]" />
               Materials ({materials.length})
             </h2>
           </div>
@@ -275,8 +275,8 @@ const ScopeView = () => {
                             key={test.scope_test_id}
                             className={`p-4 rounded-lg border ${
                               test.is_active
-                                ? "bg-green-50 border-green-200"
-                                : "bg-gray-50 border-gray-200"
+                                ? "bg-[#ECFDF5] border-[#D1FAE5]"
+                                : "bg-[#F8FAFC] border-[#E2E8F0]"
                             }`}
                           >
                             <div className="flex items-start justify-between">
@@ -292,10 +292,10 @@ const ScopeView = () => {
                                 </p>
                               </div>
                               <span
-                                className={`px-3 py-1 rounded-full text-xs font-medium ${
+                               className={`px-3 py-1 rounded-full text-xs font-semibold ${
                                   test.is_active
-                                    ? "bg-green-100 text-green-800"
-                                    : "bg-red-100 text-red-800"
+                                    ? "bg-[#ECFDF5] text-[#10B981] border border-[#D1FAE5]"
+                                    : "bg-[#FEF2F2] text-[#EF4444] border border-[#FEE2E2]"
                                 }`}
                               >
                                 {test.is_active ? "Active" : "Inactive"}

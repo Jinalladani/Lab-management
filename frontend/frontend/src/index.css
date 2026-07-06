@@ -400,6 +400,28 @@ button, input, textarea, select {
     box-shadow: 0 0 0 3px rgba(63, 110, 140, 0.12), var(--shadow-xs);
   }
 
+  .app-select-trigger {
+    @apply w-full flex items-center justify-between rounded-xl border border-[#DDE4EA] bg-white px-4 py-3 text-sm text-[#1A2733] transition-all duration-200;
+    box-shadow: var(--shadow-xs);
+  }
+
+  .app-select-trigger:focus, .app-select-trigger-open {
+    @apply border-[#243744] outline-none;
+    box-shadow: 0 0 0 3px rgba(36, 55, 68, 0.12), var(--shadow-xs);
+  }
+
+  .app-select-menu {
+    @apply absolute left-0 right-0 z-50 mt-1.5 max-h-60 overflow-y-auto rounded-xl border border-[#E2E8F0] bg-white py-1 shadow-lg;
+  }
+
+  .app-select-option {
+    @apply flex w-full items-center justify-between px-4 py-2.5 text-left text-sm text-[#1A2733] hover:bg-[#F6F7F9] transition-colors duration-150;
+  }
+
+  .app-select-option-selected {
+    @apply bg-[#F1F5F9] text-[#243744] font-semibold;
+  }
+
   .app-label {
     @apply block mb-1.5 text-sm font-medium text-[#3D4F5F];
   }

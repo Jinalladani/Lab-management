@@ -11,15 +11,21 @@ sample_observations_bp = Blueprint('sample_observations', __name__)
 @sample_observations_bp.route('', methods=['GET'])
 def get_all_observations():
     try:
+        project_id = request.args.get("project_id", "").strip()
         # Join sample_observations with projects and sample_receipt_register for dynamic info
         query = """
             SELECT so.*, p.project_name, p.project_code, srr.sample_no
             FROM sample_observations so
             LEFT JOIN projects p ON so.project_id = p.project_id
             LEFT JOIN sample_receipt_register srr ON so.sample_id = srr.sample_id
-            ORDER BY so.updated_at DESC
         """
-        result = db.session.execute(text(query)).mappings().all()
+        params = {}
+        if project_id:
+            query += " WHERE so.project_id = :project_id"
+            params["project_id"] = project_id
+            
+        query += " ORDER BY so.updated_at DESC"
+        result = db.session.execute(text(query), params).mappings().all()
         
         serialized = []
         for row in result:

@@ -167,7 +167,7 @@ const AddScope = () => {
         {/* Back Button */}
         <button
           onClick={() => navigate("/scope")}
-          className="mb-4 flex items-center gap-2 text-[#2d66b3] font-medium hover:text-[#1f5498] transition-colors"
+          className="mb-4 flex items-center gap-2 text-[#243744] font-medium hover:text-[#1A2733] transition-colors"
         >
           <ArrowBackIcon fontSize="small" />
           Back
@@ -190,7 +190,7 @@ const AddScope = () => {
                 <div className="lg:col-span-3 space-y-6">
                   <div className="bg-gray-50 rounded-lg p-6">
                     <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-                      <span className="w-2 h-2 bg-[#2b63ae] rounded-full mr-2"></span>
+                      <span className="w-2 h-2 bg-[#243744] rounded-full mr-2"></span>
                       Group Information
                     </h2>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -199,7 +199,7 @@ const AddScope = () => {
                         <select
                           value={groupForm.testing_scope_type}
                           onChange={(e) => setGroupForm({...groupForm, testing_scope_type: e.target.value})}
-                          className="w-full border border-gray-300 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-[#2b63ae] focus:border-transparent"
+                          className="w-full border border-gray-300 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-[#243744]/10 focus:border-[#243744]"
                           required
                         >
                           <option value="permanent_testing">Permanent Testing</option>
@@ -213,7 +213,7 @@ const AddScope = () => {
                           type="text"
                           value={groupForm.group_name}
                           onChange={(e) => setGroupForm({...groupForm, group_name: e.target.value})}
-                          className="w-full border border-gray-300 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-[#2b63ae] focus:border-transparent"
+                          className="w-full border border-gray-300 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-[#243744]/10 focus:border-[#243744]"
                           placeholder="e.g., CHEMICAL- BUILDING MATERIAL"
                           required
                         />
@@ -225,7 +225,7 @@ const AddScope = () => {
                           type="number"
                           value={groupForm.sort_order}
                           onChange={(e) => setGroupForm({...groupForm, sort_order: parseInt(e.target.value) || 0})}
-                          className="w-full border border-gray-300 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-[#2b63ae] focus:border-transparent"
+                          className="w-full border border-gray-300 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-[#243744]/10 focus:border-[#243744]"
                           placeholder="0"
                         />
                       </div>
@@ -246,7 +246,7 @@ const AddScope = () => {
                     <button
                       type="submit"
                       disabled={loading || !groupForm.group_name.trim()}
-                      className="px-8 py-3 rounded-lg bg-gradient-to-r from-[#2b63ae] to-[#1e4a8c] text-white font-medium hover:from-[#1e4a8c] hover:to-[#2b63ae] transition-all disabled:opacity-70 shadow-lg"
+                      className="px-8 py-3 rounded-lg bg-[#243744] text-white font-semibold hover:bg-[#1A2733] transition-colors disabled:opacity-70 shadow-sm"
                     >
                       {loading ? "Creating..." : "Next Step"}
                     </button>
@@ -288,7 +288,7 @@ const AddScope = () => {
                     <h3 className="text-lg font-medium text-gray-900">Materials & Tests</h3>
                     <button
                       onClick={addMaterial}
-                      className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
+                      className="flex items-center gap-2 px-4 py-2 bg-[#243744] text-white rounded-lg hover:bg-[#1A2733] transition-colors font-semibold"
                     >
                       <AddIcon className="w-4 h-4" />
                       Add Material
@@ -314,11 +314,11 @@ const AddScope = () => {
                           <label className="block mb-2 text-sm font-medium text-gray-700">
                             Material Name *
                           </label>
-                          <input
+                           <input
                             type="text"
                             value={material.material_name}
                             onChange={(e) => updateMaterial(materialIndex, 'material_name', e.target.value)}
-                            className="w-full border border-gray-300 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-[#2b63ae] focus:border-transparent"
+                            className="w-full border border-gray-300 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-[#243744]/10 focus:border-[#243744]"
                             placeholder="e.g., Admixture"
                           />
                         </div>
@@ -328,10 +328,10 @@ const AddScope = () => {
                             <label className="block mb-2 text-sm font-medium text-gray-700">
                               Tests
                             </label>
-                            <button
-                              onClick={() => addTest(materialIndex)}
-                              className="flex items-center gap-1 px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-sm"
-                            >
+                              <button
+                                onClick={() => addTest(materialIndex)}
+                                className="flex items-center gap-1 px-3 py-1 bg-[#243744]/10 text-[#243744] border border-[#243744]/15 rounded hover:bg-[#243744]/20 transition-colors text-sm font-semibold"
+                              >
                               <AddIcon className="w-4 h-4" />
                               Add Test
                             </button>
@@ -360,7 +360,7 @@ const AddScope = () => {
                                     type="text"
                                     value={test.test_name}
                                     onChange={(e) => updateTest(materialIndex, testIndex, 'test_name', e.target.value)}
-                                    className="w-full border border-gray-300 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-[#2b63ae] focus:border-transparent"
+                                    className="w-full border border-gray-300 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-[#243744]/10 focus:border-[#243744]"
                                     placeholder="e.g., Ash Content"
                                   />
                                 </div>
@@ -372,7 +372,7 @@ const AddScope = () => {
                                     type="text"
                                     value={test.test_method}
                                     onChange={(e) => updateTest(materialIndex, testIndex, 'test_method', e.target.value)}
-                                    className="w-full border border-gray-300 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-[#2b63ae] focus:border-transparent"
+                                    className="w-full border border-gray-300 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-[#243744]/10 focus:border-[#243744]"
                                     placeholder="e.g., IS 9103"
                                   />
                                 </div>
@@ -397,7 +397,7 @@ const AddScope = () => {
                   <button
                     onClick={handleFinalSubmit}
                     disabled={loading || !isFormValid()}
-                    className="px-8 py-3 rounded-lg bg-gradient-to-r from-[#2b63ae] to-[#1e4a8c] text-white font-medium hover:from-[#1e4a8c] hover:to-[#2b63ae] transition-all disabled:opacity-70 shadow-lg"
+                    className="px-8 py-3 bg-[#243744] text-white rounded-lg hover:bg-[#1A2733] transition-colors disabled:opacity-70 shadow-sm font-semibold"
                   >
                     {loading ? "Creating Scope..." : "Create Scope"}
                   </button>
