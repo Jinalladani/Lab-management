@@ -13,3 +13,5 @@ export { default as Skeleton, TableSkeleton } from "./Skeleton";
 export { default as ActionDropdown } from "./ActionDropdown";
 export { default as Modal } from "./Modal";
 export { default as Tooltip } from "./Tooltip";
+export { default as MetricCard } from "./MetricCard";
+export { default as DataTable } from "./DataTable";

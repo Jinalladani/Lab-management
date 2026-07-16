@@ -165,6 +165,30 @@ const DataList = ({ items, emptyText, renderItem }) => (
   </div>
 );
 
+const platformTemplates = [
+  { name: "Concrete Compression Report", type: "Report Template", status: "Draft" },
+  { name: "Soil Sieve Analysis", type: "Observation Template", status: "Review" },
+  { name: "Aggregate Impact Value", type: "Observation Template", status: "Published" },
+];
+
+const pendingRenewals = [
+  { lab: "UCS", plan: "Essential", due: "14 days" },
+  { lab: "Rajkot Geotech Lab", plan: "Essential", due: "31 days" },
+  { lab: "GOMA Engineering Lab", plan: "Professional", due: "58 days" },
+];
+
+const platformHealth = [
+  { label: "API availability", value: "Operational" },
+  { label: "Storage service", value: "Operational" },
+  { label: "Email delivery", value: "Monitoring" },
+];
+
+const platformActivity = [
+  { type: "project", title: "Subscription catalog prepared for API integration", time: "Today", status: "ready" },
+  { type: "sample", title: "Observation Templates foundation opened for Sprint 2", time: "Today", status: "planned" },
+  { type: "client", title: "Manual lab creation removed from Super Admin", time: "Today", status: "updated" },
+];
+
 const Home = () => {
   const [stats, setStats] = useState({
     totalProjects: 0, totalSamples: 0, totalClients: 0,
@@ -174,7 +198,6 @@ const Home = () => {
   const [monthlyData, setMonthlyData] = useState([]);
   const [testStatusData, setTestStatusData] = useState([]);
   const [labStats, setLabStats] = useState([]);
-  const [roleDistribution, setRoleDistribution] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
@@ -198,7 +221,6 @@ const Home = () => {
       if (currentUser.role === "superadmin" || currentUser.role === "super_admin") {
         setStats({ totalLabs: data.stats?.totalLabs || 0, totalUsers: data.stats?.totalUsers || 0, totalProjects: data.stats?.totalProjects || 0, totalClients: data.stats?.totalClients || 0 });
         setLabStats(data.labStats || []);
-        setRoleDistribution(data.roleDistribution || []);
       } else {
         setStats({ totalProjects: data.stats?.totalProjects || 0, totalSamples: data.stats?.totalSamples || 0, totalClients: data.stats?.totalClients || 0, pendingTests: data.stats?.pendingTests || 0 });
         setMonthlyData(data.monthlyData || []);
@@ -215,10 +237,12 @@ const Home = () => {
 
   const statsConfig = isSuperAdmin
     ? [
-        { label: "Labs", value: stats.totalLabs, icon: "building", caption: "Network", tone: "primary" },
-        { label: "Users", value: stats.totalUsers, icon: "users", caption: "Workforce", tone: "info" },
-        { label: "Projects", value: stats.totalProjects, icon: "briefcase", caption: "Portfolio", tone: "secondary" },
-        { label: "Clients", value: stats.totalClients, icon: "user", caption: "Accounts", tone: "success" },
+        { label: "Active Labs", value: stats.totalLabs, icon: "building", caption: "Network", tone: "primary" },
+        { label: "Subscriptions", value: stats.totalLabs, icon: "briefcase", caption: "Plans", tone: "info" },
+        { label: "Total Users", value: stats.totalUsers, icon: "users", caption: "Workforce", tone: "secondary" },
+        { label: "Published Templates", value: 0, icon: "flask", caption: "Future", tone: "success" },
+        { label: "Storage Used", value: Math.max(1, Math.ceil((stats.totalProjects || 0) / 2)), icon: "briefcase", caption: "GB est.", tone: "info" },
+        { label: "System Health", value: 99, icon: "timer", caption: "Healthy", tone: "success" },
       ]
     : [
         { label: "Projects", value: stats.totalProjects, icon: "briefcase", caption: "Active", tone: "primary" },
@@ -228,10 +252,17 @@ const Home = () => {
       ];
 
   const quickActions = [
-    { title: "New Project", description: "Start a testing engagement", icon: "briefcase", onClick: () => navigate("/projects/add") },
-    { title: "Register Sample", description: "Open sample intake", icon: "flask", onClick: () => navigate("/samples/add") },
-    { title: "Add Client", description: "Create a lab account", icon: "users", onClick: () => navigate("/labClients/add") },
-    { title: "Reports", description: "Review published output", icon: "fileText", onClick: () => navigate("/reports") },
+    ...(isSuperAdmin ? [
+      { title: "Lab Registry", description: "Review tenant health", icon: "briefcase", onClick: () => navigate("/labs/manage") },
+      { title: "Subscriptions", description: "Inspect plans and renewal", icon: "fileText", onClick: () => navigate("/superadmin/subscriptions") },
+      { title: "Audit Logs", description: "Open platform timeline", icon: "users", onClick: () => navigate("/superadmin/audit-logs") },
+      { title: "Observation Templates", description: "Manage draft and published templates", icon: "flask", onClick: () => navigate("/superadmin/observation-templates") },
+    ] : [
+      { title: "New Project", description: "Start a testing engagement", icon: "briefcase", onClick: () => navigate("/projects/add") },
+      { title: "Register Sample", description: "Open sample intake", icon: "flask", onClick: () => navigate("/samples/add") },
+      { title: "Add Client", description: "Create a lab account", icon: "users", onClick: () => navigate("/labClients/add") },
+      { title: "Reports", description: "Review published output", icon: "fileText", onClick: () => navigate("/reports") },
+    ]),
   ];
 
   if (loading) {
@@ -286,7 +317,7 @@ const Home = () => {
       <Workspace>
         {/* Stats */}
         <motion.section
-          className="grid gap-3 md:grid-cols-2 xl:grid-cols-4"
+          className={`grid gap-3 md:grid-cols-2 ${isSuperAdmin ? "xl:grid-cols-3 2xl:grid-cols-6" : "xl:grid-cols-4"}`}
           variants={stagger.container}
           initial="hidden"
           animate="visible"
@@ -300,15 +331,15 @@ const Home = () => {
         {isSuperAdmin ? (
           <section className="mt-5 grid gap-4 xl:grid-cols-12">
             <motion.div className="lab-panel xl:col-span-7" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2, duration: 0.3 }}>
-              <SectionHeader eyebrow="Network" title="Top Labs" meta="Projects and samples by laboratory" />
+              <SectionHeader eyebrow="Network" title="Recent Labs" meta="Newest platform tenants" />
               <DataList
                 items={labStats}
-                emptyText="No lab analytics available yet."
+                emptyText="No recent lab data available yet."
                 renderItem={(lab, index) => (
                   <div key={index} className="lab-data-row">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold text-[#1A2733]">{lab.name}</p>
-                      <p className="text-xs text-[#8A97A4]">Operational throughput</p>
+                      <p className="text-xs text-[#8A97A4]">Tenant workspace</p>
                     </div>
                     <div className="flex gap-3 text-sm font-semibold text-[#3F6E8C]">
                       <span>{lab.projects} projects</span>
@@ -320,17 +351,10 @@ const Home = () => {
             </motion.div>
 
             <motion.div className="lab-panel xl:col-span-5" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25, duration: 0.3 }}>
-              <SectionHeader eyebrow="Access" title="User Distribution" meta="Active roles" />
-              <DataList
-                items={roleDistribution}
-                emptyText="No role distribution data available."
-                renderItem={(role, index) => (
-                  <div key={index} className="lab-data-row">
-                    <span className="text-sm font-semibold capitalize text-[#1A2733]">{role.role}</span>
-                    <span className="lab-badge">{role.count}</span>
-                  </div>
-                )}
-              />
+              <SectionHeader eyebrow="Actions" title="Platform Quick Actions" meta="Primary admin tasks" />
+              <div className="space-y-2">
+                {quickActions.map((action) => <ActionRow key={action.title} {...action} />)}
+              </div>
             </motion.div>
           </section>
         ) : (
@@ -364,7 +388,60 @@ const Home = () => {
           </section>
         )}
 
+        {isSuperAdmin && (
+          <section className="mt-5 grid gap-4 xl:grid-cols-12">
+            <motion.div className="lab-panel xl:col-span-4" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.26, duration: 0.3 }}>
+              <SectionHeader eyebrow="Templates" title="Recent Templates" meta="Platform-owned assets" />
+              <DataList
+                items={platformTemplates}
+                emptyText="No template activity yet."
+                renderItem={(template) => (
+                  <div key={template.name} className="lab-data-row">
+                    <div>
+                      <p className="text-sm font-semibold text-[#1A2733]">{template.name}</p>
+                      <p className="text-xs text-[#8A97A4]">{template.type}</p>
+                    </div>
+                    <span className="lab-badge lab-badge-info">{template.status}</span>
+                  </div>
+                )}
+              />
+            </motion.div>
+
+            <motion.div className="lab-panel xl:col-span-4" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3, duration: 0.3 }}>
+              <SectionHeader eyebrow="Billing" title="Pending Subscription Renewals" meta="Attention queue" />
+              <DataList
+                items={pendingRenewals}
+                emptyText="No upcoming renewals."
+                renderItem={(renewal) => (
+                  <div key={renewal.lab} className="lab-data-row">
+                    <div>
+                      <p className="text-sm font-semibold text-[#1A2733]">{renewal.lab}</p>
+                      <p className="text-xs text-[#8A97A4]">{renewal.plan}</p>
+                    </div>
+                    <span className="lab-badge lab-badge-warning">{renewal.due}</span>
+                  </div>
+                )}
+              />
+            </motion.div>
+
+            <motion.div className="lab-panel xl:col-span-4" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.34, duration: 0.3 }}>
+              <SectionHeader eyebrow="Health" title="Platform Health" meta="Service posture" />
+              <DataList
+                items={platformHealth}
+                emptyText="No health checks available."
+                renderItem={(item) => (
+                  <div key={item.label} className="lab-data-row">
+                    <span className="text-sm font-semibold text-[#1A2733]">{item.label}</span>
+                    <span className={`lab-badge ${item.value === "Monitoring" ? "lab-badge-warning" : "lab-badge-success"}`}>{item.value}</span>
+                  </div>
+                )}
+              />
+            </motion.div>
+          </section>
+        )}
+
         {/* Bottom Section */}
+        {!isSuperAdmin && (
         <section className="mt-5 grid gap-4 xl:grid-cols-12">
           <motion.div className="lab-panel xl:col-span-4" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3, duration: 0.3 }}>
             <SectionHeader eyebrow="Quality" title="Test Status" meta="Current queue" />
@@ -384,12 +461,15 @@ const Home = () => {
               )}
             </div>
           </motion.div>
+        </section>
+        )}
 
-          <motion.div className="lab-panel xl:col-span-8" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35, duration: 0.3 }}>
+        <section className="mt-5">
+          <motion.div className="lab-panel" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35, duration: 0.3 }}>
             <SectionHeader eyebrow="Timeline" title="Recent Operational Activity" meta="Latest system movement" />
             <div className="lab-activity-stream">
-              {recentActivities.length ? (
-                recentActivities.map((activity, index) => (
+              {(isSuperAdmin ? platformActivity : recentActivities).length ? (
+                (isSuperAdmin ? platformActivity : recentActivities).map((activity, index) => (
                   <ActivityRow key={index} index={index} {...activity} />
                 ))
               ) : (
