@@ -46,9 +46,15 @@ import EditUser from "./pages/users/EditUser";
 import ViewUser from "./pages/users/ViewUser";
 
 import LabManagement from "./pages/superadmin/lab/LabManagement";
-import AddLab from "./pages/superadmin/lab/AddLab";
 import ViewLab from "./pages/superadmin/lab/ViewLab";
 import EditLab from "./pages/superadmin/lab/EditLab";
+import SubscriptionPlans from "./pages/superadmin/subscriptions/SubscriptionPlans";
+import AuditLogs from "./pages/superadmin/audit/AuditLogs";
+import PlatformConfigurationPlaceholder from "./pages/superadmin/configuration/PlatformConfigurationPlaceholder";
+import ObservationTemplates from "./pages/superadmin/observation-templates/ObservationTemplates";
+import CreateObservationTemplate from "./pages/superadmin/observation-templates/CreateObservationTemplate";
+import TemplateBuilderPlaceholder from "./pages/superadmin/observation-templates/TemplateBuilderPlaceholder";
+import SuperAdminSettings from "./pages/superadmin/settings/SuperAdminSettings";
 
 import ObservationEntry from "./pages/observationBuilder/ObservationEntry";
 import ObservationBuilder from "./pages/observationBuilder/ObservationBuilder";
@@ -377,10 +383,66 @@ function App() {
         }
       />
       <Route
-        path="/superadmin/add-lab"
+        path="/superadmin/subscriptions"
         element={
           <ProtectedRoute>
-            <AddLab />
+            <SubscriptionPlans />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/superadmin/audit-logs"
+        element={
+          <ProtectedRoute>
+            <AuditLogs />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/superadmin/master-data"
+        element={
+          <ProtectedRoute>
+            <PlatformConfigurationPlaceholder moduleKey="masterData" />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/superadmin/observation-templates"
+        element={
+          <ProtectedRoute>
+            <ObservationTemplates />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/superadmin/observation-templates/new"
+        element={
+          <ProtectedRoute>
+            <CreateObservationTemplate />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/superadmin/observation-templates/:templateId/builder"
+        element={
+          <ProtectedRoute>
+            <TemplateBuilderPlaceholder />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/superadmin/report-templates"
+        element={
+          <ProtectedRoute>
+            <PlatformConfigurationPlaceholder moduleKey="reportTemplates" />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/superadmin/settings"
+        element={
+          <ProtectedRoute>
+            <SuperAdminSettings />
           </ProtectedRoute>
         }
       />

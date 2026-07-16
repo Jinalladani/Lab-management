@@ -1,11 +1,11 @@
 import React from "react";
 
 const variantClasses = {
-  success: "border-[#BBF7D0] bg-[#F0FDF4] text-[#16A34A]",
-  warning: "border-[#FDE68A] bg-[#FFFBEB] text-[#D97706]",
-  danger: "border-[#FECACA] bg-[#FEF2F2] text-[#DC2626]",
-  info: "border-[#BFDBFE] bg-[#EFF6FF] text-[#2563EB]",
-  neutral: "border-[#E2E6EB] bg-[#F6F7F9] text-[#57687A]",
+  success: "border-[#CFE8D1] bg-[#F0F7F1] text-[#2E7D32]",
+  warning: "border-[#F5DFA2] bg-[#FFF8E7] text-[#C58B00]",
+  danger: "border-[#F3C5C1] bg-[#FFF1F0] text-[#B3261E]",
+  info: "border-[#B9D6E8] bg-[#EDF5FA] text-[#2F6B9A]",
+  neutral: "border-[#E3E7EC] bg-[#F4F5F7] text-[#64748B]",
 };
 
 const Badge = ({

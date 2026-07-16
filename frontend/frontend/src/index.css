@@ -7,38 +7,38 @@
   color-scheme: light;
 
   /* Elevation backgrounds */
-  --app-bg: #F0F2F5;
-  --app-workspace: #F6F7F9;
-  --app-section: #FAFBFC;
+  --app-bg: #F4F5F7;
+  --app-workspace: #F4F5F7;
+  --app-section: #F4F5F7;
   --app-surface: #FFFFFF;
 
   /* Borders */
-  --app-border: #E2E6EB;
+  --app-border: #E3E7EC;
   --app-border-subtle: #EDF0F3;
   --app-border-strong: #CDD4DB;
 
   /* Text */
-  --app-text: #1A2733;
-  --app-text-secondary: #57687A;
-  --app-text-muted: #8A97A4;
-  --app-text-placeholder: #A1ADB8;
+  --app-text: #1E293B;
+  --app-text-secondary: #64748B;
+  --app-text-muted: #94A3B8;
+  --app-text-placeholder: #94A3B8;
 
   /* Brand */
-  --app-primary: #243744;
-  --app-primary-hover: #2F4858;
-  --app-primary-light: #3F6E8C;
+  --app-primary: #23395B;
+  --app-primary-hover: #1B2F4A;
+  --app-primary-light: #5C7896;
 
   /* Semantic */
-  --app-success: #16A34A;
+  --app-success: #2E7D32;
   --app-success-bg: #F0FDF4;
   --app-success-border: #BBF7D0;
-  --app-warning: #D97706;
+  --app-warning: #C58B00;
   --app-warning-bg: #FFFBEB;
   --app-warning-border: #FDE68A;
-  --app-danger: #DC2626;
+  --app-danger: #B3261E;
   --app-danger-bg: #FEF2F2;
   --app-danger-border: #FECACA;
-  --app-info: #2563EB;
+  --app-info: #2F6B9A;
   --app-info-bg: #EFF6FF;
   --app-info-border: #BFDBFE;
 
@@ -115,7 +115,7 @@ button, input, textarea, select {
   }
 
   .app-button-primary {
-    @apply bg-[#243744] text-white hover:bg-[#2F4858] focus:ring-[#3F6E8C];
+    @apply bg-[#23395B] text-white hover:bg-[#1B2F4A] focus:ring-[#5C7896];
     box-shadow: var(--shadow-sm), 0 1px 0 rgba(255,255,255,0.06) inset;
   }
 
@@ -124,21 +124,21 @@ button, input, textarea, select {
   }
 
   .app-button-secondary {
-    @apply border border-[#DDE4EA] bg-white text-[#1A2733] hover:bg-[#F8FAFB] hover:border-[#CDD4DB] focus:ring-[#3F6E8C];
+    @apply border border-[#E3E7EC] bg-white text-[#1E293B] hover:bg-[#F4F5F7] hover:border-[#CDD4DB] focus:ring-[#5C7896];
     box-shadow: var(--shadow-xs);
   }
 
   .app-button-ghost {
-    @apply text-[#57687A] hover:bg-[#F0F2F5] hover:text-[#1A2733] focus:ring-[#3F6E8C];
+    @apply text-[#64748B] hover:bg-[#F4F5F7] hover:text-[#1E293B] focus:ring-[#5C7896];
   }
 
   .app-button-danger {
-    @apply bg-[#DC2626] text-white hover:bg-[#B91C1C] focus:ring-[#DC2626];
+    @apply bg-[#B3261E] text-white hover:bg-[#8F1F1A] focus:ring-[#B3261E];
     box-shadow: var(--shadow-sm);
   }
 
   .app-icon-button {
-    @apply relative inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#DDE4EA] bg-white text-[#57687A] transition-all duration-200 ease-out hover:text-[#1A2733] hover:border-[#CDD4DB] hover:bg-[#F8FAFB] focus:outline-none focus:ring-2 focus:ring-[#3F6E8C] focus:ring-offset-2;
+    @apply relative inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[#E3E7EC] bg-white text-[#64748B] transition-all duration-200 ease-out hover:text-[#1E293B] hover:border-[#CDD4DB] hover:bg-[#F4F5F7] focus:outline-none focus:ring-2 focus:ring-[#5C7896] focus:ring-offset-2;
     box-shadow: var(--shadow-xs);
   }
 
@@ -166,7 +166,7 @@ button, input, textarea, select {
 
   /* ── Command Center (Hero) ── */
   .lab-command-center {
-    @apply grid gap-6 rounded-2xl border border-[#1C2D37] bg-[#243744] p-6 lg:p-8 md:grid-cols-[1fr_280px];
+    @apply grid gap-6 rounded-2xl border border-[#1B2F4A] bg-[#23395B] p-6 lg:p-8 md:grid-cols-[1fr_280px];
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), var(--shadow-lg);
   }
 
@@ -196,7 +196,7 @@ button, input, textarea, select {
 
   .lab-stat-head {
     @apply relative overflow-hidden p-5;
-    background: #243744;
+    background: #23395B;
   }
 
   .lab-stat-head::after {
@@ -311,19 +311,19 @@ button, input, textarea, select {
   }
 
   .lab-badge-success {
-    @apply border-[#BBF7D0] bg-[#F0FDF4] text-[#16A34A];
+    @apply border-[#CFE8D1] bg-[#F0F7F1] text-[#2E7D32];
   }
 
   .lab-badge-warning {
-    @apply border-[#FDE68A] bg-[#FFFBEB] text-[#D97706];
+    @apply border-[#F5DFA2] bg-[#FFF8E7] text-[#C58B00];
   }
 
   .lab-badge-danger {
-    @apply border-[#FECACA] bg-[#FEF2F2] text-[#DC2626];
+    @apply border-[#F3C5C1] bg-[#FFF1F0] text-[#B3261E];
   }
 
   .lab-badge-info {
-    @apply border-[#BFDBFE] bg-[#EFF6FF] text-[#2563EB];
+    @apply border-[#B9D6E8] bg-[#EDF5FA] text-[#2F6B9A];
   }
 
   /* ── Activity Stream ── */
@@ -365,7 +365,7 @@ button, input, textarea, select {
 
   /* ── Form Elements ── */
   .app-input {
-    @apply w-full rounded-xl border border-[#DDE4EA] bg-white px-4 py-3 text-sm text-[#1A2733] transition-all duration-200;
+    @apply w-full rounded-xl border border-[#E3E7EC] bg-white px-4 py-3 text-sm text-[#1E293B] transition-all duration-200;
     box-shadow: var(--shadow-xs);
   }
 
@@ -374,20 +374,20 @@ button, input, textarea, select {
   }
 
   .app-input:focus {
-    @apply border-[#3F6E8C] outline-none;
-    box-shadow: 0 0 0 3px rgba(63, 110, 140, 0.12), var(--shadow-xs);
+    @apply border-[#5C7896] outline-none;
+    box-shadow: 0 0 0 3px rgba(92, 120, 150, 0.12), var(--shadow-xs);
   }
 
   .app-input-error {
-    @apply border-[#DC2626];
+    @apply border-[#B3261E];
   }
 
   .app-input-error:focus {
-    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12), var(--shadow-xs);
+    box-shadow: 0 0 0 3px rgba(179, 38, 30, 0.12), var(--shadow-xs);
   }
 
   .app-select {
-    @apply w-full appearance-none rounded-xl border border-[#DDE4EA] bg-white px-4 py-3 pr-10 text-sm text-[#1A2733] transition-all duration-200;
+    @apply w-full appearance-none rounded-xl border border-[#E3E7EC] bg-white px-4 py-3 pr-10 text-sm text-[#1E293B] transition-all duration-200;
     box-shadow: var(--shadow-xs);
     background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%238A97A4' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
     background-position: right 12px center;
@@ -396,8 +396,8 @@ button, input, textarea, select {
   }
 
   .app-select:focus {
-    @apply border-[#3F6E8C] outline-none;
-    box-shadow: 0 0 0 3px rgba(63, 110, 140, 0.12), var(--shadow-xs);
+    @apply border-[#5C7896] outline-none;
+    box-shadow: 0 0 0 3px rgba(92, 120, 150, 0.12), var(--shadow-xs);
   }
 
   .app-select-trigger {

@@ -5,6 +5,8 @@ import {
   LayoutDashboard, User, Users, Briefcase, FlaskConical,
   Microscope, CheckSquare, FileText, Wrench, Calendar,
   Table2, X, Building2, Menu, ChevronDown,
+  CreditCard, ShieldCheck, Settings, ClipboardList,
+  FileStack, Database,
 } from "lucide-react";
 
 const iconComponents = {
@@ -12,7 +14,20 @@ const iconComponents = {
   briefcase: Briefcase, flask: FlaskConical, microscope: Microscope,
   checkSquare: CheckSquare, fileText: FileText, wrench: Wrench,
   calendar: Calendar, table: Table2, building: Building2,
+  creditCard: CreditCard, shield: ShieldCheck, settings: Settings,
+  clipboard: ClipboardList, fileStack: FileStack,
+  database: Database,
 };
+
+const SidebarSection = ({ title, collapsed }) => (
+  <div className="px-3 pb-2 pt-4">
+    {!collapsed ? (
+      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/38">{title}</p>
+    ) : (
+      <div className="mx-auto h-px w-8 bg-white/10" />
+    )}
+  </div>
+);
 
 const SidebarLink = ({ to, icon, label, collapsed, onClick, end = false, activeWhen }) => {
   const IconComp = iconComponents[icon] || LayoutDashboard;
@@ -173,6 +188,7 @@ const Sidebar = ({ isOpen, isCollapsed, onClose, onToggleCollapse }) => {
       ? [
         { path: "/dashboard", label: "Dashboard", icon: "layoutDashboard" },
         { path: "/labs/manage", label: "Lab Management", icon: "building" },
+        { path: "/superadmin/subscriptions", label: "Subscriptions", icon: "creditCard" },
       ]
       : [
         { path: "/dashboard", label: "Dashboard", icon: "layoutDashboard" },
@@ -239,7 +255,7 @@ const Sidebar = ({ isOpen, isCollapsed, onClose, onToggleCollapse }) => {
       <motion.aside
         layout
         className={[
-          "fixed inset-y-0 left-0 z-50 flex h-screen flex-col overflow-hidden border-r border-[#1C2D37] bg-[#243744] text-white transition-[width,transform] duration-[250ms] ease-in-out md:translate-x-0",
+          "fixed inset-y-0 left-0 z-50 flex h-screen flex-col overflow-hidden border-r border-[#1B2F4A] bg-[#23395B] text-white transition-[width,transform] duration-[250ms] ease-in-out md:translate-x-0",
           isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0",
           isCollapsed ? "md:w-[4.75rem] w-[17rem]" : "md:w-[17rem] w-[17rem]",
         ].join(" ")}
@@ -312,7 +328,29 @@ const Sidebar = ({ isOpen, isCollapsed, onClose, onToggleCollapse }) => {
         {/* Navigation */}
         <div className="sidebar-scroll flex-1 overflow-y-auto overflow-x-hidden px-3 py-4">
           <nav className="space-y-1.5 pb-4">
-            {navItems.map((item) => {
+            {user?.role === "superadmin" || user?.role === "super_admin" ? (
+              <>
+                <SidebarSection title="Command" collapsed={isCollapsed} />
+                {navItems.map((item) => (
+                  <SidebarLink
+                    key={item.path}
+                    to={item.path}
+                    label={item.label}
+                    icon={item.icon}
+                    collapsed={isCollapsed}
+                    onClick={onClose}
+                    end={item.path === "/dashboard"}
+                  />
+                ))}
+                <SidebarSection title="Platform Configuration" collapsed={isCollapsed} />
+                <SidebarLink to="/superadmin/master-data" label="Master Data" icon="database" collapsed={isCollapsed} onClick={onClose} />
+                <SidebarLink to="/superadmin/observation-templates" label="Observation Templates" icon="clipboard" collapsed={isCollapsed} onClick={onClose} />
+                <SidebarLink to="/superadmin/report-templates" label="Report Templates" icon="fileStack" collapsed={isCollapsed} onClick={onClose} />
+                <SidebarSection title="Governance" collapsed={isCollapsed} />
+                <SidebarLink to="/superadmin/audit-logs" label="Audit Logs" icon="shield" collapsed={isCollapsed} onClick={onClose} />
+                <SidebarLink to="/superadmin/settings" label="Settings" icon="settings" collapsed={isCollapsed} onClick={onClose} />
+              </>
+            ) : navItems.map((item) => {
               if (item.subItems) {
                 return (
                   <SidebarSubmenu
@@ -340,6 +378,7 @@ const Sidebar = ({ isOpen, isCollapsed, onClose, onToggleCollapse }) => {
               );
             })}
 
+            {!(user?.role === "superadmin" || user?.role === "super_admin") && (
             <div className="!mt-3 pt-3 border-t border-white/8 space-y-1.5">
               {moduleItems.map((item) => {
                 if (item.subItems) {
@@ -369,6 +408,7 @@ const Sidebar = ({ isOpen, isCollapsed, onClose, onToggleCollapse }) => {
                 );
               })}
             </div>
+            )}
           </nav>
         </div>
 
