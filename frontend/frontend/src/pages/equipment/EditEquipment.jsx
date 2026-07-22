@@ -21,44 +21,20 @@ const EditEquipment = () => {
     id: id,
     name: "",
     category: "",
-    laboratory: "",
+    laboratory: "Concrete Lab",
     manufacturer: "",
     model: "",
     serialNo: "",
-    assetTag: "",
     purchaseDate: "",
     installationDate: "",
-    warrantyExpiryDate: "",
     status: "Active",
-    supplier: "",
-    invoiceNo: "",
-    purchaseCost: "",
     location: "",
-    responsiblePerson: "",
-    description: "",
-    
-    // Technical Specification Section
-    measurementRange: "",
-    leastCount: "",
-    accuracy: "",
     capacity: "",
-    unit: "",
-    powerSupply: "",
-    software: "",
-    otherSpecification: "",
-    
-    // Calibration & Verification Section
-    frequency: "",
-    internalCheckFrequency: "",
-    agency: "",
-    nablAccredited: true,
-    traceabilityDetails: "",
-    calibrationMethod: "",
-    
-    // Right panel settings
+    frequency: "12 Months",
     nextDue: "",
-    nextInternalCheckDate: "",
-    reminderBeforeDays: "30"
+    equipmentCode: "",
+    calibrationRequired: "Yes",
+    equipmentImage: ""
   });
 
   const [errors, setErrors] = useState({});
@@ -86,38 +62,20 @@ const EditEquipment = () => {
           id: res.data.id || id,
           name: res.data.name || "",
           category: res.data.category || "",
-          laboratory: res.data.laboratory || "",
+          laboratory: res.data.laboratory || "Concrete Lab",
           manufacturer: res.data.manufacturer || "",
           model: res.data.model || "",
           serialNo: res.data.serialNo || "",
-          assetTag: res.data.assetTag || "",
           purchaseDate: res.data.purchaseDate || "",
           installationDate: res.data.installationDate || "",
-          warrantyExpiryDate: res.data.warrantyExpiryDate || "",
           status: res.data.status || "Active",
-          supplier: res.data.supplier || "",
-          invoiceNo: res.data.invoiceNo || "",
-          purchaseCost: res.data.purchaseCost || "",
           location: res.data.location || "",
-          responsiblePerson: res.data.responsiblePerson || "",
-          description: res.data.description || "",
-          measurementRange: res.data.measurementRange || "",
-          leastCount: res.data.leastCount || "",
-          accuracy: res.data.accuracy || "",
           capacity: res.data.capacity || "",
-          unit: res.data.unit || "",
-          powerSupply: res.data.powerSupply || "",
-          software: res.data.software || "",
-          otherSpecification: res.data.otherSpecification || "",
-          frequency: res.data.frequency || "",
-          internalCheckFrequency: res.data.internalCheckFrequency || "",
-          agency: res.data.agency || "",
-          nablAccredited: res.data.nablAccredited ?? true,
-          traceabilityDetails: res.data.traceabilityDetails || "",
-          calibrationMethod: res.data.calibrationMethod || "",
+          frequency: res.data.frequency || "12 Months",
           nextDue: res.data.nextDue || "",
-          nextInternalCheckDate: res.data.nextInternalCheckDate || "",
-          reminderBeforeDays: String(res.data.reminderBeforeDays || "30")
+          equipmentCode: res.data.equipmentCode || "",
+          calibrationRequired: res.data.calibrationRequired ? "Yes" : "No",
+          equipmentImage: res.data.equipmentImage || ""
         });
         setExistingDocs(res.data.documents || []);
       }
@@ -182,16 +140,14 @@ const EditEquipment = () => {
     const newErrors = {};
     if (!formData.name.trim()) newErrors.name = "Equipment name is required";
     if (!formData.category) newErrors.category = "Category is required";
-    if (!formData.laboratory) newErrors.laboratory = "Laboratory section is required";
     if (!formData.manufacturer.trim()) newErrors.manufacturer = "Make/Manufacturer is required";
     if (!formData.model.trim()) newErrors.model = "Model is required";
     if (!formData.serialNo.trim()) newErrors.serialNo = "Serial number is required";
     if (!formData.purchaseDate) newErrors.purchaseDate = "Purchase date is required";
     if (!formData.status) newErrors.status = "Status is required";
-    if (!formData.responsiblePerson) newErrors.responsiblePerson = "Responsible person is required";
-    if (!formData.frequency) newErrors.frequency = "Calibration frequency is required";
-    if (!formData.internalCheckFrequency) newErrors.internalCheckFrequency = "Internal check frequency is required";
-    if (!formData.nextDue) newErrors.nextDue = "Next calibration date is required";
+    
+    if (formData.calibrationRequired === "Yes" && !formData.frequency) newErrors.frequency = "Calibration frequency is required";
+    if (formData.calibrationRequired === "Yes" && !formData.nextDue) newErrors.nextDue = "Next calibration date is required";
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -206,7 +162,31 @@ const EditEquipment = () => {
 
     try {
       setLoading(true);
-      await updateEquipment(id, formData);
+      const today = new Date();
+      const nextDue = new Date(formData.nextDue || today);
+      const diffDays = Math.ceil((nextDue - today) / (1000 * 60 * 60 * 24));
+      
+      let calStatus = "Valid";
+      if (formData.calibrationRequired === "No") {
+        calStatus = "Not Required";
+      } else {
+        if (diffDays < 0) {
+          calStatus = "Overdue";
+        } else if (diffDays <= 7) {
+          calStatus = "Due within 7 Days";
+        } else if (diffDays <= 30) {
+          calStatus = "Due Soon";
+        }
+      }
+
+      const payload = {
+        ...formData,
+        calibrationRequired: formData.calibrationRequired === "Yes",
+        maintenanceRequired: false,
+        calibrationStatus: calStatus
+      };
+
+      await updateEquipment(id, payload);
 
       // Upload newly selected files
       for (const [category, file] of Object.entries(selectedFiles)) {
@@ -238,27 +218,10 @@ const EditEquipment = () => {
     { value: "Chemical", label: "Chemical" },
   ];
 
-  const labOptions = [
-    { value: "Concrete Lab", label: "Concrete Lab" },
-    { value: "Soil Mechanics Lab", label: "Soil Mechanics Lab" },
-    { value: "Chemical Testing Lab", label: "Chemical Testing Lab" },
-    { value: "NDT Lab", label: "NDT Lab" },
-    { value: "Metrology Lab", label: "Metrology Lab" },
-  ];
-
   const statusOptions = [
     { value: "Active", label: "Active" },
-    { value: "Inactive", label: "Inactive" },
-    { value: "Under Maintenance", label: "Under Maintenance" },
-    { value: "Out of Order", label: "Out of Order" },
-  ];
-
-  const unitOptions = [
-    { value: "kN", label: "kN (Kilonewton)" },
-    { value: "kg", label: "kg (Kilogram)" },
-    { value: "mm", label: "mm (Millimeter)" },
-    { value: "°C", label: "°C (Degree Celsius)" },
-    { value: "V", label: "V (Volt)" },
+    { value: "Under Repair", label: "Under Repair" },
+    { value: "Out of Service", label: "Out of Service" }
   ];
 
   const freqOptions = [
@@ -266,13 +229,6 @@ const EditEquipment = () => {
     { value: "6 Months", label: "6 Months" },
     { value: "12 Months", label: "12 Months (1 Year)" },
     { value: "24 Months", label: "24 Months (2 Years)" },
-  ];
-
-  const reminderOptions = [
-    { value: "7", label: "7 Days" },
-    { value: "15", label: "15 Days" },
-    { value: "30", label: "30 Days" },
-    { value: "60", label: "60 Days" },
   ];
 
   const locationOptions = locations.map(loc => ({
@@ -320,6 +276,14 @@ const EditEquipment = () => {
                     />
 
                     <Input
+                      label="Equipment Code"
+                      name="equipmentCode"
+                      value={formData.equipmentCode}
+                      onChange={handleChange}
+                      placeholder="Enter Equipment Code"
+                    />
+
+                    <Input
                       label="Equipment Name"
                       name="name"
                       value={formData.name}
@@ -339,16 +303,6 @@ const EditEquipment = () => {
                       error={errors.category}
                     />
 
-                    <Select
-                      label="Laboratory Section"
-                      name="laboratory"
-                      value={formData.laboratory}
-                      onChange={handleChange}
-                      options={labOptions}
-                      required
-                      error={errors.laboratory}
-                    />
-
                     <Input
                       label="Make / Manufacturer"
                       name="manufacturer"
@@ -360,7 +314,7 @@ const EditEquipment = () => {
                     />
 
                     <Input
-                      label="Model"
+                      label="Model Number"
                       name="model"
                       value={formData.model}
                       onChange={handleChange}
@@ -380,11 +334,11 @@ const EditEquipment = () => {
                     />
 
                     <Input
-                      label="Asset Tag / Code"
-                      name="assetTag"
-                      value={formData.assetTag}
+                      label="Capacity"
+                      name="capacity"
+                      value={formData.capacity}
                       onChange={handleChange}
-                      placeholder="Enter asset tag"
+                      placeholder="e.g. 2000 KN"
                     />
 
                     <Input
@@ -405,12 +359,13 @@ const EditEquipment = () => {
                       onChange={handleChange}
                     />
 
-                    <Input
-                      label="Warranty Expiry Date"
-                      name="warrantyExpiryDate"
-                      type="date"
-                      value={formData.warrantyExpiryDate}
+                    <Select
+                      label="Location"
+                      name="location"
+                      value={formData.location}
                       onChange={handleChange}
+                      options={locationOptions}
+                      placeholder="Select Location"
                     />
 
                     <Select
@@ -422,228 +377,40 @@ const EditEquipment = () => {
                       required
                       error={errors.status}
                     />
-
-                    <Input
-                      label="Supplier / Vendor"
-                      name="supplier"
-                      value={formData.supplier}
-                      onChange={handleChange}
-                      placeholder="Enter supplier name"
-                    />
-
-                    <Input
-                      label="Invoice Number"
-                      name="invoiceNo"
-                      value={formData.invoiceNo}
-                      onChange={handleChange}
-                      placeholder="Enter invoice number"
-                    />
-
-                    <Input
-                      label="Purchase Cost (₹)"
-                      name="purchaseCost"
-                      type="number"
-                      value={formData.purchaseCost}
-                      onChange={handleChange}
-                      placeholder="Enter amount"
-                    />
-
-                    <Select
-                      label="Location / Room"
-                      name="location"
-                      value={formData.location}
-                      onChange={handleChange}
-                      options={locationOptions}
-                      placeholder="Select Location"
-                    />
-
-                    <Input
-                      label="Responsible Engineer"
-                      name="responsiblePerson"
-                      value={formData.responsiblePerson}
-                      onChange={handleChange}
-                      placeholder="Enter responsible engineer"
-                      required
-                      error={errors.responsiblePerson}
-                      className="md:col-span-2"
-                    />
-
-                    <div className="md:col-span-2">
-                      <label className="app-label">Description / Remarks</label>
-                      <textarea
-                        name="description"
-                        value={formData.description}
-                        onChange={handleChange}
-                        placeholder="Enter description or remarks"
-                        rows={3}
-                        className="w-full border border-gray-300 rounded-xl px-3.5 py-2.5 outline-none focus:ring-2 focus:ring-[#243744]/10 focus:border-[#243744] bg-white/90 text-sm font-semibold text-gray-800 placeholder:text-gray-400"
-                      />
-                    </div>
                   </div>
                 </div>
 
-                {/* Section 2: Technical Specification */}
+                {/* Section 2: Calibration Details */}
                 <div className="pt-6 border-t border-[#F1F5F9]">
                   <h3 className="text-sm font-bold text-[#1A2733] flex items-center gap-2 mb-4">
                     <span className="w-5 h-5 bg-[#243744] text-white text-[10px] rounded-full flex items-center justify-center font-bold">2</span>
-                    Technical Specification
-                  </h3>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Input
-                      label="Measurement Range"
-                      name="measurementRange"
-                      value={formData.measurementRange}
-                      onChange={handleChange}
-                      placeholder="e.g. 0 - 2000 kN"
-                    />
-
-                    <Input
-                      label="Least Count / Resolution"
-                      name="leastCount"
-                      value={formData.leastCount}
-                      onChange={handleChange}
-                      placeholder="e.g. 0.01 kN"
-                    />
-
-                    <Input
-                      label="Accuracy / Class"
-                      name="accuracy"
-                      value={formData.accuracy}
-                      onChange={handleChange}
-                      placeholder="e.g. ±1%"
-                    />
-
-                    <Input
-                      label="Capacity / Size"
-                      name="capacity"
-                      value={formData.capacity}
-                      onChange={handleChange}
-                      placeholder="e.g. 1000 kN"
-                    />
-
-                    <Select
-                      label="Unit"
-                      name="unit"
-                      value={formData.unit}
-                      onChange={handleChange}
-                      options={unitOptions}
-                      placeholder="Select Unit"
-                    />
-
-                    <Input
-                      label="Power Requirement"
-                      name="powerSupply"
-                      value={formData.powerSupply}
-                      onChange={handleChange}
-                      placeholder="e.g. 230V, 50Hz"
-                    />
-
-                    <Input
-                      label="Software (If any)"
-                      name="software"
-                      value={formData.software}
-                      onChange={handleChange}
-                      placeholder="Enter software name"
-                    />
-
-                    <Input
-                      label="Other Specification"
-                      name="otherSpecification"
-                      value={formData.otherSpecification}
-                      onChange={handleChange}
-                      placeholder="Enter other specification"
-                    />
-                  </div>
-                </div>
-
-                {/* Section 3: Calibration & Verification */}
-                <div className="pt-6 border-t border-[#F1F5F9]">
-                  <h3 className="text-sm font-bold text-[#1A2733] flex items-center gap-2 mb-4">
-                    <span className="w-5 h-5 bg-[#243744] text-white text-[10px] rounded-full flex items-center justify-center font-bold">3</span>
-                    Calibration & Verification
+                    Calibration Details
                   </h3>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <Select
-                      label="Calibration Frequency"
-                      name="frequency"
-                      value={formData.frequency}
+                      label="Calibration Required"
+                      name="calibrationRequired"
+                      value={formData.calibrationRequired}
                       onChange={handleChange}
-                      options={freqOptions}
+                      options={[
+                        { value: "Yes", label: "Yes" },
+                        { value: "No", label: "No" }
+                      ]}
                       required
-                      error={errors.frequency}
                     />
 
-                    <Select
-                      label="Internal Check Frequency"
-                      name="internalCheckFrequency"
-                      value={formData.internalCheckFrequency}
-                      onChange={handleChange}
-                      options={freqOptions}
-                      required
-                      error={errors.internalCheckFrequency}
-                    />
-
-                    <Input
-                      label="Calibration Agency"
-                      name="agency"
-                      value={formData.agency}
-                      onChange={handleChange}
-                      placeholder="Enter calibration agency"
-                    />
-
-                    <div>
-                      <label className="app-label">NABL Accredited</label>
-                      <div className="flex rounded-xl overflow-hidden border border-gray-200 max-w-[160px] h-[42px] bg-gray-50">
-                        <button
-                          type="button"
-                          onClick={() => setFormData(prev => ({ ...prev, nablAccredited: true }))}
-                          className={`flex-1 text-xs font-bold transition-all ${
-                            formData.nablAccredited
-                              ? "bg-[#243744] text-white shadow-inner"
-                              : "text-gray-600 hover:bg-gray-150"
-                          }`}
-                        >
-                          Yes
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setFormData(prev => ({ ...prev, nablAccredited: false }))}
-                          className={`flex-1 text-xs font-bold transition-all ${
-                            !formData.nablAccredited
-                              ? "bg-[#243744] text-white shadow-inner"
-                              : "text-gray-600 hover:bg-gray-150"
-                          }`}
-                        >
-                          No
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="md:col-span-2">
-                      <label className="app-label">Traceability Details</label>
-                      <textarea
-                        name="traceabilityDetails"
-                        value={formData.traceabilityDetails}
+                    {formData.calibrationRequired === "Yes" && (
+                      <Select
+                        label="Calibration Frequency"
+                        name="frequency"
+                        value={formData.frequency}
                         onChange={handleChange}
-                        placeholder="Enter traceability details"
-                        rows={2}
-                        className="w-full border border-gray-300 rounded-xl px-3.5 py-2.5 outline-none focus:ring-2 focus:ring-[#243744]/10 focus:border-[#243744] bg-white/90 text-sm font-semibold text-gray-800 placeholder:text-gray-400"
+                        options={freqOptions}
+                        required
+                        error={errors.frequency}
                       />
-                    </div>
-
-                    <div className="md:col-span-2">
-                      <label className="app-label">Calibration Method / Standard</label>
-                      <textarea
-                        name="calibrationMethod"
-                        value={formData.calibrationMethod}
-                        onChange={handleChange}
-                        placeholder="Enter calibration method / standard"
-                        rows={2}
-                        className="w-full border border-gray-300 rounded-xl px-3.5 py-2.5 outline-none focus:ring-2 focus:ring-[#243744]/10 focus:border-[#243744] bg-white/90 text-sm font-semibold text-gray-800 placeholder:text-gray-400"
-                      />
-                    </div>
+                    )}
                   </div>
                 </div>
 
@@ -652,35 +419,30 @@ const EditEquipment = () => {
               {/* Right Column - Uploads & Reminders */}
               <div className="space-y-6">
                 
-                {/* Upload Documents Box */}
+                {/* Upload Photograph Box */}
                 <div className="bg-white rounded-2xl border border-[#E2E8F0] p-5 shadow-sm space-y-4">
-                  <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider">Upload Documents</h3>
+                  <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider">Equipment Photograph</h3>
                   
                   {/* File Dropzone */}
                   <div className="border-2 border-dashed border-gray-200 rounded-2xl p-5 bg-gray-50 hover:bg-gray-100 flex flex-col items-center justify-center cursor-pointer transition-colors text-center">
                     <Upload className="text-gray-400 w-8 h-8 mb-1.5" />
-                    <span className="text-xs font-bold text-gray-700 block">Drag & drop files here</span>
+                    <span className="text-xs font-bold text-gray-700 block">Drag & drop image here</span>
                     <span className="text-[10px] text-gray-400 font-semibold my-1">or</span>
                     <button
                       type="button"
-                      onClick={() => triggerFileUpload("Other Document")}
+                      onClick={() => triggerFileUpload("Photograph")}
                       className="text-[10px] font-bold text-[#243744] bg-blue-50 border border-blue-100 px-3 py-1.5 rounded-lg hover:bg-blue-100 transition-colors"
                     >
-                      Browse Files
+                      Upload Photograph
                     </button>
-                    <span className="text-[9px] text-gray-400 font-semibold mt-2">Max file size: 10MB</span>
                   </div>
 
-                  {/* Existing documents */}
-                  {existingDocs.length > 0 && (
-                    <div className="space-y-2 pt-2 border-t border-gray-100 text-xs">
-                      <span className="text-[11px] font-bold text-[#475569] uppercase tracking-wider block">Existing Documents</span>
-                      {existingDocs.map((doc) => (
-                        <div key={doc.id} className="flex items-center justify-between py-1.5 border-b border-gray-50 last:border-0">
-                          <div className="flex flex-col min-w-0">
-                            <span className="text-gray-700 font-bold truncate">{doc.fileName}</span>
-                            <span className="text-[10px] text-gray-400 font-semibold">{doc.documentType}</span>
-                          </div>
+                  {existingDocs.filter(d => d.documentType === "Photograph").length > 0 && (
+                    <div className="space-y-1.5">
+                      <span className="text-[10px] font-bold text-[#475569] uppercase tracking-wider block">Uploaded Image</span>
+                      {existingDocs.filter(d => d.documentType === "Photograph").map((doc) => (
+                        <div key={doc.id} className="flex items-center justify-between p-1.5 bg-[#FAFBFD] border border-[#E2E8F0] rounded-xl text-[11px] font-semibold text-gray-700">
+                          <span className="truncate max-w-[150px]">{doc.fileName}</span>
                           <button
                             type="button"
                             onClick={() => handleDeleteExistingDoc(doc.id)}
@@ -693,76 +455,31 @@ const EditEquipment = () => {
                     </div>
                   )}
 
-                  {/* Categories list */}
-                  <div className="space-y-2 pt-2 border-t border-gray-100 text-xs">
-                    {[
-                      "Calibration Certificate",
-                      "Invoice / Purchase Bill",
-                      "Equipment Manual",
-                      "AMC / Service Contract",
-                      "Photograph",
-                      "Other Document"
-                    ].map((docName, index) => (
-                      <div key={index} className="flex items-center justify-between py-1 border-b border-gray-50 last:border-0">
-                        <div className="flex flex-col">
-                          <span className="text-gray-600 font-semibold">{docName}</span>
-                          {selectedFiles[docName] && (
-                            <span className="text-[10px] text-emerald-600 font-bold max-w-[150px] truncate">
-                              ✓ {selectedFiles[docName].name}
-                            </span>
-                          )}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => triggerFileUpload(docName)}
-                          className="text-[#243744] hover:underline font-bold text-[10px] flex items-center gap-0.5"
-                        >
-                          {selectedFiles[docName] ? "Change" : "+ Upload"}
-                        </button>
-                      </div>
-                    ))}
-                  </div>
+                  {selectedFiles["Photograph"] && (
+                    <div className="text-xs text-emerald-600 font-bold bg-emerald-50 p-2 rounded-lg border border-emerald-100 truncate">
+                      ✓ New Image Selected: {selectedFiles["Photograph"].name}
+                    </div>
+                  )}
                 </div>
 
-                {/* Calibration & Check Settings Box */}
-                <div className="bg-white rounded-2xl border border-[#E2E8F0] p-5 shadow-sm space-y-4">
-                  <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider">Calibration & Check Settings</h3>
+                {/* Calibration Due Box */}
+                {formData.calibrationRequired === "Yes" && (
+                  <div className="bg-white rounded-2xl border border-[#E2E8F0] p-5 shadow-sm space-y-4">
+                    <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider">Calibration Due Date</h3>
 
-                  <div className="space-y-4">
-                    <Input
-                      label="Next Calibration Date"
-                      name="nextDue"
-                      type="date"
-                      value={formData.nextDue}
-                      onChange={handleChange}
-                      required
-                      error={errors.nextDue}
-                    />
-
-                    <Input
-                      label="Next Internal Check Date"
-                      name="nextInternalCheckDate"
-                      type="date"
-                      value={formData.nextInternalCheckDate}
-                      onChange={handleChange}
-                    />
-
-                    <Select
-                      label="Reminder Before (Days)"
-                      name="reminderBeforeDays"
-                      value={formData.reminderBeforeDays}
-                      onChange={handleChange}
-                      options={reminderOptions}
-                    />
-
-                    <div className="bg-[#FAF9FF] border border-[#EDEAFF] rounded-xl p-3 flex items-start gap-2.5">
-                      <Info className="text-[#243744] mt-0.5 shrink-0" size={16} />
-                      <p className="text-[10px] text-[#475569] font-semibold leading-relaxed">
-                        System will send reminders before the due date as per selected days.
-                      </p>
+                    <div className="space-y-4">
+                      <Input
+                        label="Next Calibration Due Date"
+                        name="nextDue"
+                        type="date"
+                        value={formData.nextDue}
+                        onChange={handleChange}
+                        required
+                        error={errors.nextDue}
+                      />
                     </div>
                   </div>
-                </div>
+                )}
 
               </div>
 

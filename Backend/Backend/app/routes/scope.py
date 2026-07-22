@@ -107,6 +107,9 @@ def get_scope_materials():
 def get_scope_tests():
     try:
         lab_id = g.jwt_payload.get("lab_id")
+        role = g.jwt_payload.get("role")
+        is_superadmin = role in ["superadmin", "super_admin"]
+        
         group_id = request.args.get("group_id", "").strip()
         material_id = request.args.get("material_id", "").strip()
         is_active = request.args.get("is_active", "").strip()
@@ -131,10 +134,13 @@ def get_scope_tests():
             FROM scope_tests st
             JOIN scope_groups sg ON sg.group_id = st.group_id
             JOIN scope_materials sm ON sm.material_id = st.material_id
-            WHERE st.lab_id = :lab_id
+            WHERE 1=1
         """
 
-        params = {"lab_id": lab_id}
+        params = {}
+        if not is_superadmin:
+            query += " AND st.lab_id = :lab_id"
+            params["lab_id"] = lab_id
 
         if group_id:
             query += " AND st.group_id = :group_id"
@@ -170,6 +176,9 @@ def get_scope_tests():
 def get_scope_hierarchy():
     try:
         lab_id = g.jwt_payload.get("lab_id")
+        role = g.jwt_payload.get("role")
+        is_superadmin = role in ["superadmin", "super_admin"]
+        
         scope_type = request.args.get("scope_type", "").strip()
 
         # Get groups with materials and tests
@@ -190,10 +199,13 @@ def get_scope_hierarchy():
             FROM scope_groups sg
             LEFT JOIN scope_materials sm ON sm.group_id = sg.group_id
             LEFT JOIN scope_tests st ON st.material_id = sm.material_id
-            WHERE sg.lab_id = :lab_id
+            WHERE 1=1
         """
 
-        params = {"lab_id": lab_id}
+        params = {}
+        if not is_superadmin:
+            query += " AND sg.lab_id = :lab_id"
+            params["lab_id"] = lab_id
 
         if scope_type:
             query += " AND sg.testing_scope_type = :scope_type"

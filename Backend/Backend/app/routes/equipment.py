@@ -32,7 +32,10 @@ def get_equipment_list():
                    asset_tag, warranty_expiry_date, invoice_no, purchase_cost,
                    capacity, unit, software, other_specification,
                    internal_check_frequency, nabl_accredited, traceability_details,
-                   calibration_method, next_internal_check_date, reminder_before_days
+                   calibration_method, next_internal_check_date, reminder_before_days,
+                   equipment_code, warranty_start_date, warranty_end_date,
+                   equipment_image, equipment_manual, calibration_required,
+                   maintenance_required, maintenance_frequency
             FROM equipment
             WHERE lab_id = :lab_id
         """
@@ -98,7 +101,15 @@ def get_equipment_list():
                 "traceabilityDetails": r.traceability_details,
                 "calibrationMethod": r.calibration_method,
                 "nextInternalCheckDate": r.next_internal_check_date.isoformat() if r.next_internal_check_date else None,
-                "reminderBeforeDays": r.reminder_before_days
+                "reminderBeforeDays": r.reminder_before_days,
+                "equipmentCode": r.equipment_code,
+                "warrantyStartDate": r.warranty_start_date.isoformat() if r.warranty_start_date else None,
+                "warrantyEndDate": r.warranty_end_date.isoformat() if r.warranty_end_date else None,
+                "equipmentImage": r.equipment_image,
+                "equipmentManual": r.equipment_manual,
+                "calibrationRequired": r.calibration_required,
+                "maintenanceRequired": r.maintenance_required,
+                "maintenanceFrequency": r.maintenance_frequency
             })
 
         return jsonify({
@@ -147,7 +158,10 @@ def create_equipment():
                 asset_tag, warranty_expiry_date, invoice_no, purchase_cost,
                 capacity, unit, software, other_specification,
                 internal_check_frequency, nabl_accredited, traceability_details,
-                calibration_method, next_internal_check_date, reminder_before_days
+                calibration_method, next_internal_check_date, reminder_before_days,
+                equipment_code, warranty_start_date, warranty_end_date,
+                equipment_image, equipment_manual, calibration_required,
+                maintenance_required, maintenance_frequency
             ) VALUES (
                 :eq_id, :lab_id, :name, :category, :laboratory, :status,
                 :calibration_status, :next_due, :last_calibration, :frequency,
@@ -158,9 +172,14 @@ def create_equipment():
                 :asset_tag, :warranty_expiry_date, :invoice_no, :purchase_cost,
                 :capacity, :unit, :software, :other_specification,
                 :internal_check_frequency, :nabl_accredited, :traceability_details,
-                :calibration_method, :next_internal_check_date, :reminder_before_days
+                :calibration_method, :next_internal_check_date, :reminder_before_days,
+                :equipment_code, :warranty_start_date, :warranty_end_date,
+                :equipment_image, :equipment_manual, :calibration_required,
+                :maintenance_required, :maintenance_frequency
             )
         """)
+
+        status = data.get("status", "Active")
 
         db.session.execute(insert_query, {
             "eq_id": data["id"],
@@ -168,7 +187,7 @@ def create_equipment():
             "name": data["name"],
             "category": data["category"],
             "laboratory": data["laboratory"],
-            "status": data.get("status", "Active"),
+            "status": status,
             "calibration_status": data.get("calibrationStatus", "Valid"),
             "next_due": datetime.strptime(data["nextDue"], "%Y-%m-%d").date() if data.get("nextDue") else None,
             "last_calibration": datetime.strptime(data["lastCalibration"], "%Y-%m-%d").date() if data.get("lastCalibration") else None,
@@ -202,7 +221,27 @@ def create_equipment():
             "traceability_details": data.get("traceabilityDetails"),
             "calibration_method": data.get("calibrationMethod"),
             "next_internal_check_date": datetime.strptime(data["nextInternalCheckDate"], "%Y-%m-%d").date() if data.get("nextInternalCheckDate") else None,
-            "reminder_before_days": int(data["reminderBeforeDays"]) if data.get("reminderBeforeDays") else 30
+            "reminder_before_days": int(data["reminderBeforeDays"]) if data.get("reminderBeforeDays") else 30,
+            "equipment_code": data.get("equipmentCode"),
+            "warranty_start_date": datetime.strptime(data["warrantyStartDate"], "%Y-%m-%d").date() if data.get("warrantyStartDate") else None,
+            "warranty_end_date": datetime.strptime(data["warrantyEndDate"], "%Y-%m-%d").date() if data.get("warrantyEndDate") else None,
+            "equipment_image": data.get("equipmentImage"),
+            "equipment_manual": data.get("equipmentManual"),
+            "calibration_required": data.get("calibrationRequired", True),
+            "maintenance_required": data.get("maintenanceRequired", True),
+            "maintenance_frequency": data.get("maintenanceFrequency", "12 Months")
+        })
+
+        # Insert status history log
+        hist_query = text("""
+            INSERT INTO equipment_status_history (lab_id, equipment_id, previous_status, new_status, changed_by, remarks)
+            VALUES (:lab_id, :eq_id, NULL, :new_status, :changed_by, 'Initial equipment registration')
+        """)
+        db.session.execute(hist_query, {
+            "lab_id": lab_id,
+            "eq_id": data["id"],
+            "new_status": status,
+            "changed_by": g.jwt_payload.get("email", "Technician")
         })
 
         db.session.commit()
@@ -233,7 +272,10 @@ def view_equipment(eq_id):
                    asset_tag, warranty_expiry_date, invoice_no, purchase_cost,
                    capacity, unit, software, other_specification,
                    internal_check_frequency, nabl_accredited, traceability_details,
-                   calibration_method, next_internal_check_date, reminder_before_days
+                   calibration_method, next_internal_check_date, reminder_before_days,
+                   equipment_code, warranty_start_date, warranty_end_date,
+                   equipment_image, equipment_manual, calibration_required,
+                   maintenance_required, maintenance_frequency
             FROM equipment
             WHERE lab_id = :lab_id AND equipment_id = :eq_id
         """)
@@ -347,6 +389,14 @@ def view_equipment(eq_id):
             "calibrationMethod": eq_row.calibration_method,
             "nextInternalCheckDate": eq_row.next_internal_check_date.isoformat() if eq_row.next_internal_check_date else None,
             "reminderBeforeDays": eq_row.reminder_before_days,
+            "equipmentCode": eq_row.equipment_code,
+            "warrantyStartDate": eq_row.warranty_start_date.isoformat() if eq_row.warranty_start_date else None,
+            "warrantyEndDate": eq_row.warranty_end_date.isoformat() if eq_row.warranty_end_date else None,
+            "equipmentImage": eq_row.equipment_image,
+            "equipmentManual": eq_row.equipment_manual,
+            "calibrationRequired": eq_row.calibration_required,
+            "maintenanceRequired": eq_row.maintenance_required,
+            "maintenanceFrequency": eq_row.maintenance_frequency,
             "calibrationHistory": cal_history,
             "maintenanceHistory": maint_history,
             "documents": documents
@@ -369,6 +419,13 @@ def update_equipment(eq_id):
 
         data = request.get_json()
 
+        # Check previous status for history log
+        prev_status_query = text("SELECT status FROM equipment WHERE lab_id = :lab_id AND equipment_id = :eq_id")
+        prev_status_row = db.session.execute(prev_status_query, {"lab_id": lab_id, "eq_id": eq_id}).fetchone()
+        prev_status = prev_status_row[0] if prev_status_row else None
+
+        new_status = data.get("status", "Active")
+
         update_query = text("""
             UPDATE equipment
             SET name = :name, category = :category, laboratory = :laboratory, status = :status,
@@ -384,7 +441,12 @@ def update_equipment(eq_id):
                 other_specification = :other_specification, internal_check_frequency = :internal_check_frequency,
                 nabl_accredited = :nabl_accredited, traceability_details = :traceability_details,
                 calibration_method = :calibration_method, next_internal_check_date = :next_internal_check_date,
-                reminder_before_days = :reminder_before_days, updated_at = CURRENT_TIMESTAMP
+                reminder_before_days = :reminder_before_days,
+                equipment_code = :equipment_code, warranty_start_date = :warranty_start_date,
+                warranty_end_date = :warranty_end_date, equipment_image = :equipment_image,
+                equipment_manual = :equipment_manual, calibration_required = :calibration_required,
+                maintenance_required = :maintenance_required, maintenance_frequency = :maintenance_frequency,
+                updated_at = CURRENT_TIMESTAMP
             WHERE lab_id = :lab_id AND equipment_id = :eq_id
         """)
 
@@ -392,7 +454,7 @@ def update_equipment(eq_id):
             "name": data["name"],
             "category": data["category"],
             "laboratory": data["laboratory"],
-            "status": data.get("status", "Active"),
+            "status": new_status,
             "calibration_status": data.get("calibrationStatus", "Valid"),
             "next_due": datetime.strptime(data["nextDue"], "%Y-%m-%d").date() if data.get("nextDue") else None,
             "last_calibration": datetime.strptime(data["lastCalibration"], "%Y-%m-%d").date() if data.get("lastCalibration") else None,
@@ -427,9 +489,31 @@ def update_equipment(eq_id):
             "calibration_method": data.get("calibrationMethod"),
             "next_internal_check_date": datetime.strptime(data["nextInternalCheckDate"], "%Y-%m-%d").date() if data.get("nextInternalCheckDate") else None,
             "reminder_before_days": int(data["reminderBeforeDays"]) if data.get("reminderBeforeDays") else 30,
+            "equipment_code": data.get("equipmentCode"),
+            "warranty_start_date": datetime.strptime(data["warrantyStartDate"], "%Y-%m-%d").date() if data.get("warrantyStartDate") else None,
+            "warranty_end_date": datetime.strptime(data["warrantyEndDate"], "%Y-%m-%d").date() if data.get("warrantyEndDate") else None,
+            "equipment_image": data.get("equipmentImage"),
+            "equipment_manual": data.get("equipmentManual"),
+            "calibration_required": data.get("calibrationRequired", True),
+            "maintenance_required": data.get("maintenanceRequired", True),
+            "maintenance_frequency": data.get("maintenanceFrequency", "12 Months"),
             "lab_id": lab_id,
             "eq_id": eq_id
         })
+
+        # Insert status history if status changed
+        if prev_status and prev_status != new_status:
+            hist_query = text("""
+                INSERT INTO equipment_status_history (lab_id, equipment_id, previous_status, new_status, changed_by, remarks)
+                VALUES (:lab_id, :eq_id, :prev_status, :new_status, :changed_by, 'Status changed via equipment details editor')
+            """)
+            db.session.execute(hist_query, {
+                "lab_id": lab_id,
+                "eq_id": eq_id,
+                "prev_status": prev_status,
+                "new_status": new_status,
+                "changed_by": g.jwt_payload.get("email", "Technician")
+            })
 
         db.session.commit()
         return jsonify({"success": True, "message": "Equipment details updated successfully", "id": eq_id}), 200
@@ -695,3 +779,136 @@ def delete_equipment_document(doc_id):
         db.session.rollback()
         current_app.logger.error(f"Error deleting equipment document: {str(e)}")
         return jsonify({"success": False, "message": "Failed to delete document", "error": str(e)}), 500
+
+
+@equipment_bp.route("/mappings", methods=["GET"])
+@token_required
+def get_equipment_mappings():
+    try:
+        lab_id = g.jwt_payload.get("lab_id")
+        query = """
+            SELECT etm.mapping_id, etm.scope_test_id, etm.equipment_id, etm.is_mandatory,
+                   st.test_name, st.test_method, eq.name as equipment_name, eq.calibration_status,
+                   eq.next_due
+            FROM equipment_test_mapping etm
+            JOIN scope_tests st ON etm.scope_test_id = st.scope_test_id
+            JOIN equipment eq ON etm.equipment_id = eq.equipment_id
+            WHERE etm.lab_id = :lab_id
+        """
+        rows = db.session.execute(text(query), {"lab_id": lab_id}).fetchall()
+        mappings = []
+        for r in rows:
+            mappings.append({
+                "mappingId": r.mapping_id,
+                "scopeTestId": r.scope_test_id,
+                "equipmentId": r.equipment_id,
+                "isMandatory": r.is_mandatory,
+                "testName": r.test_name,
+                "testMethod": r.test_method,
+                "equipmentName": r.equipment_name,
+                "calibrationStatus": r.calibration_status,
+                "nextDue": r.next_due.isoformat() if r.next_due else None
+            })
+        return jsonify({"success": True, "data": mappings}), 200
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@equipment_bp.route("/mappings/by-test/<int:scope_test_id>", methods=["GET"])
+@token_required
+def get_mappings_by_test(scope_test_id):
+    try:
+        lab_id = g.jwt_payload.get("lab_id")
+        query = """
+            SELECT etm.mapping_id, etm.scope_test_id, etm.equipment_id, etm.is_mandatory,
+                   eq.name as equipment_name, eq.calibration_status, eq.certificate_no,
+                   eq.next_due
+            FROM equipment_test_mapping etm
+            JOIN equipment eq ON etm.equipment_id = eq.equipment_id
+            WHERE etm.lab_id = :lab_id AND etm.scope_test_id = :scope_test_id
+        """
+        rows = db.session.execute(text(query), {"lab_id": lab_id, "scope_test_id": scope_test_id}).fetchall()
+        mappings = []
+        for r in rows:
+            mappings.append({
+                "mappingId": r.mapping_id,
+                "scopeTestId": r.scope_test_id,
+                "equipmentId": r.equipment_id,
+                "isMandatory": r.is_mandatory,
+                "equipmentName": r.equipment_name,
+                "calibrationStatus": r.calibration_status,
+                "certificateNo": r.certificate_no,
+                "nextDue": r.next_due.isoformat() if r.next_due else None
+            })
+        return jsonify({"success": True, "data": mappings}), 200
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@equipment_bp.route("/mappings/create", methods=["POST"])
+@token_required
+def create_mapping():
+    try:
+        lab_id = g.jwt_payload.get("lab_id")
+        data = request.get_json()
+        scope_test_id = data.get("scopeTestId")
+        equipment_id = data.get("equipmentId")
+        is_mandatory = data.get("isMandatory", False)
+        if not scope_test_id or not equipment_id:
+            return jsonify({"success": False, "message": "scopeTestId and equipmentId are required"}), 400
+        
+        # Check duplicate mapping
+        dup_query = "SELECT COUNT(*) FROM equipment_test_mapping WHERE lab_id = :lab_id AND scope_test_id = :scope_test_id AND equipment_id = :equipment_id"
+        dup_count = db.session.execute(text(dup_query), {"lab_id": lab_id, "scope_test_id": scope_test_id, "equipment_id": equipment_id}).scalar()
+        if dup_count > 0:
+            return jsonify({"success": False, "message": "This mapping already exists"}), 400
+
+        insert_query = """
+            INSERT INTO equipment_test_mapping (lab_id, scope_test_id, equipment_id, is_mandatory)
+            VALUES (:lab_id, :scope_test_id, :equipment_id, :is_mandatory)
+        """
+        db.session.execute(text(insert_query), {
+            "lab_id": lab_id,
+            "scope_test_id": scope_test_id,
+            "equipment_id": equipment_id,
+            "is_mandatory": is_mandatory
+        })
+        db.session.commit()
+        return jsonify({"success": True, "message": "Mapping created successfully"}), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@equipment_bp.route("/mappings/delete/<int:mapping_id>", methods=["DELETE"])
+@token_required
+def delete_mapping(mapping_id):
+    try:
+        lab_id = g.jwt_payload.get("lab_id")
+        query = "DELETE FROM equipment_test_mapping WHERE lab_id = :lab_id AND mapping_id = :mapping_id"
+        db.session.execute(text(query), {"lab_id": lab_id, "mapping_id": mapping_id})
+        db.session.commit()
+        return jsonify({"success": True, "message": "Mapping deleted successfully"}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@equipment_bp.route("/options-for-mapping", methods=["GET"])
+@token_required
+def get_options_for_mapping():
+    try:
+        lab_id = g.jwt_payload.get("lab_id")
+        # Get tests
+        tests_query = "SELECT scope_test_id, test_name, test_method FROM scope_tests WHERE lab_id = :lab_id ORDER BY test_name ASC"
+        tests_rows = db.session.execute(text(tests_query), {"lab_id": lab_id}).fetchall()
+        tests = [{"scopeTestId": r.scope_test_id, "testName": r.test_name, "testMethod": r.test_method} for r in tests_rows]
+        
+        # Get equipment
+        eq_query = "SELECT equipment_id, name FROM equipment WHERE lab_id = :lab_id ORDER BY name ASC"
+        eq_rows = db.session.execute(text(eq_query), {"lab_id": lab_id}).fetchall()
+        equipment = [{"equipmentId": r.equipment_id, "name": r.name} for r in eq_rows]
+        
+        return jsonify({"success": True, "data": {"tests": tests, "equipment": equipment}}), 200
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500

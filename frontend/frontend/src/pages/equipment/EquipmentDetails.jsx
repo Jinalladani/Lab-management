@@ -124,6 +124,10 @@ const EquipmentDetails = () => {
                         <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 break-words">{equipment.id}</div>
                       </div>
                       <div>
+                        <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Equipment Code</label>
+                        <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 break-words">{equipment.equipmentCode || "—"}</div>
+                      </div>
+                      <div>
                         <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Equipment Name</label>
                         <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 break-words">{equipment.name}</div>
                       </div>
@@ -132,15 +136,11 @@ const EquipmentDetails = () => {
                         <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 break-words">{equipment.category}</div>
                       </div>
                       <div>
-                        <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Laboratory Section</label>
-                        <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 break-words">{equipment.laboratory}</div>
-                      </div>
-                      <div>
                         <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Make / Manufacturer</label>
                         <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 break-words">{equipment.manufacturer || "—"}</div>
                       </div>
                       <div>
-                        <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Model</label>
+                        <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Model Number</label>
                         <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 break-words">{equipment.model || "—"}</div>
                       </div>
                       <div>
@@ -148,8 +148,8 @@ const EquipmentDetails = () => {
                         <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 break-words">{equipment.serialNo || "—"}</div>
                       </div>
                       <div>
-                        <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Asset Tag / Code</label>
-                        <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 break-words">{equipment.assetTag || "—"}</div>
+                        <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Capacity</label>
+                        <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 break-words">{equipment.capacity || "—"}</div>
                       </div>
                       <div>
                         <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Purchase Date</label>
@@ -160,83 +160,12 @@ const EquipmentDetails = () => {
                         <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 break-words">{equipment.installationDate || "—"}</div>
                       </div>
                       <div>
-                        <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Warranty Expiry Date</label>
-                        <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 break-words">{equipment.warrantyExpiryDate || "—"}</div>
-                      </div>
-                      <div>
-                        <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Location / Room</label>
+                        <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Location</label>
                         <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 break-words">{equipment.location || "—"}</div>
                       </div>
                       <div>
-                        <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Supplier / Vendor</label>
-                        <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 break-words">{equipment.supplier || "—"}</div>
-                      </div>
-                      <div>
-                        <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Invoice Number</label>
-                        <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 break-words">{equipment.invoiceNo || "—"}</div>
-                      </div>
-                      <div>
-                        <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Purchase Cost</label>
-                        <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-bold text-gray-800 break-words">
-                          {equipment.purchaseCost ? `₹ ${equipment.purchaseCost.toLocaleString("en-IN")}` : "—"}
-                        </div>
-                      </div>
-                      <div>
-                        <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Responsible Engineer</label>
-                        <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-bold text-[#243744] break-words">{equipment.responsiblePerson || "—"}</div>
-                      </div>
-                    </div>
-                    
-                    <div className="mt-4">
-                      <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Description / Remarks</label>
-                      <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 break-words min-h-[80px] whitespace-pre-wrap">
-                        {equipment.description || "No specifications description compiled for this instrument."}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Divider */}
-                  <div className="h-px bg-[#F1F5F9]" />
-
-                  {/* Technical Specifications */}
-                  <div>
-                    <h3 className="text-sm font-bold text-[#1A2733] flex items-center gap-2 mb-4">
-                      <Settings size={16} className="text-[#3F6E8C]" />
-                      Technical Specifications
-                    </h3>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Measurement Range</label>
-                        <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 break-words">{equipment.measurementRange || "—"}</div>
-                      </div>
-                      <div>
-                        <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Least Count / Resolution</label>
-                        <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 break-words">{equipment.leastCount || "—"}</div>
-                      </div>
-                      <div>
-                        <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Accuracy / Class</label>
-                        <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 break-words">{equipment.accuracy || "—"}</div>
-                      </div>
-                      <div>
-                        <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Capacity / Size</label>
-                        <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 break-words">{equipment.capacity || "—"}</div>
-                      </div>
-                      <div>
-                        <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Unit</label>
-                        <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 break-words">{equipment.unit || "—"}</div>
-                      </div>
-                      <div>
-                        <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Power Requirement</label>
-                        <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 break-words">{equipment.powerSupply || "—"}</div>
-                      </div>
-                      <div>
-                        <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Software (If any)</label>
-                        <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 break-words">{equipment.software || "—"}</div>
-                      </div>
-                      <div>
-                        <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Other Specification</label>
-                        <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 break-words">{equipment.otherSpecification || "—"}</div>
+                        <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Status</label>
+                        <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 break-words">{equipment.status}</div>
                       </div>
                     </div>
                   </div>
@@ -248,48 +177,20 @@ const EquipmentDetails = () => {
                   <div>
                     <h3 className="text-sm font-bold text-[#1A2733] flex items-center gap-2 mb-4">
                       <CheckSquare size={16} className="text-[#3F6E8C]" />
-                      Calibration & Verification
+                      Calibration Details
                     </h3>
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Calibration Frequency</label>
-                        <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 break-words">{equipment.frequency || "—"}</div>
+                        <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Calibration Required</label>
+                        <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 break-words">{equipment.calibrationRequired ? "Yes" : "No"}</div>
                       </div>
-                      <div>
-                        <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Internal Check Frequency</label>
-                        <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 break-words">{equipment.internalCheckFrequency || "—"}</div>
-                      </div>
-                      <div>
-                        <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Calibration Agency</label>
-                        <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 break-words">{equipment.agency || "—"}</div>
-                      </div>
-                      <div>
-                        <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">NABL Accredited</label>
-                        <div className="px-4 py-2.5">
-                          {equipment.nablAccredited ? (
-                            <span className="inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-150 items-center gap-1">
-                              <CheckCircle size={11} /> Yes
-                            </span>
-                          ) : (
-                            <span className="inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-red-50 text-red-700 border border-red-150 items-center gap-1">
-                              <XCircle size={11} /> No
-                            </span>
-                          )}
+                      {equipment.calibrationRequired && (
+                        <div>
+                          <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Calibration Frequency</label>
+                          <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 break-words">{equipment.frequency || "—"}</div>
                         </div>
-                      </div>
-                      <div className="md:col-span-2">
-                        <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Traceability Details</label>
-                        <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 break-words min-h-[60px] whitespace-pre-wrap">
-                          {equipment.traceabilityDetails || "—"}
-                        </div>
-                      </div>
-                      <div className="md:col-span-2">
-                        <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Calibration Method / Standard</label>
-                        <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 break-words min-h-[60px] whitespace-pre-wrap">
-                          {equipment.calibrationMethod || "—"}
-                        </div>
-                      </div>
+                      )}
                     </div>
                   </div>
 
@@ -423,82 +324,50 @@ const EquipmentDetails = () => {
                 {/* Right Column - Uploads & Reminders */}
                 <div className="space-y-6">
                   
-                  {/* Attached Documents Box */}
+                  {/* Photograph Box */}
                   <div className="bg-white rounded-2xl border border-[#E2E8F0] p-5 shadow-sm space-y-4">
-                    <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider">Attached Documents</h3>
-
-                    <div className="space-y-3 text-xs">
-                      {[
-                        "Calibration Certificate",
-                        "Invoice / Purchase Bill",
-                        "Equipment Manual",
-                        "AMC / Service Contract",
-                        "Photograph",
-                        "Other Document"
-                      ].map((docName, index) => {
-                        const doc = getDocByCategory(docName);
-                        return (
-                          <div key={index} className="py-2 border-b border-gray-50 last:border-0">
-                            <span className="text-gray-400 font-bold block uppercase text-[9px] mb-0.5">{docName}</span>
-                            {doc ? (
-                              <div className="flex items-center justify-between bg-gray-50 p-2 rounded-xl border border-gray-150 mt-1">
-                                <div className="flex items-center gap-1.5 min-w-0">
-                                  <Paperclip size={13} className="text-gray-400" />
-                                  <span className="text-[10px] font-bold text-gray-700 truncate max-w-[130px]" title={doc.fileName}>
-                                    {doc.fileName}
-                                  </span>
-                                </div>
-                                <a
-                                  href={`http://localhost:5000/${doc.filePath}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="p-1 hover:bg-[#243744]/10 rounded text-[#243744] transition-colors"
-                                  title="Download/View file"
-                                >
-                                  <Download size={14} />
-                                </a>
-                              </div>
-                            ) : (
-                              <span className="text-[10px] font-semibold text-gray-400 italic block mt-0.5">No document attached</span>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
+                    <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider">Equipment Photograph</h3>
+                    {getDocByCategory("Photograph") ? (
+                      <div className="rounded-xl overflow-hidden border border-gray-150 bg-gray-50">
+                        <img
+                          src={`http://localhost:5000/${getDocByCategory("Photograph").filePath}`}
+                          alt={equipment.name}
+                          className="w-full h-auto object-cover max-h-[300px]"
+                        />
+                        <div className="p-3 bg-white border-t border-gray-150 flex items-center justify-between text-xs">
+                          <span className="text-gray-500 truncate font-semibold">{getDocByCategory("Photograph").fileName}</span>
+                          <a
+                            href={`http://localhost:5000/${getDocByCategory("Photograph").filePath}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[#243744] hover:underline font-bold"
+                          >
+                            View
+                          </a>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="py-8 text-center border-2 border-dashed border-gray-200 rounded-xl bg-gray-50 text-xs font-bold text-gray-400">
+                        No photograph uploaded
+                      </div>
+                    )}
                   </div>
 
-                  {/* Calibration & Check Settings Box */}
-                  <div className="bg-white rounded-2xl border border-[#E2E8F0] p-5 shadow-sm space-y-4">
-                    <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider">Calibration & Check Settings</h3>
+                  {/* Calibration Due Box */}
+                  {equipment.calibrationRequired && (
+                    <div className="bg-white rounded-2xl border border-[#E2E8F0] p-5 shadow-sm space-y-4">
+                      <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider">Calibration Due Date</h3>
 
-                    <div className="space-y-4 text-xs">
-                      <div>
-                        <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">Next Calibration Date</span>
-                        <span className="text-gray-800 font-bold text-sm block">
-                          {equipment.nextDue ? new Date(equipment.nextDue).toLocaleDateString("en-IN", { day: '2-digit', month: 'short', year: 'numeric' }) : "—"}
-                        </span>
-                      </div>
-
-                      <div>
-                        <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">Next Internal Check Date</span>
-                        <span className="text-gray-800 font-bold text-sm block">
-                          {equipment.nextInternalCheckDate ? new Date(equipment.nextInternalCheckDate).toLocaleDateString("en-IN", { day: '2-digit', month: 'short', year: 'numeric' }) : "—"}
-                        </span>
-                      </div>
-
-                      <div>
-                        <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">Reminder Before</span>
-                        <span className="text-gray-800 font-bold text-sm block">{equipment.reminderBeforeDays || "30"} Days</span>
-                      </div>
-
-                      <div className="bg-[#FAF9FF] border border-[#EDEAFF] rounded-xl p-3 flex items-start gap-2.5">
-                        <Info className="text-[#243744] mt-0.5 shrink-0" size={16} />
-                        <p className="text-[10px] text-[#475569] font-semibold leading-relaxed">
-                          System will send reminders before the due date as per selected days.
-                        </p>
+                      <div className="space-y-4 text-xs">
+                        <div>
+                          <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">Next Calibration Date</span>
+                          <span className="text-gray-800 font-bold text-sm block">
+                            {equipment.nextDue ? new Date(equipment.nextDue).toLocaleDateString("en-IN", { day: '2-digit', month: 'short', year: 'numeric' }) : "—"}
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  )}
 
                 </div>
 

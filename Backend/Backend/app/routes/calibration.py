@@ -117,7 +117,7 @@ def get_calibration_list():
         query_str = """
             SELECT cr.calibration_id, cr.equipment_id, eq.name as eq_name, cr.calibration_date,
                    cr.next_due, cr.frequency, cr.agency, cr.certificate_no, cr.cost,
-                   cr.performed_by, cr.status, cr.remarks
+                   cr.performed_by, cr.status, cr.remarks, cr.nabl_accredited, cr.approved_by
             FROM calibration_records cr
             JOIN equipment eq ON cr.equipment_id = eq.equipment_id
             WHERE cr.lab_id = :lab_id
@@ -153,7 +153,9 @@ def get_calibration_list():
                 "cost": float(r.cost),
                 "performedBy": r.performed_by,
                 "status": r.status,
-                "remarks": r.remarks
+                "remarks": r.remarks,
+                "nablAccredited": r.nabl_accredited,
+                "approvedBy": r.approved_by
             })
 
         return jsonify({"success": True, "data": {"calibrations": cal_list}}), 200
@@ -184,11 +186,11 @@ def create_calibration():
             INSERT INTO calibration_records (
                 lab_id, equipment_id, calibration_date, next_due, frequency,
                 agency, certificate_no, cost, performed_by, status, remarks,
-                created_at, updated_at
+                nabl_accredited, approved_by, created_at, updated_at
             ) VALUES (
                 :lab_id, :eq_id, :calibration_date, :next_due, :frequency,
                 :agency, :certificate_no, :cost, :performed_by, :status, :remarks,
-                CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                :nabl_accredited, :approved_by, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
             )
             RETURNING calibration_id
         """)
@@ -219,7 +221,9 @@ def create_calibration():
             "cost": float(data["cost"]),
             "performed_by": data["performedBy"],
             "status": data.get("status", "Pass"),
-            "remarks": data.get("remarks")
+            "remarks": data.get("remarks"),
+            "nabl_accredited": data.get("nablAccredited", True),
+            "approved_by": data.get("approvedBy")
         })
 
         # 2. Update equipment table with latest calibration data
@@ -268,9 +272,12 @@ def get_maintenance_list():
 
         query_str = """
             SELECT mr.maintenance_id, mr.equipment_id, eq.name as eq_name, mr.date,
-                   mr.type, mr.engineer, mr.cost, mr.status, mr.remarks
+                   mr.type, mr.engineer, mr.cost, mr.status, mr.remarks,
+                   mr.next_due, mr.vendor_id, mr.spare_parts, mr.downtime_hours,
+                   v.name as vendor_name
             FROM maintenance_records mr
             JOIN equipment eq ON mr.equipment_id = eq.equipment_id
+            LEFT JOIN equipment_vendors v ON mr.vendor_id = v.vendor_id
             WHERE mr.lab_id = :lab_id
         """
         params = {"lab_id": lab_id}
@@ -301,7 +308,12 @@ def get_maintenance_list():
                 "engineer": r.engineer,
                 "cost": float(r.cost),
                 "status": r.status,
-                "remarks": r.remarks
+                "remarks": r.remarks,
+                "nextDue": r.next_due.isoformat() if r.next_due else None,
+                "vendorId": r.vendor_id,
+                "vendorName": r.vendor_name,
+                "spareParts": r.spare_parts,
+                "downtimeHours": float(r.downtime_hours or 0.0)
             })
 
         return jsonify({"success": True, "data": {"maintenance": maint_list}}), 200
@@ -330,10 +342,10 @@ def create_maintenance():
         insert_query = text("""
             INSERT INTO maintenance_records (
                 lab_id, equipment_id, date, type, engineer, cost, status, remarks,
-                created_at, updated_at
+                next_due, vendor_id, spare_parts, downtime_hours, created_at, updated_at
             ) VALUES (
                 :lab_id, :eq_id, :date, :type, :engineer, :cost, :status, :remarks,
-                CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                :next_due, :vendor_id, :spare_parts, :downtime_hours, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
             )
             RETURNING maintenance_id
         """)
@@ -346,11 +358,18 @@ def create_maintenance():
             "engineer": data["engineer"],
             "cost": float(data["cost"]),
             "status": data.get("status", "Completed"),
-            "remarks": data.get("remarks")
+            "remarks": data.get("remarks"),
+            "next_due": datetime.strptime(data["nextDue"], "%Y-%m-%d").date() if data.get("nextDue") else None,
+            "vendor_id": data.get("vendorId"),
+            "spare_parts": data.get("spareParts"),
+            "downtime_hours": float(data.get("downtimeHours", 0.0))
         })
 
-        # If maintenance type is Repair and status is In Progress, also set equipment status to "Under Maintenance"
-        if data.get("status") == "In Progress" or data.get("status") == "Scheduled":
+        # If maintenance type is Repair / Breakdown / etc and status is In Progress, set equipment status
+        status_val = data.get("status")
+        type_val = data.get("type", "")
+        
+        if status_val in ["In Progress", "Scheduled"]:
             update_status = "Under Maintenance"
         else:
             update_status = "Active"
@@ -366,6 +385,18 @@ def create_maintenance():
             "eq_id": data["eqId"]
         })
 
+        # Log status transition
+        hist_query = text("""
+            INSERT INTO equipment_status_history (lab_id, equipment_id, previous_status, new_status, changed_by, remarks)
+            VALUES (:lab_id, :eq_id, NULL, :new_status, 'System', :remarks)
+        """)
+        db.session.execute(hist_query, {
+            "lab_id": lab_id,
+            "eq_id": data["eqId"],
+            "new_status": update_status,
+            "remarks": f"Status updated via maintenance log entry: {type_val} - {status_val}"
+        })
+
         db.session.commit()
         return jsonify({"success": True, "message": "Maintenance work order recorded successfully"}), 201
 
@@ -373,3 +404,78 @@ def create_maintenance():
         db.session.rollback()
         current_app.logger.error(f"Error creating maintenance: {str(e)}")
         return jsonify({"success": False, "message": "Failed to log maintenance details", "error": str(e)}), 500
+
+
+@calibration_bp.route("/vendors", methods=["GET"])
+@token_required
+def get_vendors():
+    try:
+        lab_id = g.jwt_payload.get("lab_id")
+        if not lab_id:
+            return jsonify({"success": False, "message": "Lab ID not found in token"}), 400
+
+        query = "SELECT vendor_id, name, contact_person, contact_number, email, address FROM equipment_vendors WHERE lab_id = :lab_id ORDER BY name ASC"
+        rows = db.session.execute(text(query), {"lab_id": lab_id}).fetchall()
+        
+        vendors = []
+        for r in rows:
+            vendors.append({
+                "vendorId": r.vendor_id,
+                "name": r.name,
+                "contactPerson": r.contact_person,
+                "contactNumber": r.contact_number,
+                "email": r.email,
+                "address": r.address
+            })
+        return jsonify({"success": True, "data": vendors}), 200
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@calibration_bp.route("/vendors/create", methods=["POST"])
+@token_required
+def create_vendor():
+    try:
+        lab_id = g.jwt_payload.get("lab_id")
+        if not lab_id:
+            return jsonify({"success": False, "message": "Lab ID not found in token"}), 400
+
+        data = request.get_json()
+        if not data.get("name"):
+            return jsonify({"success": False, "message": "Vendor name is required"}), 400
+
+        query = """
+            INSERT INTO equipment_vendors (lab_id, name, contact_person, contact_number, email, address)
+            VALUES (:lab_id, :name, :contact_person, :contact_number, :email, :address)
+            RETURNING vendor_id
+        """
+        res = db.session.execute(text(query), {
+            "lab_id": lab_id,
+            "name": data["name"],
+            "contact_person": data.get("contactPerson"),
+            "contact_number": data.get("contactNumber"),
+            "email": data.get("email"),
+            "address": data.get("address")
+        })
+        db.session.commit()
+        return jsonify({"success": True, "message": "Vendor registered successfully"}), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@calibration_bp.route("/vendors/delete/<int:vendor_id>", methods=["DELETE"])
+@token_required
+def delete_vendor(vendor_id):
+    try:
+        lab_id = g.jwt_payload.get("lab_id")
+        if not lab_id:
+            return jsonify({"success": False, "message": "Lab ID not found in token"}), 400
+
+        query = "DELETE FROM equipment_vendors WHERE lab_id = :lab_id AND vendor_id = :vendor_id"
+        db.session.execute(text(query), {"lab_id": lab_id, "vendor_id": vendor_id})
+        db.session.commit()
+        return jsonify({"success": True, "message": "Vendor deleted successfully"}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "message": str(e)}), 500

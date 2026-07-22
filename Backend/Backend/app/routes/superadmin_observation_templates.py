@@ -57,7 +57,12 @@ def ensure_observation_template_storage():
         return
 
     statements = [
-        "ALTER TABLE observation_templates ALTER COLUMN scope_test_id DROP NOT NULL",
+        "ALTER TABLE observation_templates DROP COLUMN IF EXISTS scope_test_id CASCADE",
+        "ALTER TABLE observation_templates ADD COLUMN IF NOT EXISTS scope_test_ids JSONB DEFAULT '[]'::jsonb",
+        "ALTER TABLE sample_observations ALTER COLUMN scope_test_id DROP NOT NULL",
+        "ALTER TABLE sample_observations ADD COLUMN IF NOT EXISTS template_id BIGINT REFERENCES observation_templates(template_id) ON DELETE SET NULL",
+        "ALTER TABLE sample_test_assignments ADD COLUMN IF NOT EXISTS scope_test_ids JSONB DEFAULT '[]'::jsonb",
+        "ALTER TABLE sample_test_assignments DROP COLUMN IF EXISTS scope_test_id CASCADE",
         """
         ALTER TABLE observation_templates
             ADD COLUMN IF NOT EXISTS description TEXT,
@@ -585,6 +590,7 @@ def create_template():
         created_by=str(current_user_label()),
         sheets_data=data.get("sheets_data") or {},
         merges_data=data.get("merges_data") or [],
+        scope_test_ids=data.get("scope_test_ids") or [],
     )
 
     if template.status == "Published":
@@ -650,6 +656,9 @@ def update_template(template_id):
         if field in data:
             value = data[field]
             setattr(template, field, value.strip() if isinstance(value, str) else value)
+
+    if "scope_test_ids" in data:
+        template.scope_test_ids = data["scope_test_ids"] or []
 
     if "sheets_data" in data:
         template.sheets_data = data["sheets_data"] or {}

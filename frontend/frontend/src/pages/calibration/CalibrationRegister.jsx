@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -137,6 +137,8 @@ const CalibrationRegister = () => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isCertModalOpen, setIsCertModalOpen] = useState(false);
   const [activeCert, setActiveCert] = useState(null);
+  const [certificateFile, setCertificateFile] = useState(null);
+  const fileInputRef = useRef(null);
 
   const [activeDropdownId, setActiveDropdownId] = useState(null);
   const [activeAnchorEl, setActiveAnchorEl] = useState(null);
@@ -147,7 +149,7 @@ const CalibrationRegister = () => {
     calibrationDate: "",
     frequency: "12 Months",
     nextDue: "",
-    agency: "ABC NABL Lab",
+    agency: "",
     certificateNo: "",
     cost: "",
     performedBy: "",
@@ -232,6 +234,26 @@ const CalibrationRegister = () => {
     }));
   };
 
+  const handleFileChange = (file) => {
+    if (!file) return;
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    if (file.size > maxSize) {
+      alert("File is too large. Maximum size is 10MB.");
+      return;
+    }
+    setCertificateFile(file);
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
+    handleFileChange(file);
+  };
+
   const handleSaveCalibration = async () => {
     if (!newCal.certificateNo || !newCal.performedBy || !newCal.cost) {
       alert("Please fill in all required fields.");
@@ -260,13 +282,14 @@ const CalibrationRegister = () => {
       calibrationDate: new Date().toISOString().substring(0, 10),
       frequency: "12 Months",
       nextDue: calculateNextDue(new Date().toISOString().substring(0, 10), "12 Months"),
-      agency: "ABC NABL Lab",
+      agency: "",
       certificateNo: "",
       cost: "",
       performedBy: "",
       status: "Pass",
       remarks: ""
     });
+    setCertificateFile(null);
   };
 
   const handleOpenCertificate = (rec) => {
@@ -497,7 +520,7 @@ const CalibrationRegister = () => {
           <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-[#FAFCFF]">
             <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Select Equipment *</label>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Select Equipment <span className="text-red-500">*</span></label>
                 <select
                   value={newCal.eqId}
                   onChange={(e) => setNewCal({...newCal, eqId: e.target.value})}
@@ -510,21 +533,22 @@ const CalibrationRegister = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Calibration Agency *</label>
-                <select
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Calibration Agency <span className="text-red-500">*</span></label>
+                <input
+                  type="text"
+                  placeholder="Enter Calibration Agency"
                   value={newCal.agency}
                   onChange={(e) => setNewCal({...newCal, agency: e.target.value})}
-                  className="px-3.5 py-2.5 w-full border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#243744] focus:ring-2 focus:ring-[#243744]/10 transition-all bg-white"
-                >
-                  {agencies.map(ag => <option key={ag} value={ag}>{ag}</option>)}
-                </select>
+                  className="px-3.5 py-2.5 w-full border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#243744] focus:ring-2 focus:ring-[#243744]/10 transition-all"
+                  required
+                />
               </div>
             </div>
 
             <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Calibration Date *</label>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Calibration Date <span className="text-red-500">*</span></label>
                   <input
                     type="date"
                     value={newCal.calibrationDate}
@@ -534,7 +558,7 @@ const CalibrationRegister = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Frequency *</label>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Frequency <span className="text-red-500">*</span></label>
                   <select
                     value={newCal.frequency}
                     onChange={(e) => handleDateOrFreqChange(newCal.calibrationDate, e.target.value)}
@@ -560,7 +584,7 @@ const CalibrationRegister = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Certificate Number *</label>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Certificate Number <span className="text-red-500">*</span></label>
                   <input
                     type="text"
                     placeholder="e.g. CAL-2026-085"
@@ -575,7 +599,7 @@ const CalibrationRegister = () => {
             <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Calibration Cost (₹) *</label>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Calibration Cost (₹) <span className="text-red-500">*</span></label>
                   <input
                     type="number"
                     placeholder="Enter amount"
@@ -586,7 +610,7 @@ const CalibrationRegister = () => {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Performed By *</label>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Performed By <span className="text-red-500">*</span></label>
                   <input
                     type="text"
                     placeholder="Technician name"
@@ -625,10 +649,27 @@ const CalibrationRegister = () => {
 
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Upload Certificate File</label>
-              <div className="border-2 border-dashed border-slate-200 rounded-xl p-4 bg-slate-50 hover:bg-slate-100/60 flex flex-col items-center justify-center cursor-pointer transition-colors">
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={(e) => handleFileChange(e.target.files[0])}
+                className="hidden"
+                accept="application/pdf,image/*"
+              />
+              <div
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
+                onClick={() => fileInputRef.current && fileInputRef.current.click()}
+                className="border-2 border-dashed border-slate-200 rounded-xl p-4 bg-slate-50 hover:bg-slate-100/60 flex flex-col items-center justify-center cursor-pointer transition-colors"
+              >
                 <span className="text-xs font-semibold text-gray-700">Drag & drop certificate PDF here</span>
-                <span className="text-[10px] text-gray-400 mt-0.5">Maximum size: 10MB</span>
+                <span className="text-[10px] text-gray-400 mt-0.5">or click to browse • Maximum size: 10MB</span>
               </div>
+              {certificateFile && (
+                <div className="mt-3 text-xs text-emerald-600 font-bold bg-emerald-50 p-2 rounded-lg border border-emerald-100 truncate">
+                  ✓ Selected: {certificateFile.name}
+                </div>
+              )}
             </div>
           </div>
 

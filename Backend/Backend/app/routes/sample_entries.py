@@ -21,6 +21,7 @@ RECEIPT_ID_COL = "sample_id"
 VALID_SAMPLE_SOURCES = {'Site', 'Plant', 'Client', 'Third Party'}
 VALID_RECEIVED_CONDITIONS = {'Good', 'Damaged', 'Wet', 'Broken', 'Other'}
 VALID_SAMPLE_PRIORITIES = {'Normal', 'Urgent', 'High Priority'}
+VALID_RECEIPT_STATUSES = {'Received', 'In Progress', 'Completed', 'Rejected'}
 
 
 SORTABLE_COLUMNS = {

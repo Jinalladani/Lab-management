@@ -65,6 +65,7 @@ import AddEquipment from "./pages/equipment/AddEquipment";
 import EditEquipment from "./pages/equipment/EditEquipment";
 import EquipmentDetails from "./pages/equipment/EquipmentDetails";
 import EquipmentLocations from "./pages/equipment/EquipmentLocations";
+import EquipmentTestMapping from "./pages/equipment/EquipmentTestMapping";
 import CalibrationDashboard from "./pages/calibration/CalibrationDashboard";
 import CalibrationCalendar from "./pages/calibration/CalibrationCalendar";
 import CalibrationRegister from "./pages/calibration/CalibrationRegister";
@@ -473,7 +474,7 @@ function App() {
       />
 
       <Route
-        path="/observation-builder"
+        path="/superadmin/observation-builder"
         element={
           <ProtectedRoute>
             <ObservationBuilder />
@@ -484,7 +485,7 @@ function App() {
       {/* Equipment & Calibration Routes */}
       <Route
         path="/equipment"
-        element={<Navigate to="/equipment/dashboard" replace />}
+        element={<Navigate to="/equipment/list" replace />}
       />
       <Route
         path="/equipment/dashboard"
@@ -535,8 +536,16 @@ function App() {
         }
       />
       <Route
+        path="/equipment/mapping"
+        element={
+          <ProtectedRoute>
+            <EquipmentTestMapping />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/calibration"
-        element={<Navigate to="/calibration/dashboard" replace />}
+        element={<Navigate to="/calibration/register" replace />}
       />
       <Route
         path="/calibration/dashboard"

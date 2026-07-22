@@ -89,7 +89,7 @@ const CalibrationDueOverdue = () => {
     if (!matchesSearch) return false;
     if (activeFilterTab === "overdue") return daysLeft < 0;
     if (activeFilterTab === "due7") return daysLeft >= 0 && daysLeft <= 7;
-    if (activeFilterTab === "due30") return daysLeft > 7 && daysLeft <= 30;
+    if (activeFilterTab === "due30") return daysLeft >= 0 && daysLeft <= 30;
     return true;
   });
 

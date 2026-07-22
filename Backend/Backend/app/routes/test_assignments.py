@@ -19,9 +19,26 @@ def _get_user_id():
     return g.jwt_payload.get("user_id")
 
 
-# ==========================================
-# ASSIGNMENT CRUD OPERATIONS
-# ==========================================
+def _resolve_combined_test_name(scope_test_ids, default_name):
+    if not scope_test_ids:
+        return default_name
+    try:
+        import json
+        ids = json.loads(scope_test_ids) if isinstance(scope_test_ids, str) else scope_test_ids
+        if isinstance(ids, list) and len(ids) > 1:
+            rows = db.session.execute(text("""
+                SELECT st.test_name
+                FROM project_scope_tests pst
+                JOIN scope_tests st ON pst.scope_test_id = st.scope_test_id
+                WHERE pst.project_scope_test_id = ANY(:ids)
+            """), {"ids": ids}).fetchall()
+            names = [r.test_name for r in rows if r.test_name]
+            if names:
+                return ", ".join(sorted(list(set(names))))
+    except:
+        pass
+    return default_name
+
 
 @test_assignments_bp.route("/", methods=["POST"])
 @token_required
@@ -94,21 +111,84 @@ def create_assignment():
         
         # Check if assignment already exists
         existing_rows = db.session.execute(text("""
-            SELECT scope_test_id
+            SELECT scope_test_ids
             FROM sample_test_assignments
-            WHERE sample_id = :sample_id AND scope_test_id = ANY(:scope_test_ids)
+            WHERE sample_id = :sample_id
         """), {
-            "sample_id": sample_id,
-            "scope_test_ids": scope_test_ids
+            "sample_id": sample_id
         }).fetchall()
         
-        existing_scope_test_ids = {row.scope_test_id for row in existing_rows}
-        new_scope_test_ids = [test_id for test_id in scope_test_ids if test_id not in existing_scope_test_ids]
+        # Determine all project_scope_test_ids that are already assigned
+        already_assigned_pst_ids = set()
+        for row in existing_rows:
+            if row.scope_test_ids:
+                try:
+                    import json
+                    ids = json.loads(row.scope_test_ids) if isinstance(row.scope_test_ids, str) else row.scope_test_ids
+                    if isinstance(ids, list):
+                        for val in ids:
+                            already_assigned_pst_ids.add(int(val))
+                except:
+                    pass
+        
+        new_scope_test_ids = [test_id for test_id in scope_test_ids if test_id not in already_assigned_pst_ids]
         if not new_scope_test_ids:
             return jsonify({
                 "success": False,
                 "message": "Selected test(s) are already assigned to this sample"
             }), 400
+        
+        # Group and deduplicate by observation template mappings
+        # 1. Fetch master scope_test_ids for these project_scope_test_ids
+        mapping_rows = db.session.execute(text("""
+            SELECT project_scope_test_id, scope_test_id
+            FROM project_scope_tests
+            WHERE project_scope_test_id = ANY(:new_ids)
+        """), {"new_ids": new_scope_test_ids}).fetchall()
+        
+        pst_to_mst = {row.project_scope_test_id: row.scope_test_id for row in mapping_rows}
+        
+        # 2. Fetch all templates
+        template_rows = db.session.execute(text("""
+            SELECT template_id, scope_test_ids
+            FROM observation_templates
+        """)).mappings().all()
+        
+        # 3. Find matching template for each project_scope_test_id
+        pst_to_template = {}
+        for pst_id in new_scope_test_ids:
+            mst_id = pst_to_mst.get(pst_id)
+            if mst_id:
+                matched_template_id = None
+                for t in template_rows:
+                    t_ids = []
+                    if isinstance(t['scope_test_ids'], str):
+                        try:
+                            import json
+                            t_ids = json.loads(t['scope_test_ids'])
+                        except:
+                            t_ids = []
+                    elif isinstance(t['scope_test_ids'], list):
+                        t_ids = t['scope_test_ids']
+                    
+                    if t_ids and mst_id in t_ids:
+                        matched_template_id = t['template_id']
+                        break
+                if matched_template_id:
+                    pst_to_template[pst_id] = matched_template_id
+        
+        # 4. Group input project_scope_test_ids by template_id
+        grouped_assignments = {}
+        for pst_id in new_scope_test_ids:
+            tmpl_id = pst_to_template.get(pst_id)
+            if tmpl_id:
+                key = f"template_{tmpl_id}"
+            else:
+                key = f"no_template_{pst_id}"
+            
+            if key not in grouped_assignments:
+                grouped_assignments[key] = []
+            grouped_assignments[key].append(pst_id)
         
         # Validate priority
         priority = data.get("priority", "Normal")
@@ -129,19 +209,20 @@ def create_assignment():
         # Create assignment
         insert_query = """
             INSERT INTO sample_test_assignments (
-                sample_id, scope_test_id, assigned_to, assigned_date, target_date,
+                sample_id, scope_test_ids, assigned_to, assigned_date, target_date,
                 priority, status, remarks, created_by, created_at, updated_at
             ) VALUES (
-                :sample_id, :scope_test_id, :assigned_to, :assigned_date, :target_date,
+                :sample_id, :scope_test_ids, :assigned_to, :assigned_date, :target_date,
                 :priority, :status, :remarks, :created_by, :created_at, :updated_at
             ) RETURNING assignment_id
         """
         
+        import json
         assignment_ids = []
-        for scope_test_id in new_scope_test_ids:
+        for key, psts in grouped_assignments.items():
             params = {
                 "sample_id": sample_id,
-                "scope_test_id": scope_test_id,
+                "scope_test_ids": json.dumps(psts),
                 "assigned_to": data.get("assigned_to"),
                 "assigned_date": datetime.now(timezone.utc).date(),
                 "target_date": target_date,
@@ -153,42 +234,45 @@ def create_assignment():
                 "updated_at": _utc_now()
             }
             result = db.session.execute(text(insert_query), params)
-            assignment_ids.append(result.fetchone()[0])
-
-            db.session.execute(text("""
-                INSERT INTO sample_test_results (
-                    lab_id, project_id, sample_id, project_scope_test_id, scope_test_id,
-                    test_name, test_method, entered_by, updated_by, created_at, updated_at
-                )
-                SELECT
-                    :lab_id,
-                    pst.project_id,
-                    :sample_id,
-                    pst.project_scope_test_id,
-                    pst.scope_test_id,
-                    st.test_name,
-                    st.test_method,
-                    :user_id,
-                    :user_id,
-                    :created_at,
-                    :updated_at
-                FROM project_scope_tests pst
-                JOIN scope_tests st ON pst.scope_test_id = st.scope_test_id
-                WHERE pst.project_scope_test_id = :scope_test_id
-                ON CONFLICT (sample_id, project_scope_test_id)
-                WHERE project_scope_test_id IS NOT NULL
-                DO UPDATE SET
-                    is_active = TRUE,
-                    updated_by = EXCLUDED.updated_by,
-                    updated_at = EXCLUDED.updated_at
-            """), {
-                "lab_id": lab_id,
-                "sample_id": sample_id,
-                "scope_test_id": scope_test_id,
-                "user_id": user_id,
-                "created_at": _utc_now(),
-                "updated_at": _utc_now()
-            })
+            new_assign_id = result.fetchone()[0]
+            assignment_ids.append(new_assign_id)
+            
+            # Insert results entry for each individual test in the group
+            for pst_id in psts:
+                db.session.execute(text("""
+                    INSERT INTO sample_test_results (
+                        lab_id, project_id, sample_id, project_scope_test_id, scope_test_id,
+                        test_name, test_method, entered_by, updated_by, created_at, updated_at
+                    )
+                    SELECT
+                        :lab_id,
+                        pst.project_id,
+                        :sample_id,
+                        pst.project_scope_test_id,
+                        pst.scope_test_id,
+                        st.test_name,
+                        st.test_method,
+                        :user_id,
+                        :user_id,
+                        :created_at,
+                        :updated_at
+                    FROM project_scope_tests pst
+                    JOIN scope_tests st ON pst.scope_test_id = st.scope_test_id
+                    WHERE pst.project_scope_test_id = :scope_test_id
+                    ON CONFLICT (sample_id, project_scope_test_id)
+                    WHERE project_scope_test_id IS NOT NULL
+                    DO UPDATE SET
+                        is_active = TRUE,
+                        updated_by = EXCLUDED.updated_by,
+                        updated_at = EXCLUDED.updated_at
+                """), {
+                    "lab_id": lab_id,
+                    "sample_id": sample_id,
+                    "scope_test_id": pst_id,
+                    "user_id": user_id,
+                    "created_at": _utc_now(),
+                    "updated_at": _utc_now()
+                })
 
         db.session.commit()
         
@@ -198,7 +282,7 @@ def create_assignment():
             "data": {
                 "assignment_ids": assignment_ids,
                 "created_count": len(assignment_ids),
-                "skipped_existing_count": len(existing_scope_test_ids)
+                "skipped_existing_count": len(already_assigned_pst_ids)
             }
         }), 201
         
@@ -392,7 +476,8 @@ def get_assignment_details(assignment_id):
             SELECT 
                 sta.assignment_id,
                 sta.sample_id,
-                sta.scope_test_id,
+                (sta.scope_test_ids->>0)::BIGINT AS scope_test_id,
+                sta.scope_test_ids,
                 sta.assigned_to,
                 sta.assigned_date,
                 sta.target_date,
@@ -418,7 +503,7 @@ def get_assignment_details(assignment_id):
             FROM sample_test_assignments sta
             JOIN sample_receipt_register s ON sta.sample_id = s.sample_id
             JOIN projects p ON s.project_id = p.project_id
-            LEFT JOIN project_scope_tests pst ON sta.scope_test_id = pst.project_scope_test_id
+            LEFT JOIN project_scope_tests pst ON (sta.scope_test_ids->>0)::BIGINT = pst.project_scope_test_id
             LEFT JOIN scope_tests st ON pst.scope_test_id = st.scope_test_id
             LEFT JOIN scope_groups sg ON pst.group_id = sg.group_id
             LEFT JOIN scope_materials sm ON pst.material_id = sm.material_id
@@ -458,7 +543,7 @@ def get_assignment_details(assignment_id):
             "sample_priority": result.sample_priority,
             "received_by": result.received_by,
             "sample_status": result.sample_status,
-            "test_name": result.test_name,
+            "test_name": _resolve_combined_test_name(result.scope_test_ids, result.test_name),
             "test_method": result.test_method,
             "group_name": result.group_name,
             "assigned_to_name": result.assigned_to_name
@@ -505,7 +590,8 @@ def get_assignments_by_project(project_id):
             SELECT 
                 sta.assignment_id,
                 sta.sample_id,
-                sta.scope_test_id,
+                (sta.scope_test_ids->>0)::BIGINT AS scope_test_id,
+                sta.scope_test_ids,
                 pst.scope_test_id AS master_scope_test_id,
                 sta.assigned_to,
                 sta.assigned_date,
@@ -524,7 +610,7 @@ def get_assignments_by_project(project_id):
             FROM sample_test_assignments sta
             JOIN sample_receipt_register s ON sta.sample_id = s.sample_id
             JOIN projects p ON s.project_id = p.project_id
-            LEFT JOIN project_scope_tests pst ON sta.scope_test_id = pst.project_scope_test_id
+            LEFT JOIN project_scope_tests pst ON (sta.scope_test_ids->>0)::BIGINT = pst.project_scope_test_id
             LEFT JOIN scope_tests st ON pst.scope_test_id = st.scope_test_id
             LEFT JOIN users u ON sta.assigned_to = u.user_id
             WHERE p.project_id = :project_id AND p.lab_id = :lab_id
@@ -554,7 +640,7 @@ def get_assignments_by_project(project_id):
                 "quantity": assignment.quantity,
                 "received_date": assignment.received_date.isoformat() if assignment.received_date else None,
                 "received_condition": assignment.received_condition,
-                "test_name": assignment.test_name,
+                "test_name": _resolve_combined_test_name(assignment.scope_test_ids, assignment.test_name),
                 "test_method": assignment.test_method,
                 "assigned_to_name": assignment.assigned_to_name
             })
@@ -598,7 +684,8 @@ def get_assignments_by_sample(sample_id):
             SELECT 
                 sta.assignment_id,
                 sta.sample_id,
-                sta.scope_test_id,
+                (sta.scope_test_ids->>0)::BIGINT AS scope_test_id,
+                sta.scope_test_ids,
                 pst.scope_test_id AS master_scope_test_id,
                 sta.assigned_to,
                 sta.assigned_date,
@@ -611,7 +698,7 @@ def get_assignments_by_sample(sample_id):
                 sg.group_name,
                 u.first_name || ' ' || u.last_name as assigned_to_name
             FROM sample_test_assignments sta
-            LEFT JOIN project_scope_tests pst ON sta.scope_test_id = pst.project_scope_test_id
+            LEFT JOIN project_scope_tests pst ON (sta.scope_test_ids->>0)::BIGINT = pst.project_scope_test_id
             LEFT JOIN scope_tests st ON pst.scope_test_id = st.scope_test_id
             LEFT JOIN scope_groups sg ON pst.group_id = sg.group_id
             LEFT JOIN users u ON sta.assigned_to = u.user_id
@@ -625,10 +712,19 @@ def get_assignments_by_sample(sample_id):
         
         assignments_data = []
         for assignment in assignments:
+            import json
+            ids_list = []
+            if assignment.scope_test_ids:
+                try:
+                    ids_list = json.loads(assignment.scope_test_ids) if isinstance(assignment.scope_test_ids, str) else assignment.scope_test_ids
+                except:
+                    ids_list = []
+            
             assignments_data.append({
                 "assignment_id": assignment.assignment_id,
                 "sample_id": assignment.sample_id,
                 "scope_test_id": assignment.scope_test_id,
+                "scope_test_ids": ids_list,
                 "master_scope_test_id": assignment.master_scope_test_id,
                 "assigned_to": assignment.assigned_to,
                 "assigned_date": assignment.assigned_date.isoformat() if assignment.assigned_date else None,
@@ -636,7 +732,7 @@ def get_assignments_by_sample(sample_id):
                 "priority": assignment.priority,
                 "status": assignment.status,
                 "remarks": assignment.remarks,
-                "test_name": assignment.test_name,
+                "test_name": _resolve_combined_test_name(assignment.scope_test_ids, assignment.test_name),
                 "test_method": assignment.test_method,
                 "group_name": assignment.group_name,
                 "assigned_to_name": assignment.assigned_to_name
@@ -844,10 +940,11 @@ def get_available_tests(sample_id):
             WHERE pst.project_id = :project_id
             AND pst.status = 'active'
             AND pst.is_active = TRUE
-            AND pst.project_scope_test_id NOT IN (
-                SELECT scope_test_id
-                FROM sample_test_assignments
-                WHERE sample_id = :sample_id
+            AND NOT EXISTS (
+                SELECT 1
+                FROM sample_test_assignments sta
+                WHERE sta.sample_id = :sample_id
+                  AND sta.scope_test_ids @> jsonb_build_array(pst.project_scope_test_id)
             )
             ORDER BY pst.sequence_no, sg.group_name, st.test_name
         """

@@ -19,7 +19,8 @@ def create_app():
     db.init_app(app)
     bcrypt.init_app(app)
 
-    # Automatically run report module schema migrations
+    # Automatically run report module and equipment module schema migrations
+    # pyrefly: ignore [missing-import]
     from sqlalchemy import text
     import os
     with app.app_context():
@@ -31,9 +32,17 @@ def create_app():
                 db.session.execute(text(migration_sql))
                 db.session.commit()
                 print("Reports Module database tables verified/created successfully.")
+            
+            eq_sql_path = os.path.join(os.path.dirname(__file__), 'models', 'equipment_complete_system.sql')
+            if os.path.exists(eq_sql_path):
+                with open(eq_sql_path, 'r') as f:
+                    eq_migration_sql = f.read()
+                db.session.execute(text(eq_migration_sql))
+                db.session.commit()
+                print("Equipment System database tables verified/created successfully.")
         except Exception as e:
             db.session.rollback()
-            print("Failed to run Reports Module database migrations:", e)
+            print("Failed to run database migrations:", e)
 
 
     # Handle OPTIONS requests globally before authentication

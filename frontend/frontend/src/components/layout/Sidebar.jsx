@@ -189,6 +189,7 @@ const Sidebar = ({ isOpen, isCollapsed, onClose, onToggleCollapse }) => {
         { path: "/dashboard", label: "Dashboard", icon: "layoutDashboard" },
         { path: "/labs/manage", label: "Lab Management", icon: "building" },
         { path: "/superadmin/subscriptions", label: "Subscriptions", icon: "creditCard" },
+        { path: "/superadmin/observation-builder", label: "Observation Form Builder", icon: "table" },
       ]
       : [
         { path: "/dashboard", label: "Dashboard", icon: "layoutDashboard" },
@@ -197,15 +198,7 @@ const Sidebar = ({ isOpen, isCollapsed, onClose, onToggleCollapse }) => {
         { path: "/projects", label: "Projects", icon: "briefcase" },
         { path: "/samples", label: "Samples", icon: "microscope" },
         { path: "/test-assignments", label: "Test Assign", icon: "checkSquare" },
-        {
-          label: "Observation",
-          icon: "table",
-          path: "/observation-entry",
-          activeWhen: (pathname) => pathname.startsWith("/observation") || pathname === "/observation-entry" || pathname === "/observation-builder",
-          subItems: [
-            { path: "/observation-builder", label: "Sheet Builder" },
-          ]
-        },
+        { path: "/observation-entry", label: "Observation", icon: "table" },
         { path: "/reports", label: "Reports", icon: "fileText" },
         { path: "/scope", label: "Testing Scope", icon: "flask" },
       ];
@@ -214,20 +207,18 @@ const Sidebar = ({ isOpen, isCollapsed, onClose, onToggleCollapse }) => {
     {
       label: "Equipment",
       icon: "wrench",
-      path: "/equipment/dashboard",
+      path: "/equipment/list",
       activeWhen: (pathname) => pathname.startsWith("/equipment"),
       subItems: [
-        { path: "/equipment/list", label: "Equipment List" },
         { path: "/equipment/locations", label: "Locations" },
       ]
     },
     {
       label: "Calibration",
       icon: "calendar",
-      path: "/calibration/dashboard",
+      path: "/calibration/register",
       activeWhen: (pathname) => pathname.startsWith("/calibration"),
       subItems: [
-        { path: "/calibration/register", label: "Register" },
         { path: "/calibration/calendar", label: "Calendar" },
         { path: "/calibration/due-overdue", label: "Due / Overdue" },
       ]

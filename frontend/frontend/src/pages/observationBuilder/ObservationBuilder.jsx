@@ -41,12 +41,12 @@ import {
 } from "@mui/icons-material";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { 
-  Plus as LucidePlus, 
-  Search as LucideSearch, 
-  Eye as LucideEye, 
-  Pencil as LucidePencil, 
-  Trash2 as LucideTrash, 
+import {
+  Plus as LucidePlus,
+  Search as LucideSearch,
+  Eye as LucideEye,
+  Pencil as LucidePencil,
+  Trash2 as LucideTrash,
   MoreHorizontal as LucideMoreHorizontal,
   RefreshCw,
   CircleDot,
@@ -96,7 +96,7 @@ const PortalActionMenu = ({ anchorEl, open, onClose, actions }) => {
       const gap = 6;
 
       const spaceBelow = viewportHeight - rect.bottom;
-      
+
       let top;
       if (spaceBelow >= estimatedHeight + gap) {
         top = rect.bottom + window.scrollY + gap;
@@ -153,9 +153,8 @@ const PortalActionMenu = ({ anchorEl, open, onClose, actions }) => {
               onClose();
               act.onClick();
             }}
-            className={`w-full px-4 py-2 text-xs font-semibold flex items-center gap-2 hover:bg-[#FAF9FF] transition-colors ${
-              act.danger ? "text-red-600 hover:text-red-700 hover:bg-red-50" : "text-[#475569] hover:text-[#243744]"
-            }`}
+            className={`w-full px-4 py-2 text-xs font-semibold flex items-center gap-2 hover:bg-[#FAF9FF] transition-colors ${act.danger ? "text-red-600 hover:text-red-700 hover:bg-red-50" : "text-[#475569] hover:text-[#243744]"
+              }`}
           >
             {Icon && <Icon size={14} />}
             {act.label}
@@ -194,6 +193,9 @@ export default function ObservationBuilder() {
   // Test Scopes from API
   const [scopes, setScopes] = useState([]);
   const [selectedScope, setSelectedScope] = useState("");
+  const [selectedScopeIds, setSelectedScopeIds] = useState([]);
+  const [testSelectorOpen, setTestSelectorOpen] = useState(false);
+  const [searchTestQuery, setSearchTestQuery] = useState("");
   const [scopesLoading, setScopesLoading] = useState(false);
 
   // Spreadsheet canvas grid parameters
@@ -306,6 +308,21 @@ export default function ObservationBuilder() {
   };
 
   useEffect(() => {
+    const rawUser = localStorage.getItem("user");
+    if (rawUser) {
+      try {
+        const parsed = JSON.parse(rawUser);
+        if (parsed.role !== "superadmin" && parsed.role !== "super_admin") {
+          toast.error("Access Denied: Observation Form Builder is only accessible to Super Admins.");
+          setTimeout(() => {
+            window.location.href = "/dashboard";
+          }, 2000);
+          return;
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
     fetchScopes();
     fetchTemplates();
     fetchHierarchy();
@@ -541,7 +558,8 @@ export default function ObservationBuilder() {
         setActiveTemplateId(fullTmpl.template_id);
         setTemplateName(fullTmpl.name);
         setVersion(fullTmpl.version || "1.0.0");
-        setSelectedScope(fullTmpl.scope_test_id);
+        setSelectedScope(fullTmpl.scope_test_id || "");
+        setSelectedScopeIds(fullTmpl.scope_test_ids || (fullTmpl.scope_test_id ? [fullTmpl.scope_test_id] : []));
         setSheetsData(fullTmpl.sheets_data || {
           sheet1: {
             "A1": { value: "Specimen ID", type: "label", style: { fontWeight: "bold" } }
@@ -572,14 +590,15 @@ export default function ObservationBuilder() {
 
   // Publish / Save layout to Backend DB
   const handlePublishTemplate = async () => {
-    if (!selectedScope) {
-      toast.error("Please select an associated test scope first!");
+    if (selectedScopeIds.length === 0) {
+      toast.error("Please map at least one test scope first!");
       return;
     }
     try {
       const payload = {
         name: templateName,
-        scope_test_id: parseInt(selectedScope),
+        scope_test_id: selectedScopeIds[0],
+        scope_test_ids: selectedScopeIds,
         version: version,
         status: "Published",
         sheets_data: sheetsData,
@@ -612,8 +631,13 @@ export default function ObservationBuilder() {
     setVersion("1.0.0");
     if (scopeTestId) {
       setSelectedScope(scopeTestId);
+      setSelectedScopeIds([scopeTestId]);
     } else if (scopes.length > 0) {
       setSelectedScope(scopes[0].scope_test_id);
+      setSelectedScopeIds([scopes[0].scope_test_id]);
+    } else {
+      setSelectedScope("");
+      setSelectedScopeIds([]);
     }
     setSheetsData({});
     setSheets([{ id: "sheet1", name: "Sheet 1" }]);
@@ -687,7 +711,7 @@ export default function ObservationBuilder() {
         const materials = (group.materials || [])
           .map((material) => {
             const tests = (material.tests || []).filter((test) => {
-              return templates.some((t) => t.scope_test_id === test.scope_test_id);
+              return templates.some((t) => t.scope_test_id === test.scope_test_id || (t.scope_test_ids && t.scope_test_ids.includes(test.scope_test_id)));
             });
 
             if (tests.length > 0) {
@@ -745,7 +769,7 @@ export default function ObservationBuilder() {
       {view === "list" ? (
         /* 1. Dual Pane Templates & Scopes View */
         <div className="mx-auto w-full max-w-[1800px] h-full p-4 sm:p-5 lg:p-6 flex flex-col lg:h-[calc(100vh-100px)] lg:overflow-hidden select-none">
-          
+
           {/* Controls & Stats Bar */}
           <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-[#E2E8F0] pb-4 shrink-0">
             <div className="flex items-center gap-3">
@@ -833,7 +857,7 @@ export default function ObservationBuilder() {
           ) : (
             /* Responsive Dual Pane Layout */
             <div className="flex-1 flex flex-col lg:flex-row gap-6 min-h-0 overflow-visible lg:overflow-hidden">
-              
+
               {/* Left Pane: Groups Selector */}
               <div className="w-full lg:w-[360px] shrink-0 bg-white rounded-2xl border border-[#E2E8F0] shadow-sm flex flex-col h-[280px] lg:h-full overflow-hidden">
                 <div className="p-4 border-b border-[#F1F5F9] flex items-center justify-between shrink-0">
@@ -851,38 +875,35 @@ export default function ObservationBuilder() {
                     const groupTestsCount = group.materials?.reduce((sum, material) => sum + (material.tests?.length || 0), 0) || 0;
                     const visuals = getGroupVisuals(group.group_name);
                     const IconComponent = visuals.icon;
-                    
+
                     return (
                       <div
                         key={group.group_id}
                         onClick={() => setSelectedGroupId(group.group_id)}
-                        className={`w-full text-left p-3 rounded-xl border transition-all duration-200 cursor-pointer flex items-center gap-3 relative ${
-                          isActive 
-                            ? "bg-[#243744] border-[#243744] shadow-md text-white" 
-                            : "bg-white border-[#E2E8F0] hover:bg-[#F8FAFC] hover:border-[#CBD5E1]"
-                        }`}
+                        className={`w-full text-left p-3 rounded-xl border transition-all duration-200 cursor-pointer flex items-center gap-3 relative ${isActive
+                          ? "bg-[#243744] border-[#243744] shadow-md text-white"
+                          : "bg-white border-[#E2E8F0] hover:bg-[#F8FAFC] hover:border-[#CBD5E1]"
+                          }`}
                       >
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-                          isActive 
-                            ? "bg-white/12 text-white" 
-                            : `${visuals.bgColor} ${visuals.iconColor}`
-                        }`}>
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isActive
+                          ? "bg-white/12 text-white"
+                          : `${visuals.bgColor} ${visuals.iconColor}`
+                          }`}>
                           <IconComponent size={18} strokeWidth={2.2} />
                         </div>
-                        
+
                         <div className="min-w-0 flex-1">
                           <h3 className={`font-bold text-xs truncate ${isActive ? "text-white" : "text-[#1E293B]"}`}>
                             {group.group_name || "Unnamed Group"}
                           </h3>
-                          <p className={`text-[11px] mt-0.5 flex items-center gap-1.5 font-medium ${
-                            isActive ? "text-white/70" : "text-[#64748B]"
-                          }`}>
+                          <p className={`text-[11px] mt-0.5 flex items-center gap-1.5 font-medium ${isActive ? "text-white/70" : "text-[#64748B]"
+                            }`}>
                             <span>{groupMaterialsCount} Material{groupMaterialsCount === 1 ? "" : "s"}</span>
                             <span className={isActive ? "text-white/30" : "text-[#CBD5E1]"}>•</span>
                             <span>{groupTestsCount} Test{groupTestsCount === 1 ? "" : "s"}</span>
                           </p>
                         </div>
-                        
+
                         <ChevronRight size={14} className={`shrink-0 ${isActive ? "text-white/80" : "text-[#94A3B8]"}`} />
                       </div>
                     );
@@ -893,7 +914,7 @@ export default function ObservationBuilder() {
               {/* Right Pane: Active Group Details */}
               {activeGroup && (
                 <div className="flex-1 bg-white rounded-2xl border border-[#E2E8F0] shadow-sm flex flex-col overflow-visible lg:h-full lg:overflow-hidden">
-                  
+
                   {/* Details Header */}
                   <div className="p-6 border-b border-[#F1F5F9] shrink-0 bg-white">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -925,18 +946,18 @@ export default function ObservationBuilder() {
                         const materialKey = `${activeGroup.group_id}-${material.material_id}`;
                         const isExpanded = expandedMaterials[materialKey] !== false;
                         const testsCount = material.tests?.length || 0;
-                        
+
                         return (
                           <div key={materialKey} className="bg-white">
                             {/* Material Header */}
-                            <div 
+                            <div
                               onClick={() => toggleMaterial(materialKey)}
                               className="flex items-center justify-between bg-[#F8FAFC] border-y border-[#E2E8F0] px-6 py-2.5 cursor-pointer hover:bg-[#F1F5F9] transition-colors select-none"
                             >
                               <div className="flex items-center gap-3">
-                                <ChevronDown 
-                                  size={15} 
-                                  className={`text-[#243744] transition-transform duration-200 ${isExpanded ? "" : "-rotate-90"}`} 
+                                <ChevronDown
+                                  size={15}
+                                  className={`text-[#243744] transition-transform duration-200 ${isExpanded ? "" : "-rotate-90"}`}
                                 />
                                 <CircleDot size={15} className="text-[#243744]" />
                                 <span className="text-xs font-bold text-[#243744]">
@@ -971,11 +992,11 @@ export default function ObservationBuilder() {
                                         <span>Status</span>
                                         <span className="text-right">Actions</span>
                                       </div>
-                                      
+
                                       {(material.tests || []).map((test) => {
                                         const testKey = test.scope_test_id || `${material.material_id}-${test.test_name}`;
-                                        const tmpl = templates.find(t => t.scope_test_id === test.scope_test_id);
-                                        
+                                        const tmpl = templates.find(t => t.scope_test_id === test.scope_test_id || (t.scope_test_ids && t.scope_test_ids.includes(test.scope_test_id)));
+
                                         return (
                                           <div key={testKey} className="grid grid-cols-[1.2fr_1fr_1.2fr_150px_90px] gap-4 px-6 py-3 items-center border-b border-[#F1F5F9] hover:bg-[#F8FAFC]/50 transition-colors min-w-[650px]">
                                             <span className="text-xs font-semibold text-[#1E293B] truncate" title={test.test_name}>
@@ -984,7 +1005,7 @@ export default function ObservationBuilder() {
                                             <span className="text-xs font-medium text-[#475569] font-mono truncate" title={test.test_method}>
                                               {test.test_method || "N/A"}
                                             </span>
-                                            
+
                                             {tmpl ? (
                                               <>
                                                 <span className="text-xs font-bold text-[#243744] truncate" title={tmpl.name}>
@@ -1057,7 +1078,7 @@ export default function ObservationBuilder() {
         <div className="flex flex-col h-[calc(100vh-64px)] overflow-hidden bg-[#F8FAFC]">
 
           {/* Top Header Toolbar */}
-          <div className="flex items-center justify-between px-6 py-3 bg-white border-b border-slate-200/80 gap-4 shrink-0 shadow-xs z-10">
+          <div className="flex items-center justify-between px-6 py-3 bg-white border-b border-slate-200/80 gap-4 shrink-0 shadow-xs z-40">
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setView("list")}
@@ -1077,30 +1098,77 @@ export default function ObservationBuilder() {
             {/* Scope select */}
             <div className="flex items-center gap-3 flex-1 max-w-xl justify-center select-none">
               <ScienceIcon style={{ fontSize: 16 }} className="text-[#2562AA]" />
-              <span className="text-xs font-bold text-slate-450 uppercase tracking-wide">Test Scope</span>
-              <select
-                value={selectedScope}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setSelectedScope(val);
-                  const scopeName = scopes.find((s) => s.scope_test_id.toString() === val.toString())?.test_name || "";
-                  setTemplateName(`${scopeName} Template`);
-                  toast.success(`Selected Scope: ${scopeName}`);
-                }}
-                className="w-80 px-3 py-1.5 border border-slate-200 bg-slate-50 rounded-lg font-bold text-xs outline-none text-slate-800"
-              >
-                {scopesLoading ? (
-                  <option>Loading Scopes...</option>
-                ) : scopes.length === 0 ? (
-                  <option>No Scope Tests Registered</option>
-                ) : (
-                  scopes.map((sc) => (
-                    <option key={sc.scope_test_id} value={sc.scope_test_id}>
-                      {sc.test_name} ({sc.test_method})
-                    </option>
-                  ))
+              <span className="text-xs font-bold text-slate-450 uppercase tracking-wide">Map Tests</span>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setTestSelectorOpen(!testSelectorOpen)}
+                  className="flex items-center justify-between w-80 px-3 py-1.5 border border-slate-200 bg-slate-50 rounded-lg font-bold text-xs outline-none text-slate-800"
+                >
+                  <span className="truncate pr-2">
+                    {selectedScopeIds.length === 0
+                      ? "Select Tests..."
+                      : `${selectedScopeIds.length} Test(s) Mapped`}
+                  </span>
+                  <ChevronDown size={14} className="shrink-0" />
+                </button>
+                {testSelectorOpen && (
+                  <div className="absolute left-0 mt-1.5 z-50 w-80 bg-white border border-slate-200 rounded-xl shadow-lg p-3 max-h-72 overflow-y-auto">
+                    <input
+                      type="text"
+                      placeholder="Search tests..."
+                      value={searchTestQuery}
+                      onChange={(e) => setSearchTestQuery(e.target.value)}
+                      className="w-full mb-2 p-1.5 border border-slate-200 rounded-lg text-xs outline-none focus:border-[#2562AA] font-semibold"
+                    />
+                    <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                      {scopesLoading ? (
+                        <div className="text-xs text-slate-400 italic p-2">Loading Scopes...</div>
+                      ) : scopes.length === 0 ? (
+                        <div className="text-xs text-slate-400 italic p-2">No Scope Tests Registered</div>
+                      ) : (
+                        scopes
+                          .filter((sc) =>
+                            sc.test_name.toLowerCase().includes(searchTestQuery.toLowerCase())
+                          )
+                          .map((sc) => {
+                            const isChecked = selectedScopeIds.includes(sc.scope_test_id);
+                            return (
+                              <label key={sc.scope_test_id} className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer hover:bg-slate-50 p-1.5 rounded-lg">
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={() => {
+                                    if (isChecked) {
+                                      const nextIds = selectedScopeIds.filter(id => id !== sc.scope_test_id);
+                                      setSelectedScopeIds(nextIds);
+                                      if (nextIds.length > 0) setSelectedScope(nextIds[0]);
+                                    } else {
+                                      const nextIds = [...selectedScopeIds, sc.scope_test_id];
+                                      setSelectedScopeIds(nextIds);
+                                      setSelectedScope(nextIds[0]);
+                                    }
+                                  }}
+                                  className="rounded text-[#2562AA] focus:ring-[#2562AA]"
+                                />
+                                <span>{sc.test_name} ({sc.test_method})</span>
+                              </label>
+                            );
+                          })
+                      )}
+                    </div>
+                    <div className="mt-2 pt-2 border-t border-slate-100 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => setTestSelectorOpen(false)}
+                        className="px-3 py-1 bg-[#243744] text-white rounded text-[10px] font-bold"
+                      >
+                        Done
+                      </button>
+                    </div>
+                  </div>
                 )}
-              </select>
+              </div>
             </div>
 
             <div className="flex items-center gap-2">
@@ -1158,9 +1226,43 @@ export default function ObservationBuilder() {
 
               <div className="h-4 w-px bg-slate-200 mx-1" />
 
-              <button onClick={() => updateActiveCellProp("style", "fontWeight", "bold")} className="w-7 h-7 hover:bg-slate-100 rounded flex items-center justify-center font-bold">B</button>
-              <button onClick={() => updateActiveCellProp("style", "fontStyle", "italic")} className="w-7 h-7 hover:bg-slate-100 rounded flex items-center justify-center italic">I</button>
-              <button onClick={() => updateActiveCellProp("style", "textDecoration", "underline")} className="w-7 h-7 hover:bg-slate-100 rounded flex items-center justify-center underline font-semibold">U</button>
+              <button onClick={() => updateActiveCellProp("style", "fontWeight", activeCellState.style?.fontWeight === "bold" ? "normal" : "bold")} className={`w-7 h-7 rounded flex items-center justify-center font-bold transition-all ${activeCellState.style?.fontWeight === "bold" ? "bg-slate-200 text-blue-600" : "hover:bg-slate-100"}`}>B</button>
+              <button onClick={() => updateActiveCellProp("style", "fontStyle", activeCellState.style?.fontStyle === "italic" ? "normal" : "italic")} className={`w-7 h-7 rounded flex items-center justify-center italic transition-all ${activeCellState.style?.fontStyle === "italic" ? "bg-slate-200 text-blue-600" : "hover:bg-slate-100"}`}>I</button>
+              <button onClick={() => updateActiveCellProp("style", "textDecoration", activeCellState.style?.textDecoration === "underline" ? "none" : "underline")} className={`w-7 h-7 rounded flex items-center justify-center underline font-semibold transition-all ${activeCellState.style?.textDecoration === "underline" ? "bg-slate-200 text-blue-600" : "hover:bg-slate-100"}`}>U</button>
+
+              <select
+                value={activeCellState.style?.fontFamily || "Arial"}
+                onChange={(e) => updateActiveCellProp("style", "fontFamily", e.target.value)}
+                className="h-7 px-2 border border-slate-200 bg-slate-50 text-[10px] font-bold text-slate-655 rounded-lg outline-none cursor-pointer hover:bg-slate-100"
+                title="Font Family"
+              >
+                <option value="Arial">Arial</option>
+                <option value="Calibri">Calibri</option>
+                <option value="Times New Roman">Times New Roman</option>
+                <option value="Georgia">Georgia</option>
+                <option value="Segoe UI">Segoe UI</option>
+                <option value="Roboto">Roboto</option>
+                <option value="Verdana">Verdana</option>
+                <option value="Courier New">Courier New</option>
+              </select>
+
+              <select
+                value={activeCellState.style?.fontSize || "12px"}
+                onChange={(e) => updateActiveCellProp("style", "fontSize", e.target.value)}
+                className="h-7 px-2 border border-slate-200 bg-slate-50 text-[10px] font-bold text-slate-655 rounded-lg outline-none cursor-pointer hover:bg-slate-100"
+                title="Font Size"
+              >
+                <option value="9px">9px</option>
+                <option value="10px">10px</option>
+                <option value="11px">11px</option>
+                <option value="12px">12px</option>
+                <option value="13px">13px</option>
+                <option value="14px">14px</option>
+                <option value="16px">16px</option>
+                <option value="18px">18px</option>
+                <option value="20px">20px</option>
+                <option value="24px">24px</option>
+              </select>
 
               <div className="h-4 w-px bg-slate-200 mx-1" />
 
@@ -1230,11 +1332,23 @@ export default function ObservationBuilder() {
               </div>
             </div>
 
-            <div className="flex items-center gap-1 text-[10px] text-slate-400 font-bold">
-              <span>Zoom</span>
-              <button onClick={() => setZoomLevel(Math.max(50, zoomLevel - 10))} className="p-1 hover:bg-slate-100 rounded"><ZoomOutIcon style={{ fontSize: 13 }} /></button>
-              <span className="w-8 text-center text-slate-700">{zoomLevel}%</span>
-              <button onClick={() => setZoomLevel(Math.min(150, zoomLevel + 10))} className="p-1 hover:bg-slate-100 rounded"><ZoomInIcon style={{ fontSize: 13 }} /></button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setRowsCount(rowsCount + 1)}
+                className="px-2.5 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg text-[10px] font-bold text-slate-700 shadow-3xs flex items-center gap-1"
+                title="Add 1 Row at the bottom"
+              >
+                + Row
+              </button>
+              <button
+                type="button"
+                onClick={() => setColsCount(colsCount + 1)}
+                className="px-2.5 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg text-[10px] font-bold text-slate-700 shadow-3xs flex items-center gap-1"
+                title="Add 1 Column at the right"
+              >
+                + Col
+              </button>
             </div>
           </div>
 
@@ -1382,6 +1496,8 @@ export default function ObservationBuilder() {
                                   textDecoration: cellStyle.textDecoration || "none",
                                   backgroundColor: cellStyle.backgroundColor || (isCellInSelection ? "#eff6ff" : "transparent"),
                                   color: cellStyle.color || "inherit",
+                                  fontSize: cellStyle.fontSize || "inherit",
+                                  fontFamily: cellStyle.fontFamily || "inherit",
                                   borderTop: cellStyle.borderTop,
                                   borderRight: cellStyle.borderRight,
                                   borderBottom: cellStyle.borderBottom,
@@ -1407,7 +1523,7 @@ export default function ObservationBuilder() {
                                       pushHistory(sheetsData, merges);
                                     }}
                                     className="w-full h-full px-2.5 py-1.5 outline-none text-left bg-transparent text-[11px] font-semibold"
-                                    style={{ textAlign: cellStyle.alignment || "left", color: cellStyle.color || "inherit" }}
+                                    style={{ textAlign: cellStyle.alignment || "left", color: cellStyle.color || "inherit", fontSize: cellStyle.fontSize || "inherit", fontFamily: cellStyle.fontFamily || "inherit" }}
                                     autoFocus
                                   />
                                 ) : mode === "preview" && cellState.type !== "label" && cellState.type !== "formula" ? (
@@ -1421,13 +1537,13 @@ export default function ObservationBuilder() {
                                       };
                                       setCells(nextCells);
                                     }}
-                                    className="w-full h-full px-2 outline-none text-left bg-transparent text-[11px]"
-                                    style={{ textAlign: cellStyle.alignment || "left" }}
+                                    className="w-full h-full px-2 outline-none text-left bg-transparent"
+                                    style={{ textAlign: cellStyle.alignment || "left", fontSize: cellStyle.fontSize || "inherit", fontFamily: cellStyle.fontFamily || "inherit", color: cellStyle.color || "inherit" }}
                                   />
                                 ) : (
                                   <div
-                                    className="w-full h-full px-2.5 py-1.5 text-[11px] overflow-hidden truncate"
-                                    style={{ textAlign: cellStyle.alignment || "left" }}
+                                    className="w-full h-full px-2.5 py-1.5 overflow-hidden truncate"
+                                    style={{ textAlign: cellStyle.alignment || "left", fontSize: cellStyle.fontSize || "inherit", fontFamily: cellStyle.fontFamily || "inherit", color: cellStyle.color || "inherit" }}
                                   >
                                     {isCalculated && <span className="text-[8px] font-extrabold text-green-700 bg-green-50 px-1 rounded mr-1">fx</span>}
                                     {displayVal}
@@ -1449,8 +1565,8 @@ export default function ObservationBuilder() {
                       key={s.id}
                       onClick={() => setActiveSheetId(s.id)}
                       className={`px-3.5 py-1.5 rounded-lg transition-all ${activeSheetId === s.id
-                          ? "bg-white text-[#2562AA] shadow-xs"
-                          : "hover:bg-slate-200 hover:text-slate-700 text-slate-500"
+                        ? "bg-white text-[#2562AA] shadow-xs"
+                        : "hover:bg-slate-200 hover:text-slate-700 text-slate-500"
                         }`}
                     >
                       {s.name}

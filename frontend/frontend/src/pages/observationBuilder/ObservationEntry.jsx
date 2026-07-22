@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { MainLayout } from "../../components/layout";
 import {
   Undo as UndoIcon,
@@ -47,6 +47,7 @@ import { getProjects } from "../../api/projects";
 import { getSampleEntries } from "../../api/sampleEntries";
 import { getAssignmentsBySample } from "../../api/testAssignments";
 import { getObservationTemplates } from "../../api/observationBuilder";
+import { getScopeTests } from "../../api/scope";
 import {
   getSampleObservations,
   getSampleObservation,
@@ -54,6 +55,7 @@ import {
   updateSampleObservation,
   deleteSampleObservation
 } from "../../api/sampleObservations";
+import { getMappingsByTest } from "../../api";
 import { toast, Toaster } from "sonner";
 
 function roundVal(val, decimals) {
@@ -172,6 +174,7 @@ export default function ObservationEntry() {
 
   // Editing state tracker
   const [activeObservationId, setActiveObservationId] = useState(null);
+  const [activeTemplateId, setActiveTemplateId] = useState(null);
 
   const [listSearch, setListSearch] = useState("");
 
@@ -180,11 +183,16 @@ export default function ObservationEntry() {
   const [samples, setSamples] = useState([]);
   const [assignedTests, setAssignedTests] = useState([]);
   const [templates, setTemplates] = useState([]);
+  const [scopes, setScopes] = useState([]);
+
+
 
   // Selections
   const [selectedProject, setSelectedProject] = useState("");
   const [selectedSample, setSelectedSample] = useState("");
   const [selectedTest, setSelectedTest] = useState("");
+  const [mappedEquipment, setMappedEquipment] = useState([]);
+  const [selectedEquipmentId, setSelectedEquipmentId] = useState("");
 
   const [wizardLoading, setWizardLoading] = useState(false);
 
@@ -205,8 +213,8 @@ export default function ObservationEntry() {
   const [borderMenuOpen, setBorderMenuOpen] = useState(false);
 
   // Grid dimensions
-  const colsCount = 12;
-  const rowsCount = 15;
+  const [colsCount, setColsCount] = useState(12);
+  const [rowsCount, setRowsCount] = useState(15);
 
   const [sheetsData, setSheetsData] = useState({
     sheet1: {}
@@ -216,6 +224,32 @@ export default function ObservationEntry() {
   const cells = sheetsData[activeSheetId] || {};
   const activeLabel = getCellLabel(selectedCell.row, selectedCell.col);
   const activeCellState = cells[activeLabel] || { value: "", type: "label", style: {}, validation: {} };
+
+  const adjustGridSize = (data) => {
+    let maxRow = 15;
+    let maxCol = 12;
+    if (!data) return;
+    
+    for (const sheetId of Object.keys(data)) {
+      const sheetCells = data[sheetId] || {};
+      for (const label of Object.keys(sheetCells)) {
+        const match = label.match(/^([A-Z]+)([0-9]+)$/);
+        if (match) {
+          const colStr = match[1];
+          const rowNum = parseInt(match[2]);
+          if (rowNum > maxRow) maxRow = rowNum;
+          
+          let colIdx = 0;
+          for (let i = 0; i < colStr.length; i++) {
+            colIdx = colIdx * 26 + (colStr.charCodeAt(i) - 64);
+          }
+          if (colIdx > maxCol) maxCol = colIdx;
+        }
+      }
+    }
+    setRowsCount(maxRow);
+    setColsCount(maxCol);
+  };
 
   // Undo/Redo states
   const [history, setHistory] = useState([]);
@@ -322,9 +356,10 @@ export default function ObservationEntry() {
   const loadSetupResources = async () => {
     try {
       setWizardLoading(true);
-      const [projRes, tempRes] = await Promise.all([
+      const [projRes, tempRes, scopeRes] = await Promise.all([
         getProjects(),
-        getObservationTemplates()
+        getObservationTemplates(),
+        getScopeTests()
       ]);
       
       if (projRes.data && projRes.data.success) {
@@ -332,6 +367,9 @@ export default function ObservationEntry() {
       }
       if (tempRes.data && tempRes.data.success) {
         setTemplates(tempRes.data.data || []);
+      }
+      if (scopeRes.data && scopeRes.data.success) {
+        setScopes(scopeRes.data.data || []);
       }
     } catch (err) {
       console.error("Failed to load setup resources:", err);
@@ -396,30 +434,28 @@ export default function ObservationEntry() {
     }
   };
 
-  const handleTestChange = (val) => {
+  const handleTestChange = async (val) => {
     setSelectedTest(val);
+    setSelectedEquipmentId("");
+    setMappedEquipment([]);
     if (!val) {
       setSheetsData({ sheet1: {} });
       setMerges([]);
       return;
     }
 
-    // Check if an observation for this sample and test already exists
-    const existingObs = observations.find(
-      (obs) =>
-        String(obs.sample_id) === String(selectedSample) &&
-        String(obs.scope_test_id) === String(val)
-    );
-
-    if (existingObs) {
-      toast.info("An observation sheet already exists for this sample and test. Loading in edit mode...");
-      handleEditObservation(existingObs);
-      return;
+    try {
+      const res = await getMappingsByTest(val);
+      if (res.success && res.data) {
+        setMappedEquipment(res.data);
+      }
+    } catch (err) {
+      console.error("Failed to load mapped equipment for this test:", err);
     }
 
-    // Match template by scope_test_id
+    // Match template by scope_test_id or scope_test_ids array
     const matchedTemplate = templates.find(
-      t => t.scope_test_id.toString() === val.toString()
+      t => t.scope_test_id.toString() === val.toString() || (t.scope_test_ids && t.scope_test_ids.map(String).includes(val.toString()))
     );
 
     if (!matchedTemplate) {
@@ -429,12 +465,28 @@ export default function ObservationEntry() {
       return;
     }
 
+    // Check if an observation for this sample and template/test already exists
+    const existingObs = observations.find(
+      (obs) =>
+        String(obs.sample_id) === String(selectedSample) &&
+        (String(obs.template_id) === String(matchedTemplate.template_id) || String(obs.scope_test_id) === String(val))
+    );
+
+    if (existingObs) {
+      toast.info("An observation sheet already exists for this sample/template. Loading in edit mode...");
+      handleEditObservation(existingObs);
+      return;
+    }
+
+    setActiveTemplateId(matchedTemplate.template_id);
+
     // Load template layout structures
     const loadedData = matchedTemplate.sheets_data || { sheet1: {} };
     const loadedMerges = matchedTemplate.merges_data || [];
 
     setSheetsData(loadedData);
     setMerges(loadedMerges);
+    adjustGridSize(loadedData);
 
     setHistory([{ sheetsData: loadedData, merges: loadedMerges }]);
     setHistoryIndex(0);
@@ -448,9 +500,17 @@ export default function ObservationEntry() {
       setActiveSheetId("sheet1");
     }
 
-    const sampleNo = samples.find(s => s.sample_id.toString() === selectedSample.toString())?.sample_no || "SAMPLE_ID";
-    const testLabel = matchedTemplate.test_name || matchedTemplate.name || "Test Observations";
-    const testMethod = matchedTemplate.test_method || "NABL Standards";
+     const sampleNo = samples.find(s => s.sample_id.toString() === selectedSample.toString())?.sample_no || "SAMPLE_ID";
+     let testLabel = matchedTemplate.test_name || matchedTemplate.name || "Test Observations";
+     if (matchedTemplate.scope_test_ids && matchedTemplate.scope_test_ids.length > 0) {
+       const mappedNames = scopes
+         .filter(s => matchedTemplate.scope_test_ids.map(String).includes(s.scope_test_id.toString()))
+         .map(s => s.test_name);
+       if (mappedNames.length > 0) {
+         testLabel = [...new Set(mappedNames)].join(", ");
+       }
+     }
+     const testMethod = matchedTemplate.test_method || "NABL Standards";
 
     setSampleIdLabel(sampleNo);
     setTestType(testLabel);
@@ -478,16 +538,45 @@ export default function ObservationEntry() {
         }
 
         setActiveObservationId(fullObs.observation_id);
+        setActiveTemplateId(fullObs.template_id);
         setSelectedProject(fullObs.project_id);
         setSelectedSample(fullObs.sample_id);
         setSelectedTest(fullObs.scope_test_id);
+        setSelectedEquipmentId(fullObs.equipment_id || "");
+
+        if (fullObs.scope_test_id) {
+          try {
+            const mapRes = await getMappingsByTest(fullObs.scope_test_id);
+            if (mapRes.success && mapRes.data) {
+              setMappedEquipment(mapRes.data);
+            }
+          } catch (err) {
+            console.error("Failed to load mapped equipment:", err);
+          }
+        }
+
+        const matchedTemplate = templates.find(
+          tmp => tmp.template_id === fullObs.template_id || 
+                 (tmp.scope_test_ids && tmp.scope_test_ids.map(String).includes(fullObs.scope_test_id?.toString()))
+        );
+
+        let testLabel = fullObs.test_name;
+        if (matchedTemplate && matchedTemplate.scope_test_ids && matchedTemplate.scope_test_ids.length > 0) {
+          const mappedNames = scopes
+            .filter(s => matchedTemplate.scope_test_ids.map(String).includes(s.scope_test_id.toString()))
+            .map(s => s.test_name);
+          if (mappedNames.length > 0) {
+            testLabel = [...new Set(mappedNames)].join(", ");
+          }
+        }
 
         setSampleIdLabel(obs.sample_no || "SAMPLE_ID");
-        setTestType(fullObs.test_name);
+        setTestType(testLabel);
         setMethod(fullObs.test_method);
 
         setSheetsData(fullObs.sheets_data || { sheet1: {} });
         setMerges(fullObs.merges_data || []);
+        adjustGridSize(fullObs.sheets_data);
 
         setHistory([{ sheetsData: fullObs.sheets_data, merges: fullObs.merges_data }]);
         setHistoryIndex(0);
@@ -516,17 +605,38 @@ export default function ObservationEntry() {
       toast.error("Please ensure Project, Sample No, and Assigned Test are selected!");
       return;
     }
+
+    // Check mandatory equipment requirement
+    const mandatoryMapping = mappedEquipment.find(m => m.isMandatory);
+    if (mandatoryMapping && !selectedEquipmentId) {
+      toast.error(`Instrument tracking is mandatory for this test scope under NABL rules. Please select a valid ${mandatoryMapping.equipmentName || "equipment"}.`);
+      return;
+    }
+
+    const selectedMapping = mappedEquipment.find(m => m.equipmentId === selectedEquipmentId);
+    if (selectedEquipmentId && selectedMapping) {
+      if (selectedMapping.calibrationStatus === "Overdue") {
+        toast.error("Calibration of the selected equipment is EXPIRED (Overdue). Submission blocked until valid/calibrated equipment is selected.");
+        return;
+      }
+    }
+
     try {
       const payload = {
         project_id: parseInt(selectedProject),
         sample_id: parseInt(selectedSample),
         scope_test_id: parseInt(selectedTest),
+        template_id: activeTemplateId ? parseInt(activeTemplateId) : null,
         test_name: testType,
         test_method: method,
         operator_name: "Lab Technician",
         sheets_data: sheetsData,
         merges_data: merges,
-        status: "Completed"
+        status: "Completed",
+        equipment_id: selectedEquipmentId || null,
+        equipment_name: selectedMapping ? selectedMapping.equipmentName : null,
+        equipment_cert_no: selectedMapping ? selectedMapping.certificateNumber : null,
+        equipment_validity_date: selectedMapping ? selectedMapping.nextDue : null
       };
 
       toast.loading("Saving observation log to database...");
@@ -568,14 +678,16 @@ export default function ObservationEntry() {
       setWizardLoading(true);
       toast.loading("Resolving observation details...");
       
-      // 1. Fetch initial select items (projects, templates)
-      const [projRes, tempRes] = await Promise.all([
+      // 1. Fetch initial select items (projects, templates, scopes)
+      const [projRes, tempRes, scopeRes] = await Promise.all([
         getProjects(),
-        getObservationTemplates()
+        getObservationTemplates(),
+        getScopeTests()
       ]);
       
       let currentProjects = [];
       let currentTemplates = [];
+      let currentScopes = [];
       if (projRes.data && projRes.data.success) {
         currentProjects = projRes.data.data || [];
         setProjects(currentProjects);
@@ -583,6 +695,10 @@ export default function ObservationEntry() {
       if (tempRes.data && tempRes.data.success) {
         currentTemplates = tempRes.data.data || [];
         setTemplates(currentTemplates);
+      }
+      if (scopeRes.data && scopeRes.data.success) {
+        currentScopes = scopeRes.data.data || [];
+        setScopes(currentScopes);
       }
 
       // 2. Fetch samples under project
@@ -622,11 +738,18 @@ export default function ObservationEntry() {
         { duration: 20000 }
       );
 
-      // Check if an observation already exists with this sample and resolved master scope test ID
+      // Find matching template layout
+      const matchedTemplate = currentTemplates.find(
+        t => (t.scope_test_id && t.scope_test_id.toString() === resolvedMasterScopeTestId.toString()) ||
+             (t.scope_test_ids && t.scope_test_ids.map(String).includes(resolvedMasterScopeTestId.toString()))
+      );
+
+      // Check if an observation already exists with this sample and resolved master scope test ID or template ID
       const existingObs = obsList.find(
         (obs) =>
           String(obs.sample_id) === String(qSampleId) &&
-          String(obs.scope_test_id) === String(resolvedMasterScopeTestId)
+          (String(obs.scope_test_id) === String(resolvedMasterScopeTestId) ||
+           (obs.template_id && matchedTemplate && String(obs.template_id) === String(matchedTemplate.template_id)))
       );
 
       if (existingObs) {
@@ -646,12 +769,9 @@ export default function ObservationEntry() {
       setSelectedSample(qSampleId);
       setSelectedTest(resolvedMasterScopeTestId);
 
-      // Match template layout
-      const matchedTemplate = currentTemplates.find(
-        t => t.scope_test_id.toString() === resolvedMasterScopeTestId.toString()
-      );
-
-      if (!matchedTemplate) {
+      if (matchedTemplate) {
+        setActiveTemplateId(matchedTemplate.template_id);
+      } else {
         setSheetsData({ sheet1: {} });
         setMerges([]);
         toast.dismiss();
@@ -669,6 +789,7 @@ export default function ObservationEntry() {
 
       setSheetsData(loadedData);
       setMerges(loadedMerges);
+      adjustGridSize(loadedData);
 
       setHistory([{ sheetsData: loadedData, merges: loadedMerges }]);
       setHistoryIndex(0);
@@ -683,7 +804,15 @@ export default function ObservationEntry() {
       }
 
       const sampleNo = currentSamples.find(s => s.sample_id.toString() === qSampleId.toString())?.sample_no || "SAMPLE_ID";
-      const testLabel = matchedTemplate.test_name || matchedTemplate.name || "Test Observations";
+      let testLabel = matchedTemplate.test_name || matchedTemplate.name || "Test Observations";
+      if (matchedTemplate.scope_test_ids && matchedTemplate.scope_test_ids.length > 0) {
+        const mappedNames = currentScopes
+          .filter(s => matchedTemplate.scope_test_ids.map(String).includes(s.scope_test_id.toString()))
+          .map(s => s.test_name);
+        if (mappedNames.length > 0) {
+          testLabel = [...new Set(mappedNames)].join(", ");
+        }
+      }
       const testMethod = matchedTemplate.test_method || "NABL Standards";
 
       setSampleIdLabel(sampleNo);
@@ -1076,7 +1205,7 @@ export default function ObservationEntry() {
         <div className="flex flex-col h-[calc(100vh-64px)] overflow-hidden bg-[#F8FAFC]" onMouseUp={() => setIsSelecting(false)}>
           
           {/* Header Row */}
-          <div className="flex items-center justify-between px-6 py-3 bg-white border-b border-slate-200/80 gap-4 shrink-0 shadow-xs z-10">
+          <div className="flex items-center justify-between px-6 py-3 bg-white border-b border-slate-200/80 gap-4 shrink-0 shadow-xs z-40">
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setView("list")}
@@ -1158,20 +1287,77 @@ export default function ObservationEntry() {
             {/* Select Test */}
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-black text-slate-450 uppercase tracking-wider">Assigned Test:</span>
-              <select
-                value={selectedTest}
-                onChange={(e) => handleTestChange(e.target.value)}
-                disabled={!selectedSample || activeObservationId !== null}
-                className="px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs font-bold bg-slate-50 outline-none text-slate-700 max-w-xs"
-              >
-                <option value="">-- Choose Test --</option>
-                {assignedTests.map(t => (
-                  <option key={t.assignment_id} value={t.master_scope_test_id || t.scope_test_id}>
-                    {t.test_name} ({t.test_method})
-                  </option>
-                ))}
-              </select>
+              {selectedTest ? (
+                <span className="px-3.5 py-2 bg-blue-50 text-[#2562AA] rounded-xl text-xs font-black border border-blue-100/80 shadow-3xs uppercase tracking-wide">
+                  {testType}
+                </span>
+              ) : (
+                <select
+                  value={selectedTest}
+                  onChange={(e) => handleTestChange(e.target.value)}
+                  disabled={!selectedSample || activeObservationId !== null}
+                  className="px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs font-bold bg-slate-50 outline-none text-slate-700 max-w-xs"
+                >
+                  <option value="">-- Choose Test --</option>
+                  {assignedTests.map(t => {
+                    const masterTestId = t.master_scope_test_id || t.scope_test_id;
+                    const matchedTemplate = templates.find(
+                      tmp => (tmp.scope_test_ids && tmp.scope_test_ids.map(String).includes(masterTestId?.toString()))
+                    );
+                    
+                    let displayLabel = `${t.test_name} (${t.test_method})`;
+                    if (matchedTemplate && matchedTemplate.scope_test_ids && matchedTemplate.scope_test_ids.length > 0) {
+                      const mappedNames = scopes
+                        .filter(s => matchedTemplate.scope_test_ids.map(String).includes(s.scope_test_id.toString()))
+                        .map(s => s.test_name);
+                      if (mappedNames.length > 0) {
+                        displayLabel = `${[...new Set(mappedNames)].join(", ")} (${t.test_method})`;
+                      }
+                    }
+                    
+                    return (
+                      <option key={t.assignment_id} value={masterTestId}>
+                        {displayLabel}
+                      </option>
+                    );
+                  })}
+                </select>
+              )}
             </div>
+
+            {selectedTest && (
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black text-slate-450 uppercase tracking-wider">Equipment Used:</span>
+                <select
+                  value={selectedEquipmentId}
+                  onChange={(e) => setSelectedEquipmentId(e.target.value)}
+                  className="px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs font-bold bg-slate-50 outline-none text-slate-700 max-w-xs"
+                >
+                  <option value="">-- Select Instrument --</option>
+                  {mappedEquipment.map(eq => (
+                    <option key={eq.equipmentId} value={eq.equipmentId}>
+                      {eq.equipmentName} ({eq.equipmentId}) - {eq.calibrationStatus}
+                    </option>
+                  ))}
+                </select>
+                {selectedEquipmentId && (
+                  (() => {
+                    const sel = mappedEquipment.find(m => m.equipmentId === selectedEquipmentId);
+                    if (!sel) return null;
+                    const isOverdue = sel.calibrationStatus === "Overdue";
+                    return (
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold border ${
+                        isOverdue 
+                          ? "bg-red-50 text-red-700 border-red-200" 
+                          : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                      }`}>
+                        Calibration: {sel.calibrationStatus} {isOverdue ? "(BLOCKED)" : "(VALID)"}
+                      </span>
+                    );
+                  })()
+                )}
+              </div>
+            )}
 
             {wizardLoading && (
               <span className="text-[10px] text-blue-600 font-bold animate-pulse">Loading API assets...</span>
@@ -1179,99 +1365,7 @@ export default function ObservationEntry() {
           </div>
 
           {/* Formatting Ribbon */}
-          <div className="flex items-center justify-between px-6 py-2 bg-white border-b border-slate-200 shrink-0 text-xs font-semibold text-slate-650 gap-4">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-[10px] text-slate-400 font-bold uppercase mr-2 bg-slate-100 px-2 py-0.5 rounded">
-                OBSERVATION EDITOR
-              </span>
-
-              {/* Selection Merging */}
-              <button
-                onClick={handleRangeMerge}
-                className="px-3 py-1.5 bg-[#243744]/5 hover:bg-[#243744]/10 text-[#243744] rounded-lg text-[11px] flex items-center gap-1 font-bold shadow-2xs"
-                title="Merge selected drag cells range"
-              >
-                <MergeIcon style={{ fontSize: 13 }} /> Merge Range
-              </button>
-
-              <button onClick={handleSplit} className="px-2.5 py-1.5 rounded-lg border hover:bg-slate-50 text-[11px] flex items-center gap-1 text-slate-500 font-bold">
-                <SplitIcon style={{ fontSize: 13 }} /> Unmerge
-              </button>
-
-              <div className="h-4 w-px bg-slate-200 mx-1" />
-
-              <button onClick={() => updateActiveCellProp("style", "fontWeight", "bold")} className="w-7 h-7 hover:bg-slate-100 rounded flex items-center justify-center font-bold">B</button>
-              <button onClick={() => updateActiveCellProp("style", "fontStyle", "italic")} className="w-7 h-7 hover:bg-slate-100 rounded flex items-center justify-center italic">I</button>
-              <button onClick={() => updateActiveCellProp("style", "textDecoration", "underline")} className="w-7 h-7 hover:bg-slate-100 rounded flex items-center justify-center underline font-semibold">U</button>
-              
-              <div className="h-4 w-px bg-slate-200 mx-1" />
-
-              <button onClick={() => updateActiveCellProp("style", "alignment", "left")} className="p-1.5 hover:bg-slate-100 rounded"><AlignLeftIcon style={{ fontSize: 15 }} /></button>
-              <button onClick={() => updateActiveCellProp("style", "alignment", "center")} className="p-1.5 hover:bg-slate-100 rounded"><AlignCenterIcon style={{ fontSize: 15 }} /></button>
-              <button onClick={() => updateActiveCellProp("style", "alignment", "right")} className="p-1.5 hover:bg-slate-100 rounded"><AlignRightIcon style={{ fontSize: 15 }} /></button>
-              
-              <div className="h-4 w-px bg-slate-200 mx-1" />
-
-              <div className="relative flex items-center" onMouseLeave={() => setBorderMenuOpen(false)}>
-                <button
-                  onClick={() => applyBorderToSelection("all")}
-                  className="h-7 px-2 hover:bg-slate-100 rounded-l flex items-center gap-1 text-[11px] font-bold text-slate-600"
-                  title="All Borders"
-                >
-                  <BorderAllIcon style={{ fontSize: 15 }} />
-                  All Borders
-                </button>
-                <button
-                  onClick={() => setBorderMenuOpen((open) => !open)}
-                  className="h-7 w-6 hover:bg-slate-100 rounded-r flex items-center justify-center border-l border-slate-200"
-                  title="Border options"
-                >
-                  <ArrowDropDownIcon style={{ fontSize: 17 }} />
-                </button>
-
-                {borderMenuOpen && (
-                  <div className="absolute left-0 top-8 z-50 w-40 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
-                    {borderMenuItems.map(({ type, label, icon: Icon }) => (
-                      <button
-                        key={type}
-                        onClick={() => applyBorderToSelection(type)}
-                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-[11px] font-bold text-slate-600 hover:bg-blue-50 hover:text-[#2562AA]"
-                      >
-                        <Icon style={{ fontSize: 15 }} />
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-              
-              <div className="h-4 w-px bg-slate-200 mx-1" />
-
-              {/* Color Fill picker */}
-              <div className="flex items-center gap-1.5 border border-slate-200 bg-slate-50 px-2 py-0.5 rounded-lg select-none">
-                <FillIcon style={{ fontSize: 13 }} className="text-slate-400" />
-                <input
-                  type="color"
-                  value={activeCellState.style?.backgroundColor || "#ffffff"}
-                  onChange={(e) => updateActiveCellProp("style", "backgroundColor", e.target.value)}
-                  className="w-5 h-5 border border-slate-200 rounded cursor-pointer p-0 bg-transparent outline-none"
-                  title="Cell Background Color"
-                />
-              </div>
-
-              {/* Color text picker */}
-              <div className="flex items-center gap-1.5 border border-slate-200 bg-slate-50 px-2 py-0.5 rounded-lg select-none">
-                <ColorTextIcon style={{ fontSize: 13 }} className="text-slate-400" />
-                <input
-                  type="color"
-                  value={activeCellState.style?.color || "#000000"}
-                  onChange={(e) => updateActiveCellProp("style", "color", e.target.value)}
-                  className="w-5 h-5 border border-slate-200 rounded cursor-pointer p-0 bg-transparent outline-none"
-                  title="Text Color"
-                />
-              </div>
-            </div>
-            
+          <div className="flex items-center justify-end px-6 py-2 bg-white border-b border-slate-200 shrink-0 text-xs font-semibold text-slate-650 gap-4">
             <div className="flex items-center gap-1 text-[10px] text-slate-400 font-bold">
               <span>Zoom</span>
               <button onClick={() => setZoomLevel(Math.max(50, zoomLevel - 10))} className="p-1 hover:bg-slate-100 rounded"><ZoomOutIcon style={{ fontSize: 13 }} /></button>
@@ -1399,6 +1493,8 @@ export default function ObservationEntry() {
                                     textDecoration: cellStyle.textDecoration || "none",
                                     backgroundColor: isCalculated ? "#f0fdf4" : (cellStyle.backgroundColor || (isCellInSelection ? "#eff6ff" : "transparent")),
                                     color: cellStyle.color || "inherit",
+                                    fontSize: cellStyle.fontSize || "inherit",
+                                    fontFamily: cellStyle.fontFamily || "inherit",
                                     textAlign: cellStyle.alignment || "left",
                                     borderTop: cellStyle.borderTop,
                                     borderRight: cellStyle.borderRight,
@@ -1425,15 +1521,15 @@ export default function ObservationEntry() {
                                           [activeSheetId]: nextCells,
                                         }));
                                       }}
-                                      className="w-full h-full px-2.5 outline-none text-left bg-transparent text-[11px] font-semibold focus:bg-blue-50/30"
-                                      style={{ textAlign: cellStyle.alignment || "left" }}
+                                      className="w-full h-full px-2.5 outline-none text-left bg-transparent font-semibold focus:bg-blue-50/30"
+                                      style={{ textAlign: cellStyle.alignment || "left", color: cellStyle.color || "inherit", fontSize: cellStyle.fontSize || "inherit", fontFamily: cellStyle.fontFamily || "inherit" }}
                                     />
                                   ) : (
                                     <div
-                                      className={`w-full h-full px-2.5 py-1.5 text-[11px] overflow-hidden truncate ${
+                                      className={`w-full h-full px-2.5 py-1.5 overflow-hidden truncate ${
                                         isCalculated ? "font-bold text-[#166534] font-mono" : "text-slate-500 font-semibold"
                                       }`}
-                                      style={{ textAlign: cellStyle.alignment || "left" }}
+                                      style={{ textAlign: cellStyle.alignment || "left", color: cellStyle.color || "inherit", fontSize: cellStyle.fontSize || "inherit", fontFamily: cellStyle.fontFamily || "inherit" }}
                                     >
                                       {isCalculated && <span className="text-[8px] font-extrabold text-green-700 bg-green-100 px-1 rounded mr-1">fx</span>}
                                       {displayVal}

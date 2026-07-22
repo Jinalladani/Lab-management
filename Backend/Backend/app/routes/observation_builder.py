@@ -9,16 +9,18 @@ observation_builder_bp = Blueprint('observation_builder', __name__)
 @observation_builder_bp.route('/templates', methods=['GET'])
 def get_all_templates():
     try:
-        # Join with scope_tests to fetch the real test_name and test_method dynamically
+        # Fetch all templates
         query = """
-            SELECT ot.template_id, ot.name, ot.scope_test_id, ot.version, ot.status,
-                   ot.sheets_data, ot.merges_data, ot.created_at, ot.updated_at,
-                   st.test_name, st.test_method
+            SELECT ot.template_id, ot.name, ot.scope_test_ids, ot.version, ot.status,
+                   ot.sheets_data, ot.merges_data, ot.created_at, ot.updated_at
             FROM observation_templates ot
-            LEFT JOIN scope_tests st ON ot.scope_test_id = st.scope_test_id
             ORDER BY ot.updated_at DESC
         """
         result = db.session.execute(text(query)).mappings().all()
+        
+        # Fetch all scope tests to map names/methods dynamically
+        scope_tests = db.session.execute(text("SELECT scope_test_id, test_name, test_method FROM scope_tests")).mappings().all()
+        scope_map = {row['scope_test_id']: row for row in scope_tests}
         
         serialized = []
         for row in result:
@@ -27,6 +29,31 @@ def get_all_templates():
                 d['created_at'] = d['created_at'].isoformat()
             if d.get('updated_at'):
                 d['updated_at'] = d['updated_at'].isoformat()
+            
+            # Parse scope_test_ids safely
+            if isinstance(d.get('scope_test_ids'), str):
+                import json
+                try:
+                    d['scope_test_ids'] = json.loads(d['scope_test_ids'])
+                except:
+                    d['scope_test_ids'] = []
+            elif d.get('scope_test_ids') is None:
+                d['scope_test_ids'] = []
+            
+            # Populate display fields from first test in list
+            if d['scope_test_ids']:
+                first_test_id = d['scope_test_ids'][0]
+                test_info = scope_map.get(first_test_id)
+                if test_info:
+                    d['test_name'] = test_info['test_name']
+                    d['test_method'] = test_info['test_method']
+                else:
+                    d['test_name'] = "Multiple Tests"
+                    d['test_method'] = ""
+            else:
+                d['test_name'] = "No Mapped Test"
+                d['test_method'] = ""
+                
             serialized.append(d)
 
         return jsonify({
@@ -65,17 +92,17 @@ def create_template():
     try:
         data = request.get_json() or {}
         name = data.get('name')
-        scope_test_id = data.get('scope_test_id')
+        scope_test_ids = data.get('scope_test_ids') or []
         
-        if not name or not scope_test_id:
+        if not name or not scope_test_ids:
             return jsonify({
                 'success': False,
-                'message': "Template name and scope_test_id are required fields"
+                'message': "Template name and scope_test_ids are required fields"
             }), 400
 
         new_template = ObservationTemplate(
             name=name,
-            scope_test_id=int(scope_test_id),
+            scope_test_ids=scope_test_ids,
             version=data.get('version', '1.0.0'),
             status=data.get('status', 'Draft'),
             sheets_data=data.get('sheets_data', {}),
@@ -112,8 +139,8 @@ def update_template(template_id):
         
         if 'name' in data:
             template.name = data['name']
-        if 'scope_test_id' in data:
-            template.scope_test_id = int(data['scope_test_id'])
+        if 'scope_test_ids' in data:
+            template.scope_test_ids = data['scope_test_ids'] or []
         if 'version' in data:
             template.version = data['version']
         if 'status' in data:

@@ -3,12 +3,13 @@ import { createPortal } from "react-dom";
 import { useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Search, Plus, QrCode, Eye, Pencil, Trash2, X, RefreshCw, Briefcase, ChevronDown
+  Search, Plus, QrCode, Eye, Pencil, Trash2, X, RefreshCw, Briefcase, ChevronDown, Printer, Calendar
 } from "lucide-react";
 import MainLayout from "../../components/layout/MainLayout";
 import { mockEquipmentDb } from "../../utils/mockEquipmentData";
 import { getEquipmentList, createEquipment, deleteEquipment } from "../../api";
 import { TableSkeleton } from "../../components/ui/Skeleton";
+import { StatTile } from "../../components/equipment/EquipmentModuleShared";
 
 const stagger = {
   container: { hidden: {}, visible: { transition: { staggerChildren: 0.04 } } },
@@ -209,6 +210,75 @@ const EquipmentList = () => {
     setIsQrModalOpen(true);
   };
 
+  const handlePrintRegister = () => {
+    const printWindow = window.open("", "_blank");
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Equipment Master Register - LIMS</title>
+          <style>
+            body { font-family: system-ui, -apple-system, sans-serif; padding: 25px; color: #1e293b; }
+            h1 { font-size: 22px; margin-bottom: 5px; color: #0f172a; }
+            p { font-size: 13px; margin-top: 0; color: #64748b; margin-bottom: 25px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+            th, td { border: 1px solid #e2e8f0; padding: 10px 14px; text-align: left; font-size: 11px; }
+            th { background-color: #f8fafc; font-weight: bold; color: #475569; text-transform: uppercase; font-size: 10px; tracking: 0.05em; }
+            td { color: #334155; }
+            .header-info { display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid #f1f5f9; padding-bottom: 15px; }
+            .badge { display: inline-block; padding: 2px 6px; font-weight: bold; border-radius: 4px; font-size: 9px; }
+            .badge-active { bg-color: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
+          </style>
+        </head>
+        <body>
+          <div class="header-info">
+            <div>
+              <h1>Equipment Master Register</h1>
+              <p>NABL & ISO 17025 Compliance Registry Log</p>
+            </div>
+            <div style="text-align: right; font-size: 11px; color: #64748b;">
+              <strong>Generated:</strong> ${new Date().toLocaleString()}<br>
+              <strong>Total Records:</strong> ${filteredEquipments.length}
+            </div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Equipment ID</th>
+                <th>Equipment Code</th>
+                <th>Equipment Name</th>
+                <th>Category</th>
+                <th>Make / Model</th>
+                <th>Serial Number</th>
+                <th>Location</th>
+                <th>Status</th>
+                <th>Calibration Due</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${filteredEquipments.map(eq => `
+                <tr>
+                  <td><b>${eq.id}</b></td>
+                  <td>${eq.equipmentCode || eq.assetTag || "—"}</td>
+                  <td>${eq.name}</td>
+                  <td>${eq.category}</td>
+                  <td>${eq.manufacturer} / ${eq.model}</td>
+                  <td>${eq.serialNo}</td>
+                  <td>${eq.location || "—"}</td>
+                  <td>${eq.status}</td>
+                  <td>${eq.nextDue || "Not Required"}</td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+          <script>
+            window.onload = function() { window.print(); }
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
   // Filter logic
   const filteredEquipments = equipments.filter(eq => {
     const matchesSearch = 
@@ -223,6 +293,14 @@ const EquipmentList = () => {
     
     return matchesSearch && matchesLab && matchesCategory && matchesStatus;
   });
+
+  const stats = React.useMemo(() => {
+    const total = equipments.length;
+    const active = equipments.filter(e => e.status === "Active").length;
+    const overdue = equipments.filter(e => e.calibrationStatus === "Overdue").length;
+    const dueSoon = equipments.filter(e => e.calibrationStatus === "Due Soon" || e.calibrationStatus === "Due within 7 Days").length;
+    return { total, active, overdue, dueSoon };
+  }, [equipments]);
 
   const laboratories = ["Concrete Lab", "Steel Lab", "Soil Lab", "Chemical Lab", "QC Lab"];
   const categories = ["Concrete", "Steel", "Soil", "General"];
@@ -241,6 +319,14 @@ const EquipmentList = () => {
   return (
     <MainLayout headerTitle="Equipment Registry" headerSubtitle="Manage, inspect, and trace laboratory apparatus & calibration records">
       <div className="mx-auto w-full max-w-[1800px] px-4 py-5 sm:px-5 lg:px-6">
+        
+        {/* KPI Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <StatTile label="Total Equipment" value={stats.total} icon="microscope" tone="primary" caption="Registry" />
+          <StatTile label="Active Equipment" value={stats.active} icon="check" tone="success" caption="Active" />
+          <StatTile label="Calibration Due" value={stats.dueSoon} icon="calendar" tone="warning" caption="30 Days" />
+          <StatTile label="Overdue" value={stats.overdue} icon="warning" tone="danger" caption="Critical" />
+        </div>
         
         {/* Filters and Search Bar */}
         <div className="mb-6 flex flex-col xl:flex-row gap-4 items-stretch xl:items-center justify-between">
@@ -308,6 +394,13 @@ const EquipmentList = () => {
             </select>
 
             <button
+              onClick={handlePrintRegister}
+              className="flex h-10 items-center justify-center gap-1.5 rounded-xl border border-[#E2E8F0] bg-white hover:bg-slate-50 px-4 text-xs font-bold text-[#475569] shadow-sm transition-colors"
+            >
+              <Printer size={14} className="text-[#64748B]" /> Export Register
+            </button>
+
+            <button
               onClick={() => navigate("/equipment/add")}
               className="flex h-10 items-center justify-center gap-1.5 rounded-xl bg-[#243744] hover:bg-[#1A2733] px-4 text-xs font-bold text-white shadow-sm transition-colors"
             >
@@ -331,10 +424,10 @@ const EquipmentList = () => {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="border-b border-[#E2E8F0] bg-[#FAFBFD] text-[10px] font-bold text-[#64748B] uppercase tracking-wider">
-                    <th className="px-6 py-3.5">EQ ID</th>
+                    <th className="px-6 py-3.5">EQ Code</th>
                     <th className="px-6 py-3.5">Equipment Name</th>
                     <th className="px-6 py-3.5">Category</th>
-                    <th className="px-6 py-3.5">Laboratory</th>
+                    <th className="px-6 py-3.5">Location</th>
                     <th className="px-6 py-3.5">Status</th>
                     <th className="px-6 py-3.5">Calibration Status</th>
                     <th className="px-6 py-3.5">Next Due</th>
@@ -344,19 +437,19 @@ const EquipmentList = () => {
                 <motion.tbody variants={stagger.container} initial="hidden" animate="visible" className="divide-y divide-[#F1F5F9]">
                   {filteredEquipments.map((eq) => (
                     <motion.tr key={eq.id} variants={stagger.item} className="hover:bg-[#FAF9FF] transition-colors">
-                      <td className="px-6 py-4 text-xs font-bold text-[#1E293B] hover:underline cursor-pointer" onClick={() => navigate(`/equipment/view/${eq.id}`)}>
-                        {eq.id}
+                       <td className="px-6 py-4 text-xs font-bold text-[#243744] hover:underline cursor-pointer" onClick={() => navigate(`/equipment/view/${eq.id}`)}>
+                        {eq.equipmentCode || eq.id}
                       </td>
                       <td className="px-6 py-4">
                         <span className="font-bold text-xs text-slate-900 block">{eq.name}</span>
                         <span className="text-[10px] text-slate-400 font-semibold block mt-0.5">Model: {eq.model || "N/A"} • S/N: {eq.serialNo || "N/A"}</span>
                       </td>
                       <td className="px-6 py-4 text-xs font-semibold text-[#475569]">{eq.category}</td>
-                      <td className="px-6 py-4 text-xs font-semibold text-[#475569]">{eq.laboratory}</td>
+                      <td className="px-6 py-4 text-xs font-semibold text-[#475569]">{eq.location || eq.laboratory || "—"}</td>
                       <td className="px-6 py-4">{getStatusBadge(eq.status)}</td>
                       <td className="px-6 py-4">{getCalibrationBadge(eq.calibrationStatus)}</td>
                       <td className="px-6 py-4 text-xs font-semibold text-[#475569]">
-                        {new Date(eq.nextDue).toLocaleDateString("en-IN", { day: '2-digit', month: 'short', year: 'numeric' })}
+                        {eq.nextDue ? new Date(eq.nextDue).toLocaleDateString("en-IN", { day: '2-digit', month: 'short', year: 'numeric' }) : "—"}
                       </td>
                       <td className="px-6 py-4 text-right">
                         <button

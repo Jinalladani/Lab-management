@@ -81,3 +81,30 @@ export const deleteEquipmentDocument = async (docId) => {
   const response = await api.delete(`/equipment/documents/delete/${docId}`);
   return response.data;
 };
+
+// 4. Equipment-Test Mapping APIs
+export const getEquipmentMappings = async () => {
+  const response = await api.get("/equipment/mappings");
+  return response.data;
+};
+
+export const getMappingsByTest = async (scopeTestId) => {
+  const response = await api.get(`/equipment/mappings/by-test/${scopeTestId}`);
+  return response.data;
+};
+
+export const createEquipmentMapping = async (data) => {
+  const response = await api.post("/equipment/mappings/create", data);
+  return response.data;
+};
+
+export const deleteEquipmentMapping = async (mappingId) => {
+  const response = await api.delete(`/equipment/mappings/delete/${mappingId}`);
+  return response.data;
+};
+
+export const getOptionsForMapping = async () => {
+  const response = await api.get("/equipment/options-for-mapping");
+  return response.data;
+};
+

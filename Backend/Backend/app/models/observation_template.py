@@ -13,7 +13,7 @@ class ObservationTemplate(db.Model):
     material_id = db.Column(db.BigInteger, db.ForeignKey("observation_template_materials.material_id"), nullable=True)
     test_id = db.Column(db.BigInteger, db.ForeignKey("observation_template_tests.test_id"), nullable=True)
     standard_id = db.Column(db.BigInteger, db.ForeignKey("observation_template_standards.standard_id"), nullable=True)
-    scope_test_id = db.Column(db.BigInteger, nullable=True)
+    scope_test_ids = db.Column(db.JSON, nullable=True, default=list)
     version = db.Column(db.String(50), nullable=False, default="1.0.0")
     status = db.Column(db.String(50), nullable=False, default="Draft")
     created_by = db.Column(db.String(255), nullable=True)
@@ -39,7 +39,7 @@ class ObservationTemplate(db.Model):
             'material_id': self.material_id,
             'test_id': self.test_id,
             'standard_id': self.standard_id,
-            'scope_test_id': self.scope_test_id,
+            'scope_test_ids': self.scope_test_ids or [],
             'version': self.version,
             'status': self.status,
             'created_by': self.created_by,
