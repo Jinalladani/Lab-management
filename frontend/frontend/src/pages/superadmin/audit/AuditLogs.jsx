@@ -68,7 +68,7 @@ const AuditLogs = () => {
   const columns = [
     { key: "event", label: "Event", sortable: true, render: (event) => (
       <div className="flex items-center gap-3">
-        <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#F4F5F7] text-[#23395B]">
+        <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#F4F5F7] text-[#243744]">
           <event.icon size={18} />
         </span>
         <div>

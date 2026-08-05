@@ -1,6 +1,6 @@
 import secrets
 import string
-from flask import Blueprint, jsonify, g, request
+from flask import Blueprint, jsonify, g, request, current_app
 from app.utils.auth_decorator import token_required
 from flask_bcrypt import generate_password_hash
 from sqlalchemy import text
@@ -71,6 +71,8 @@ def get_lab_users():
         }), 200
 
     except Exception as e:
+        db.session.rollback()
+        print(f"Error fetching users: {str(e)}")
         return jsonify({
             "success": False,
             "message": "Failed to fetch users",
@@ -81,7 +83,7 @@ def get_lab_users():
 @users_bp.route("/create", methods=["POST"])
 @token_required
 def create_user():
-    """Create a new user using direct SQL with auto-generated password"""
+    """Create a new user using direct SQL with custom or auto-generated password"""
     try:
         # Get lab_id from JWT payload
         lab_id = g.jwt_payload.get("lab_id")
@@ -92,9 +94,9 @@ def create_user():
                 "message": "Lab ID not found in token"
             }), 400
 
-        data = request.get_json()
+        data = request.get_json() or {}
         
-        # Validation - removed password requirements
+        # Validation
         required_fields = ['first_name', 'last_name', 'email', 'role_id']
         for field in required_fields:
             if not data.get(field):
@@ -113,31 +115,35 @@ def create_user():
             "email": data['email']
         }).fetchone()
         
-        if email_result.count > 0:
+        if email_result and email_result.count > 0:
             return jsonify({
                 "success": False,
                 "message": "Email already exists in this lab"
             }), 400
 
-        # Verify role exists and belongs to same lab
+        # Verify role exists globally
         role_check_query = text("""
             SELECT COUNT(*) as count FROM roles 
-            WHERE role_id = :role_id AND lab_id = :lab_id
+            WHERE role_id = :role_id
         """)
         role_result = db.session.execute(role_check_query, {
-            "role_id": data['role_id'], 
-            "lab_id": lab_id
+            "role_id": data['role_id']
         }).fetchone()
         
-        if role_result.count == 0:
+        if not role_result or role_result.count == 0:
             return jsonify({
                 "success": False,
                 "message": "Invalid role"
             }), 400
 
-        # Auto-generate secure password
-        generated_password = generate_secure_password()
-        password_hash = generate_password_hash(generated_password).decode('utf-8')
+        # Check if custom password provided or auto-generate
+        custom_password = str(data.get('password', '')).strip()
+        if custom_password:
+            final_password = custom_password
+        else:
+            final_password = generate_secure_password()
+
+        password_hash = generate_password_hash(final_password).decode('utf-8')
 
         # Create new user using SQL
         create_user_query = text("""
@@ -167,21 +173,23 @@ def create_user():
 
         db.session.commit()
 
-        # Log user creation (without exposing password)
+        # Log user creation
         current_app.logger.info(f"User created successfully: {data['email']}")
 
         return jsonify({
             "success": True,
-            "message": "User created successfully. Password has been sent to the user's email.",
+            "message": "User created successfully.",
             "data": {
                 "user_id": result.user_id,
                 "email": result.email,
-                "full_name": f"{data['first_name']} {data['last_name']}"
+                "full_name": f"{data['first_name']} {data['last_name']}",
+                "password": final_password
             }
         }), 201
 
     except Exception as e:
         db.session.rollback()
+        print("Create User Error:", str(e))
         return jsonify({
             "success": False,
             "message": "Failed to create user",

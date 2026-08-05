@@ -178,8 +178,8 @@ const SamplesList = () => {
           <button
             onClick={() => setActiveTab("receipts")}
             className={`flex items-center gap-2 pb-3 px-2 text-sm font-bold border-b-2 transition-all ${activeTab === "receipts"
-                ? "border-[#243744] text-[#243744]"
-                : "border-transparent text-gray-400 hover:text-gray-600"
+              ? "border-[#243744] text-[#243744]"
+              : "border-transparent text-gray-400 hover:text-gray-600"
               }`}
           >
             <PackageCheck className="w-4 h-4" />
@@ -189,8 +189,8 @@ const SamplesList = () => {
           <button
             onClick={() => setActiveTab("testing_samples")}
             className={`flex items-center gap-2 pb-3 px-2 text-sm font-bold border-b-2 transition-all ${activeTab === "testing_samples"
-                ? "border-[#243744] text-[#243744]"
-                : "border-transparent text-gray-400 hover:text-gray-600"
+              ? "border-[#243744] text-[#243744]"
+              : "border-transparent text-gray-400 hover:text-gray-600"
               }`}
           >
             <TestTube className="w-4 h-4" />

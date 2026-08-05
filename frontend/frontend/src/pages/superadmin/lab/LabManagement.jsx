@@ -226,7 +226,7 @@ const LabManagement = () => {
               style={{ boxShadow: "var(--shadow-sm)" }}
             >
               <div className="flex items-center justify-between gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#F4F5F7] text-[#23395B]">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#F4F5F7] text-[#243744]">
                   <UserRound size={20} />
                 </div>
                 <Badge variant={statusVariant(lab.status)}>{lab.status || "inactive"}</Badge>

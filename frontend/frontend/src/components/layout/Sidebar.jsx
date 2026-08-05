@@ -247,7 +247,7 @@ const Sidebar = ({ isOpen, isCollapsed, onClose, onToggleCollapse }) => {
       <motion.aside
         layout
         className={[
-          "fixed inset-y-0 left-0 z-50 flex h-screen flex-col overflow-hidden border-r border-[#1B2F4A] bg-[#23395B] text-white transition-[width,transform] duration-[250ms] ease-in-out md:translate-x-0",
+          "fixed inset-y-0 left-0 z-50 flex h-screen flex-col overflow-hidden border-r border-[#1C2B36] bg-[#243744] text-white transition-[width,transform] duration-[250ms] ease-in-out md:translate-x-0",
           isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0",
           isCollapsed ? "md:w-[4.75rem] w-[17rem]" : "md:w-[17rem] w-[17rem]",
         ].join(" ")}

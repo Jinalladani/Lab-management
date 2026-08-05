@@ -324,7 +324,7 @@ const RolesManagement = () => {
             <div className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-slate-100 p-6 space-y-5">
               <div className="flex items-center justify-between border-b pb-3">
                 <div className="flex items-center gap-2">
-                  <Shield className="text-[#23395B]" size={20} />
+                  <Shield className="text-[#243744]" size={20} />
                   <h3 className="text-lg font-bold text-[#1E293B]">
                     {editingRole ? "Edit Role" : "Add New Role"}
                   </h3>
@@ -356,7 +356,7 @@ const RolesManagement = () => {
                     placeholder="e.g. Quality Auditor"
                     value={formData.role_name}
                     onChange={(e) => setFormData({ ...formData, role_name: e.target.value })}
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#23395B]/20 focus:border-[#23395B]"
+                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#243744]/20 focus:border-[#243744]"
                   />
                 </div>
 
@@ -369,7 +369,7 @@ const RolesManagement = () => {
                     placeholder="Brief description of permissions and scope..."
                     value={formData.description}
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#23395B]/20 focus:border-[#23395B]"
+                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#243744]/20 focus:border-[#243744]"
                   />
                 </div>
 

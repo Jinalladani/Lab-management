@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 
 const toneClasses = {
-  primary: "text-[#23395B] bg-[#F4F5F7]",
+  primary: "text-[#243744] bg-[#F4F5F7]",
   success: "text-[#2E7D32] bg-[#F0F7F1]",
   warning: "text-[#C58B00] bg-[#FFF8E7]",
   danger: "text-[#B3261E] bg-[#FFF1F0]",

@@ -50,9 +50,9 @@ const DataTable = ({
                       {getColLabel(column)}
                       {isSortable && (
                         sortDir === "asc" ? (
-                          <ArrowDown size={14} className="text-[#23395B] stroke-[2.5]" title="Ascending (A to Z)" />
+                          <ArrowDown size={14} className="text-[#243744] stroke-[2.5]" title="Ascending (A to Z)" />
                         ) : sortDir === "desc" ? (
-                          <ArrowUp size={14} className="text-[#23395B] stroke-[2.5]" title="Descending (Z to A)" />
+                          <ArrowUp size={14} className="text-[#243744] stroke-[2.5]" title="Descending (Z to A)" />
                         ) : (
                           <ChevronsUpDown size={14} className="text-[#94A3B8]" />
                         )

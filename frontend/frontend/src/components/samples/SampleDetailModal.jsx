@@ -85,7 +85,7 @@ export const SampleDetailModal = ({ sampleId, isOpen, onClose, onAssignClick }) 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden border border-gray-100 flex flex-col max-h-[92vh] animate-in fade-in duration-200">
-        
+
         {/* Header */}
         <div className="px-6 py-4 bg-[#243744] text-white flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -115,11 +115,11 @@ export const SampleDetailModal = ({ sampleId, isOpen, onClose, onAssignClick }) 
           </div>
         ) : (
           <div className="p-6 overflow-y-auto flex-1 space-y-6 bg-slate-50/50">
-            
+
             {/* Identification Grid */}
             <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm space-y-3">
               <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Sample Identification & Metadata</h3>
-              
+
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
                 <div>
                   <span className="text-gray-400 block font-medium">Location</span>
@@ -269,10 +269,9 @@ export const SampleDetailModal = ({ sampleId, isOpen, onClose, onAssignClick }) 
                             </td>
                             <td className="p-3">
                               {t.assignment_status ? (
-                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium ${
-                                  t.assignment_status.includes("Completed") ? "bg-emerald-100 text-emerald-800" :
-                                  t.assignment_status.includes("Progress") ? "bg-blue-100 text-blue-800" : "bg-purple-100 text-purple-800"
-                                }`}>
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium ${t.assignment_status.includes("Completed") ? "bg-emerald-100 text-emerald-800" :
+                                    t.assignment_status.includes("Progress") ? "bg-blue-100 text-blue-800" : "bg-purple-100 text-purple-800"
+                                  }`}>
                                   {t.assignment_status}
                                 </span>
                               ) : (

@@ -92,7 +92,7 @@ const CreatableSelect = ({ label, required, value, options, onSelect, onCreate, 
                   setCreating(false);
                 }
               }}
-              className="block w-full rounded-lg px-3 py-2 text-left text-sm font-semibold text-[#23395B] hover:bg-[#F4F5F7]"
+              className="block w-full rounded-lg px-3 py-2 text-left text-sm font-semibold text-[#243744] hover:bg-[#F4F5F7]"
             >
               {creating ? "Creating..." : `+ Create New "${query.trim()}"`}
             </button>

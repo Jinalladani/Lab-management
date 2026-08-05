@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   ArrowLeft, User, Shield, ToggleLeft, Mail, Phone, Info,
+  Lock, Eye, EyeOff, Sparkles, Copy, Check, CheckCircle2, Key
 } from "lucide-react";
 import { rolesAPI } from "../../api/roles";
 import { usersAPI } from "../../api/users";
@@ -20,12 +21,23 @@ const AddUser = () => {
   const [roles, setRoles] = useState([]);
   const [errors, setErrors] = useState({});
 
+  // Password Options Mode: "auto" vs "manual"
+  const [passwordMode, setPasswordMode] = useState("auto");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  // Credentials display after creation
+  const [createdCredentials, setCreatedCredentials] = useState(null);
+  const [copied, setCopied] = useState(false);
+
   const [formData, setFormData] = useState({
     first_name: "",
     last_name: "",
     email: "",
     phone: "",
     role_id: "",
+    password: "",
+    confirmPassword: "",
     is_active: true,
   });
 
@@ -57,6 +69,19 @@ const AddUser = () => {
     if (!formData.email.trim()) newErrors.email = "Email is required";
     else if (!/\S+@\S+\.\S+/.test(formData.email)) newErrors.email = "Email is invalid";
     if (!formData.role_id) newErrors.role_id = "Role is required";
+
+    if (passwordMode === "manual") {
+      if (!formData.password) {
+        newErrors.password = "Password is required";
+      } else if (formData.password.length < 6) {
+        newErrors.password = "Password must be at least 6 characters";
+      }
+
+      if (formData.password !== formData.confirmPassword) {
+        newErrors.confirmPassword = "Passwords do not match";
+      }
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -65,6 +90,8 @@ const AddUser = () => {
     e.preventDefault();
     setErrorMessage("");
     setSuccessMessage("");
+    setCreatedCredentials(null);
+
     if (!validateForm()) return;
 
     try {
@@ -76,13 +103,30 @@ const AddUser = () => {
         phone: formData.phone || null,
         role_id: formData.role_id,
         is_active: formData.is_active,
+        ...(passwordMode === "manual" ? { password: formData.password } : {})
       };
 
       const response = await usersAPI.createUser(userData);
       if (response.success) {
+        const assignedPassword = response.data?.password || formData.password || "Auto-Generated";
         setSuccessMessage("User created successfully!");
-        setFormData({ first_name: "", last_name: "", email: "", phone: "", role_id: "", is_active: true });
-        setTimeout(() => navigate("/users"), 2000);
+        setCreatedCredentials({
+          email: formData.email,
+          password: assignedPassword
+        });
+
+        setFormData({
+          first_name: "",
+          last_name: "",
+          email: "",
+          phone: "",
+          role_id: "",
+          password: "",
+          confirmPassword: "",
+          is_active: true
+        });
+
+        setTimeout(() => navigate("/users"), 4000);
       } else {
         setErrorMessage(response.message || "Failed to create user");
       }
@@ -96,33 +140,60 @@ const AddUser = () => {
   const roleOptions = roles.map((r) => ({ value: r.role_id, label: r.role_name }));
 
   return (
-    <MainLayout headerTitle="Add User" headerSubtitle="Create a new user account">
+    <MainLayout headerTitle="Create User" headerSubtitle="Create a new user account">
       <div className="mx-auto w-full max-w-[1800px] px-4 py-5 sm:px-5 lg:px-6">
-        <PageHeader
-          title="Create User"
-          subtitle="Set up a new team member account"
-          icon="userPlus"
-          backButton={
-            <Button variant="ghost" size="sm" icon={ArrowLeft} onClick={() => navigate("/users")}>
-              Back to Users
-            </Button>
-          }
-        />
+        <Button variant="ghost" size="sm" icon={ArrowLeft} onClick={() => navigate("/users")}>
+          Back
+        </Button>
 
-        {/* Messages */}
-        {successMessage && (
+        {/* Credentials Copy Alert Banner when User Created */}
+        {createdCredentials && (
           <motion.div
-            className="mb-5 flex items-center gap-3 rounded-xl border border-[#BBF7D0] bg-[#F0FDF4] px-4 py-3"
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="mb-6 rounded-2xl border border-emerald-300 bg-gradient-to-r from-emerald-50 to-emerald-100/50 p-5 shadow-sm space-y-3"
           >
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#16A34A]/10 text-[#16A34A]">
-              <Info size={16} />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-emerald-950 font-extrabold text-sm">
+                <CheckCircle2 size={18} className="text-emerald-600" />
+                <span>User Created & Password Ready!</span>
+              </div>
+              <span className="text-[11px] font-extrabold text-emerald-800 bg-emerald-200/80 px-2.5 py-0.5 rounded-full">
+                Active Account
+              </span>
             </div>
-            <p className="text-sm font-medium text-[#16A34A]">{successMessage}</p>
+
+            <div className="rounded-xl border border-emerald-200 bg-white p-4 space-y-2.5 text-xs shadow-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                <span className="font-bold text-slate-500">Email Address:</span>
+                <span className="font-bold text-[#243744]">{createdCredentials.email}</span>
+              </div>
+
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-slate-100">
+                <span className="font-bold text-slate-500">Assigned Password:</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-black text-[#243744] tracking-wider font-mono bg-slate-100 px-3 py-1 rounded-lg border border-slate-200 text-sm">
+                    {createdCredentials.password}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(`Email: ${createdCredentials.email}\nPassword: ${createdCredentials.password}`);
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 2500);
+                    }}
+                    className="inline-flex items-center gap-1.5 text-xs font-bold text-white bg-[#243744] hover:bg-[#1A2733] px-3 py-1.5 rounded-lg transition-colors shadow-xs"
+                  >
+                    {copied ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
+                    <span>{copied ? "Copied Credentials!" : "Copy Login Info"}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
           </motion.div>
         )}
 
+        {/* Error Messages */}
         {errorMessage && (
           <motion.div
             className="mb-5 flex items-center gap-3 rounded-xl border border-[#FECACA] bg-[#FEF2F2] px-4 py-3"
@@ -197,7 +268,7 @@ const AddUser = () => {
             {/* Right Column */}
             <div className="space-y-5">
               <SectionCard
-                title="Account Information"
+                title="Account Role"
                 description="Role assignment and access level"
                 icon={Shield}
                 className="!overflow-visible"
@@ -213,20 +284,100 @@ const AddUser = () => {
                   loading={rolesLoading}
                   required
                 />
+              </SectionCard>
 
-                <div className="mt-4 rounded-xl border border-[#D1E2FF] bg-[#F3F7FF] p-4">
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#243744]/10 text-[#243744]">
-                      <Info size={16} />
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-semibold text-[#1C2D37]">Password Auto-Generated</h4>
-                      <p className="mt-1 text-xs text-[#57687A] leading-relaxed">
-                        A secure password will be automatically generated and sent to the user's email address.
-                      </p>
+              {/* Password Option Toggle Card */}
+              <SectionCard
+                title="Password Configuration"
+                description="Choose auto-generation or type a custom password"
+                icon={Key}
+              >
+                {/* Mode Selector Tabs */}
+                <div className="flex rounded-xl bg-slate-100 p-1 mb-4 border border-slate-200/80">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPasswordMode("auto");
+                      setFormData((prev) => ({ ...prev, password: "", confirmPassword: "" }));
+                      setErrors((prev) => ({ ...prev, password: "", confirmPassword: "" }));
+                    }}
+                    className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold transition-all ${passwordMode === "auto" ? "bg-white text-[#243744] shadow-xs" : "text-slate-500 hover:text-slate-800"
+                      }`}
+                  >
+                    <Sparkles size={14} className={passwordMode === "auto" ? "text-amber-500" : ""} />
+                    <span>Auto-Generate</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setPasswordMode("manual")}
+                    className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold transition-all ${passwordMode === "manual" ? "bg-white text-[#243744] shadow-xs" : "text-slate-500 hover:text-slate-800"
+                      }`}
+                  >
+                    <Lock size={14} className={passwordMode === "manual" ? "text-[#243744]" : ""} />
+                    <span>Custom Password</span>
+                  </button>
+                </div>
+
+                {passwordMode === "auto" ? (
+                  <div className="rounded-xl border border-[#D1E2FF] bg-[#F3F7FF] p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#243744]/10 text-[#243744]">
+                        <Info size={16} />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-semibold text-[#1C2D37]">Auto-Generated Mode</h4>
+                        <p className="mt-1 text-xs text-[#57687A] leading-relaxed">
+                          A 12-character random secure password will be generated automatically and displayed for you to copy.
+                        </p>
+                      </div>
                     </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="space-y-4 pt-1">
+                    <div className="relative">
+                      <Input
+                        label="Password"
+                        name="password"
+                        type={showPassword ? "text" : "password"}
+                        value={formData.password}
+                        onChange={handleChange}
+                        placeholder="Enter custom password"
+                        error={errors.password}
+                        required
+                        icon={Lock}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-[38px] text-slate-400 hover:text-slate-600"
+                      >
+                        {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+
+                    <div className="relative">
+                      <Input
+                        label="Confirm Password"
+                        name="confirmPassword"
+                        type={showConfirmPassword ? "text" : "password"}
+                        value={formData.confirmPassword}
+                        onChange={handleChange}
+                        placeholder="Re-enter custom password"
+                        error={errors.confirmPassword}
+                        required
+                        icon={Lock}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                        className="absolute right-3 top-[38px] text-slate-400 hover:text-slate-600"
+                      >
+                        {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </SectionCard>
 
               <SectionCard
