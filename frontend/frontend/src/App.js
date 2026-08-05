@@ -150,7 +150,7 @@ function App() {
       <Route
         path="/projects"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredPermission="project.view">
             <ProjectsList />
           </ProtectedRoute>
         }
@@ -158,7 +158,7 @@ function App() {
       <Route
         path="/projects/add"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredPermission="project.manage">
             <AddProject />
           </ProtectedRoute>
         }
@@ -166,7 +166,7 @@ function App() {
       <Route
         path="/projects/view/:id"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredPermission="project.view">
             <ProjectView />
           </ProtectedRoute>
         }
@@ -174,7 +174,7 @@ function App() {
       <Route
         path="/projects/preview/:id"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredPermission="project.view">
             <ProjectPreview />
           </ProtectedRoute>
         }
@@ -182,7 +182,7 @@ function App() {
       <Route
         path="/projects/edit/:id"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredPermission="project.manage">
             <EditProject />
           </ProtectedRoute>
         }
@@ -192,48 +192,23 @@ function App() {
       <Route
         path="/samples"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredPermission="sample.view">
             <SamplesList />
           </ProtectedRoute>
         }
       />
-      {/*
-      <Route
-        path="/samples/add"
-        element={
-          <ProtectedRoute>
-            <AddSample />
-          </ProtectedRoute>
-        }
-      /> */}
       <Route
         path="/samples/entry"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredPermission="sample.receive">
             <SampleEntry />
           </ProtectedRoute>
         }
       />
-      {/* <Route
-        path="/samples/view/:id"
-        element={
-          <ProtectedRoute>
-            <SampleView />
-          </ProtectedRoute>
-        }
-      /> */}
-      {/* <Route
-        path="/samples/edit/:id"
-        element={
-          <ProtectedRoute>
-            <EditSample />
-          </ProtectedRoute>
-        }
-      /> */}
       <Route
         path="/samples/master"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredPermission="sample.view">
             <SampleMasterList />
           </ProtectedRoute>
         }
@@ -242,7 +217,7 @@ function App() {
       <Route
         path="/test-assignments"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredPermission="test.assign">
             <TestAssignmentsList />
           </ProtectedRoute>
         }
@@ -251,7 +226,7 @@ function App() {
       <Route
         path="/labClients"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredPermission="client.view">
             <LabClientsList />
           </ProtectedRoute>
         }
@@ -286,7 +261,7 @@ function App() {
       <Route
         path="/scope"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredPermission="scope.view">
             <ScopeList />
           </ProtectedRoute>
         }
@@ -295,7 +270,7 @@ function App() {
       <Route
         path="/scope/view/:id"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredPermission="scope.view">
             <ScopeView />
           </ProtectedRoute>
         }
@@ -304,7 +279,7 @@ function App() {
       <Route
         path="/scope/add"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredPermission="scope.manage">
             <AddScope />
           </ProtectedRoute>
         }
@@ -313,7 +288,7 @@ function App() {
       <Route
         path="/scope/multiple"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredPermission="scope.manage">
             <AddMultipleScope />
           </ProtectedRoute>
         }
@@ -342,7 +317,7 @@ function App() {
       <Route
         path="/users"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredPermission="user.manage">
             <UsersList />
           </ProtectedRoute>
         }
@@ -351,7 +326,7 @@ function App() {
       <Route
         path="/users/add"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredPermission="user.manage">
             <AddUser />
           </ProtectedRoute>
         }
@@ -360,7 +335,7 @@ function App() {
       <Route
         path="/users/:userId"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredPermission="user.manage">
             <ViewUser />
           </ProtectedRoute>
         }
@@ -369,7 +344,7 @@ function App() {
       <Route
         path="/users/:userId/edit"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredPermission="user.manage">
             <EditUser />
           </ProtectedRoute>
         }
@@ -484,7 +459,7 @@ function App() {
       <Route
         path="/observation-entry"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredPermission="observation.view">
             <ObservationEntry />
           </ProtectedRoute>
         }
@@ -507,7 +482,7 @@ function App() {
       <Route
         path="/equipment/dashboard"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredPermission="equipment.view">
             <EquipmentDashboard />
           </ProtectedRoute>
         }
@@ -515,7 +490,7 @@ function App() {
       <Route
         path="/equipment/list"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredPermission="equipment.view">
             <EquipmentList />
           </ProtectedRoute>
         }
@@ -523,7 +498,7 @@ function App() {
       <Route
         path="/equipment/add"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredPermission="equipment.manage">
             <AddEquipment />
           </ProtectedRoute>
         }
@@ -531,7 +506,7 @@ function App() {
       <Route
         path="/equipment/view/:id"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredPermission="equipment.view">
             <EquipmentDetails />
           </ProtectedRoute>
         }
@@ -539,7 +514,7 @@ function App() {
       <Route
         path="/equipment/edit/:id"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredPermission="equipment.manage">
             <EditEquipment />
           </ProtectedRoute>
         }
@@ -547,7 +522,7 @@ function App() {
       <Route
         path="/equipment/locations"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredPermission="equipment.view">
             <EquipmentLocations />
           </ProtectedRoute>
         }
@@ -555,7 +530,7 @@ function App() {
       <Route
         path="/equipment/mapping"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredPermission="equipment.manage">
             <EquipmentTestMapping />
           </ProtectedRoute>
         }
@@ -567,7 +542,7 @@ function App() {
       <Route
         path="/calibration/dashboard"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredPermission="calibration.view">
             <CalibrationDashboard />
           </ProtectedRoute>
         }
@@ -575,7 +550,7 @@ function App() {
       <Route
         path="/calibration/calendar"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredPermission="calibration.view">
             <CalibrationCalendar />
           </ProtectedRoute>
         }
@@ -583,7 +558,7 @@ function App() {
       <Route
         path="/calibration/register"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredPermission="calibration.view">
             <CalibrationRegister />
           </ProtectedRoute>
         }
@@ -591,7 +566,7 @@ function App() {
       <Route
         path="/calibration/due-overdue"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredPermission="calibration.view">
             <CalibrationDueOverdue />
           </ProtectedRoute>
         }
@@ -599,7 +574,7 @@ function App() {
       <Route
         path="/maintenance/history"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredPermission="equipment.view">
             <MaintenanceHistory />
           </ProtectedRoute>
         }
@@ -613,7 +588,7 @@ function App() {
       <Route
         path="/reports"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredPermission="report.view">
             <ReportList />
           </ProtectedRoute>
         }
@@ -621,7 +596,7 @@ function App() {
       <Route
         path="/reports/add/:sampleEntryId?"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredPermission="report.generate">
             <ReportAdd />
           </ProtectedRoute>
         }
@@ -629,7 +604,7 @@ function App() {
       <Route
         path="/reports/view/:reportId"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredPermission="report.view">
             <ReportView />
           </ProtectedRoute>
         }

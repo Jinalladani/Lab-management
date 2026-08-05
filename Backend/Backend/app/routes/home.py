@@ -32,17 +32,34 @@ def db_check():
         }), 500
 
 
+def normalize_role(role_name):
+    if not role_name:
+        return "engineer"
+    r = str(role_name).strip().lower().replace("_", "").replace("-", "").replace(" ", "")
+    if r in ["superadmin", "super_admin"]:
+        return "superadmin"
+    elif r in ["admin", "labadmin", "labmanager", "clientadmin"]:
+        return "admin"
+    elif r in ["qm", "qualitymanager"]:
+        return "qm"
+    elif r in ["engineer", "eng", "testengineer"]:
+        return "engineer"
+    elif r in ["helper", "labor", "labour", "worker"]:
+        return "helper"
+    return "engineer"
+
+
 @home_bp.route("/dashboard", methods=["GET"])
 @token_required
 def dashboard():
     try:
-        user_role = str(g.jwt_payload.get("role") or "").lower()
+        user_role = normalize_role(g.jwt_payload.get("role") or g.jwt_payload.get("role_name"))
         lab_id = g.jwt_payload.get("lab_id")
 
-        if user_role in ["superadmin", "super_admin"]:
+        if user_role == "superadmin":
             return get_superadmin_dashboard()
         else:
-            return get_current_dashboard(lab_id)
+            return get_current_dashboard(lab_id, user_role)
     except Exception as e:
         db.session.rollback()
         print(f"Dashboard API Error: {str(e)}")
@@ -216,8 +233,8 @@ def get_superadmin_dashboard():
         }), 500
 
 
-def get_current_dashboard(raw_lab_id):
-    """Current dashboard for admin, QM, Eng - fetching all actual database metrics safely"""
+def get_current_dashboard(raw_lab_id, user_role="admin"):
+    """Current dashboard for admin, QM, Eng, Helper - fetching all actual database metrics safely"""
     try:
         db.session.rollback()  # Ensure clean transaction state at start
 
@@ -396,6 +413,7 @@ def get_current_dashboard(raw_lab_id):
         return jsonify({
             "success": True,
             "data": {
+                "role": user_role,
                 "stats": {
                     "totalLabs": total_labs,
                     "totalUsers": total_users,

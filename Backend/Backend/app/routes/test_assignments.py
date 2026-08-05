@@ -3,6 +3,7 @@ from flask import Blueprint, request, jsonify, g
 from sqlalchemy import text
 from app.extensions import db
 from app.utils.auth_decorator import token_required
+from app.utils.permissions import permission_required
 import logging
 import uuid
 
@@ -65,6 +66,7 @@ def _recalculate_receipt_allocation(receipt_id):
 
 @test_assignments_bp.route("/eligible-receipts", methods=["GET"])
 @token_required
+@permission_required("test.assign")
 def get_eligible_receipts():
     """Get sample receipt lots for a project."""
     try:

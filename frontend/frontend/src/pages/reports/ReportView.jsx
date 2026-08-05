@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { 
   ArrowLeft, Edit, Download, Printer, CheckCircle, XCircle, 
@@ -8,6 +8,8 @@ import { getReportById, approveReport, rejectReport, createRevision } from "../.
 import { MainLayout } from "../../components/layout";
 import { Button } from "../../components/ui";
 import { motion, AnimatePresence } from "framer-motion";
+
+import { hasPermission } from "../../utils/permissions";
 
 const ReportView = () => {
   const { reportId } = useParams();
@@ -20,6 +22,16 @@ const ReportView = () => {
   const [changeLog, setChangeLog] = useState("");
   const [showRevisionDialog, setShowRevisionDialog] = useState(false);
   const [activeSheetTab, setActiveSheetTab] = useState("");
+
+  const canApproveReport = useMemo(() => {
+    try {
+      const rawUser = localStorage.getItem("user");
+      const user = rawUser ? JSON.parse(rawUser) : null;
+      return hasPermission(user?.role, "report.approve");
+    } catch {
+      return false;
+    }
+  }, []);
 
   const fetchReport = async () => {
     try {
@@ -174,7 +186,7 @@ const ReportView = () => {
               Print / Save PDF
             </Button>
 
-            {report.status !== "Locked" && report.status !== "Approved" && (
+            {canApproveReport && report.status !== "Locked" && report.status !== "Approved" && (
               <div className="flex items-center gap-2">
                 <Button 
                   onClick={() => { setApprovalAction("approve"); setShowApprovalDialog(true); }}

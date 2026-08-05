@@ -8,6 +8,7 @@ import {
   CreditCard, ShieldCheck, Settings, ClipboardList,
   FileStack, Database,
 } from "lucide-react";
+import { hasPermission } from "../../utils/permissions";
 
 const iconComponents = {
   layoutDashboard: LayoutDashboard, user: User, users: Users,
@@ -183,49 +184,58 @@ const Sidebar = ({ isOpen, isCollapsed, onClose, onToggleCollapse }) => {
     }
   }, []);
 
-  const navItems =
-    user?.role === "superadmin" || user?.role === "super_admin"
+  const userRole = user?.role || "Engineer";
+  const isSuperAdmin = userRole === "superadmin" || userRole === "super_admin";
+
+  const navItems = useMemo(() => {
+    const raw = isSuperAdmin
       ? [
-        { path: "/dashboard", label: "Dashboard", icon: "layoutDashboard" },
-        { path: "/labs/manage", label: "Lab Management", icon: "building" },
-        { path: "/superadmin/roles", label: "Role Management", icon: "shield" },
-        { path: "/superadmin/subscriptions", label: "Subscriptions", icon: "creditCard" },
-        // { path: "/superadmin/observation-builder", label: "Observation Form Builder", icon: "table" },
+        { path: "/dashboard", label: "Dashboard", icon: "layoutDashboard", perm: "*" },
+        { path: "/labs/manage", label: "Lab Management", icon: "building", perm: "*" },
+        { path: "/superadmin/roles", label: "Role Management", icon: "shield", perm: "*" },
+        { path: "/superadmin/subscriptions", label: "Subscriptions", icon: "creditCard", perm: "*" },
       ]
       : [
-        { path: "/dashboard", label: "Dashboard", icon: "layoutDashboard" },
-        { path: "/users", label: "Users", icon: "user" },
-        { path: "/labClients", label: "Clients", icon: "users" },
-        { path: "/projects", label: "Projects", icon: "briefcase" },
-        { path: "/samples", label: "Samples", icon: "microscope" },
-        { path: "/test-assignments", label: "Test Assign", icon: "checkSquare" },
-        { path: "/observation-entry", label: "Observation", icon: "table" },
-        { path: "/reports", label: "Test Reports", icon: "fileText" },
-        { path: "/scope", label: "Testing Scope", icon: "flask" },
+        { path: "/dashboard", label: "Dashboard", icon: "layoutDashboard", perm: "dashboard.view" },
+        { path: "/users", label: "Users", icon: "user", perm: "user.manage" },
+        { path: "/labClients", label: "Clients", icon: "users", perm: "client.view" },
+        { path: "/projects", label: "Projects", icon: "briefcase", perm: "project.view" },
+        { path: "/samples", label: "Samples", icon: "microscope", perm: "sample.view" },
+        { path: "/test-assignments", label: "Test Assign", icon: "checkSquare", perm: "test.assign" },
+        { path: "/observation-entry", label: "Observation", icon: "table", perm: "observation.view" },
+        { path: "/reports", label: "Test Reports", icon: "fileText", perm: "report.view" },
+        { path: "/scope", label: "Testing Scope", icon: "flask", perm: "scope.view" },
       ];
+    return raw.filter((item) => hasPermission(userRole, item.perm));
+  }, [userRole, isSuperAdmin]);
 
-  const moduleItems = [
-    {
-      label: "Equipment",
-      icon: "wrench",
-      path: "/equipment/list",
-      activeWhen: (pathname) => pathname.startsWith("/equipment"),
-      subItems: [
-        { path: "/equipment/locations", label: "Locations" },
-      ]
-    },
-    {
-      label: "Calibration",
-      icon: "calendar",
-      path: "/calibration/register",
-      activeWhen: (pathname) => pathname.startsWith("/calibration"),
-      subItems: [
-        { path: "/calibration/calendar", label: "Calendar" },
-        { path: "/calibration/due-overdue", label: "Due / Overdue" },
-      ]
-    },
-    { path: "/maintenance/history", label: "Maintenance", icon: "wrench", activeWhen: (pathname) => pathname.startsWith("/maintenance") },
-  ];
+  const moduleItems = useMemo(() => {
+    const raw = [
+      {
+        label: "Equipment",
+        icon: "wrench",
+        path: "/equipment/list",
+        perm: "equipment.view",
+        activeWhen: (pathname) => pathname.startsWith("/equipment"),
+        subItems: [
+          { path: "/equipment/locations", label: "Locations" },
+        ]
+      },
+      {
+        label: "Calibration",
+        icon: "calendar",
+        path: "/calibration/register",
+        perm: "calibration.view",
+        activeWhen: (pathname) => pathname.startsWith("/calibration"),
+        subItems: [
+          { path: "/calibration/calendar", label: "Calendar" },
+          { path: "/calibration/due-overdue", label: "Due / Overdue" },
+        ]
+      },
+      { path: "/maintenance/history", label: "Maintenance", icon: "wrench", perm: "equipment.view", activeWhen: (pathname) => pathname.startsWith("/maintenance") },
+    ];
+    return raw.filter((item) => hasPermission(userRole, item.perm));
+  }, [userRole]);
 
   return (
     <>

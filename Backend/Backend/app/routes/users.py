@@ -2,6 +2,7 @@ import secrets
 import string
 from flask import Blueprint, jsonify, g, request, current_app
 from app.utils.auth_decorator import token_required
+from app.utils.permissions import permission_required
 from flask_bcrypt import generate_password_hash
 from sqlalchemy import text
 from app.extensions import db
@@ -18,6 +19,7 @@ def generate_secure_password(length=12):
 
 @users_bp.route("/list", methods=["GET"])
 @token_required
+@permission_required("user.manage")
 def get_lab_users():
     """Get all users for the current lab using direct SQL"""
     try:
@@ -82,6 +84,7 @@ def get_lab_users():
 
 @users_bp.route("/create", methods=["POST"])
 @token_required
+@permission_required("user.manage")
 def create_user():
     """Create a new user using direct SQL with custom or auto-generated password"""
     try:

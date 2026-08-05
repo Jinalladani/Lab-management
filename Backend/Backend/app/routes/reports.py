@@ -4,6 +4,7 @@ from sqlalchemy import text
 import hashlib
 from app.extensions import db
 from app.utils.auth_decorator import token_required
+from app.utils.permissions import permission_required
 import logging
 import json
 
@@ -463,6 +464,7 @@ def generate_report():
 # 4. Approve / Verify Report
 @reports_bp.route("/<int:report_id>/approve", methods=["POST"])
 @token_required
+@permission_required("report.approve")
 def approve_report(report_id):
     try:
         lab_id = g.jwt_payload.get("lab_id")
@@ -539,6 +541,7 @@ def approve_report(report_id):
 # 5. Reject / Return Report to Previous Stage
 @reports_bp.route("/<int:report_id>/reject", methods=["POST"])
 @token_required
+@permission_required("report.approve")
 def reject_report(report_id):
     try:
         lab_id = g.jwt_payload.get("lab_id")
