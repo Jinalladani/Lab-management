@@ -9,7 +9,7 @@ import { toast, Toaster } from "sonner";
 import { MainLayout } from "../../components/layout";
 import { Button } from "../../components/ui";
 import { getObservationTemplates, getObservationTemplate } from "../../api/observationBuilder";
-import { createSampleObservation, updateSampleObservation, getSampleObservation } from "../../api/sampleObservations";
+import { createSampleObservation, updateSampleObservation, getSampleObservation, getSampleObservations } from "../../api/sampleObservations";
 import { getScopeTests } from "../../api/scope";
 import { getSampleEntries } from "../../api/sampleEntries";
 
@@ -112,6 +112,49 @@ export default function ObservationSheetFiller({ observationId, templateId, onBa
             }
           } catch (e) {
             console.warn("Could not load existing observation record:", e);
+          }
+        } else if (sampleIdParam || scopeTestIdParam) {
+          // If activeObsId was not passed in URL, check if an observation was already saved for this sample & test
+          try {
+            const queryParams = {};
+            if (sampleIdParam) queryParams.sample_id = sampleIdParam;
+            if (scopeTestIdParam) queryParams.scope_test_id = scopeTestIdParam;
+
+            const existingObsRes = await getSampleObservations(queryParams);
+            const existingRecords = existingObsRes.data?.data || [];
+            if (existingRecords.length > 0) {
+              const obsObj = existingRecords[0];
+              setSavedObservationId(obsObj.observation_id);
+
+              let sData = obsObj.sheets_data;
+              if (typeof sData === "string") {
+                try {
+                  sData = JSON.parse(sData);
+                } catch (e) {
+                  sData = {};
+                }
+              }
+
+              if (sData) {
+                if (sData.sections && Array.isArray(sData.sections) && sData.sections.length > 0) {
+                  loadedObsSections = sData.sections;
+                }
+                if (sData.fieldValues) {
+                  setFieldValues(sData.fieldValues);
+                }
+                if (sData.sampleMeta) {
+                  setSampleMeta(sData.sampleMeta);
+                }
+              }
+              if (obsObj.operator_name) {
+                setSampleMeta((prev) => ({ ...prev, technicianName: obsObj.operator_name }));
+              }
+              if (obsObj.template_id && !templateId) {
+                templateId = obsObj.template_id;
+              }
+            }
+          } catch (e) {
+            console.warn("Could not check existing observation by sample & test:", e);
           }
         }
 
@@ -369,6 +412,7 @@ export default function ObservationSheetFiller({ observationId, templateId, onBa
       const payload = {
         project_id: projectIdParam || 1,
         sample_id: sampleIdParam || 101,
+        testing_sample_id: sampleIdParam || null,
         scope_test_id: scopeTestIdParam || template?.scope_test_id || 1,
         template_id: templateId || template?.template_id || template?.id || null,
         test_name: template?.name || template?.title || "Lab Test Observation Sheet",
@@ -406,15 +450,7 @@ export default function ObservationSheetFiller({ observationId, templateId, onBa
 
     } catch (err) {
       console.error("Save observation reading failed:", err);
-      if (statusOverride === "Draft") {
-        toast.success("Observation Draft saved successfully!");
-      } else {
-        toast.success("Observation Sheet submitted successfully!");
-      }
-
-      setTimeout(() => {
-        handleGoBack();
-      }, 400);
+      toast.error(err.response?.data?.message || "Failed to save observation record to database");
     } finally {
       setSubmitting(false);
     }
@@ -585,9 +621,8 @@ export default function ObservationSheetFiller({ observationId, templateId, onBa
                 <button
                   type="button"
                   onClick={() => handleToggleCellFormat("bold")}
-                  className={`p-2 rounded-xl border text-xs font-bold transition-colors ${
-                    activeCellStyle?.bold ? "bg-[#243744] text-white border-[#243744]" : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-                  }`}
+                  className={`p-2 rounded-xl border text-xs font-bold transition-colors ${activeCellStyle?.bold ? "bg-[#243744] text-white border-[#243744]" : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                    }`}
                   title="Bold Text"
                 >
                   <Bold size={14} />
@@ -595,9 +630,8 @@ export default function ObservationSheetFiller({ observationId, templateId, onBa
                 <button
                   type="button"
                   onClick={() => handleToggleCellFormat("italic")}
-                  className={`p-2 rounded-xl border text-xs transition-colors ${
-                    activeCellStyle?.italic ? "bg-[#243744] text-white border-[#243744]" : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-                  }`}
+                  className={`p-2 rounded-xl border text-xs transition-colors ${activeCellStyle?.italic ? "bg-[#243744] text-white border-[#243744]" : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                    }`}
                   title="Italic Text"
                 >
                   <Italic size={14} />
@@ -605,9 +639,8 @@ export default function ObservationSheetFiller({ observationId, templateId, onBa
                 <button
                   type="button"
                   onClick={() => handleToggleCellFormat("center")}
-                  className={`p-2 rounded-xl border text-xs transition-colors ${
-                    activeCellStyle?.center ? "bg-[#243744] text-white border-[#243744]" : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-                  }`}
+                  className={`p-2 rounded-xl border text-xs transition-colors ${activeCellStyle?.center ? "bg-[#243744] text-white border-[#243744]" : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                    }`}
                   title="Align Center"
                 >
                   <AlignCenter size={14} />
@@ -658,8 +691,8 @@ export default function ObservationSheetFiller({ observationId, templateId, onBa
             </div>
           ) : (
             sections.map((sec) => (
-              <div key={sec.id} className="rounded-2xl border border-[#E2E8F0] bg-white p-6 shadow-sm space-y-4">
-                
+              <div key={sec.id} className="rounded-2xl border border-[#E2E8F0] bg-white p-4 sm:p-6 shadow-sm space-y-4 overflow-x-auto">
+
                 {/* Header Title Bar (ONLY show if sec.title exists and is not empty) */}
                 {sec.title && sec.title.trim() && (
                   <div className="flex items-center justify-between border-b border-[#F1F5F9] pb-3 mb-2">
@@ -677,14 +710,8 @@ export default function ObservationSheetFiller({ observationId, templateId, onBa
                     const colCount = f.colCount || 6;
                     const rowCount = f.rowCount || 6;
 
-                    // Table exact width class based on designed tableWidth property (fits cleanly without scrollbar)
-                    const tableWidthClass =
-                      f.tableWidth === "33%" ? "w-full max-w-md" :
-                      f.tableWidth === "50%" ? "w-full max-w-xl" :
-                      f.tableWidth === "75%" ? "w-full max-w-3xl" : "w-full";
-
                     return (
-                      <div key={f.id} className={isTable || isHeadingOrNoteOrDivider ? "col-span-full" : ""}>
+                      <div key={f.id} className={isTable || isHeadingOrNoteOrDivider ? "col-span-full overflow-x-auto" : ""}>
                         {!isHeadingOrNoteOrDivider && f.label && f.label !== "Observation Table Grid" && (
                           <label className="block text-xs font-bold text-[#1E293B] mb-2">
                             {f.label} {f.required && <span className="text-rose-500">*</span>}
@@ -692,22 +719,21 @@ export default function ObservationSheetFiller({ observationId, templateId, onBa
                         )}
 
                         {isTable ? (
-                          <div className={`rounded-xl border border-[#E2E8F0] bg-white shadow-2xs ${tableWidthClass}`}>
-                            <div className="overflow-x-auto">
-                              <table className="w-full text-left text-xs border-collapse font-sans">
-                                <thead>
-                                  <tr className="bg-[#243744] text-white font-bold text-xs font-mono select-none">
-                                    <th className="p-2 border-r border-[#34495E] w-10 text-center bg-[#1A2733]">#</th>
-                                    {Array.from({ length: colCount }).map((_, cIdx) => {
-                                      const colLetter = String.fromCharCode(65 + cIdx);
-                                      return (
-                                        <th key={cIdx} className="p-2 border-r border-[#34495E] text-center font-mono">
-                                          {colLetter}
-                                        </th>
-                                      );
-                                    })}
-                                  </tr>
-                                </thead>
+                          <div className="w-full rounded-xl border border-[#E2E8F0] bg-white shadow-2xs overflow-x-auto touch-pan-x">
+                            <table className="w-full text-left text-xs border-collapse font-sans min-w-[650px]">
+                              <thead>
+                                <tr className="bg-[#243744] text-white font-bold text-xs font-mono select-none">
+                                  <th className="p-2 border-r border-[#34495E] w-10 text-center bg-[#1A2733]">#</th>
+                                  {Array.from({ length: colCount }).map((_, cIdx) => {
+                                    const colLetter = String.fromCharCode(65 + cIdx);
+                                    return (
+                                      <th key={cIdx} className="p-2 border-r border-[#34495E] text-center font-mono min-w-[90px]">
+                                        {colLetter}
+                                      </th>
+                                    );
+                                  })}
+                                </tr>
+                              </thead>
                                 <tbody className="divide-y divide-[#E2E8F0]">
                                   {Array.from({ length: rowCount }).map((_, rIdx) => {
                                     const rowNum = rIdx + 1;
@@ -739,9 +765,8 @@ export default function ObservationSheetFiller({ observationId, templateId, onBa
                                               key={cIdx}
                                               colSpan={mergeInfo?.colSpan || 1}
                                               rowSpan={mergeInfo?.rowSpan || 1}
-                                              className={`p-1 border-r border-[#E2E8F0] ${
-                                                isSuperAdminFixed ? "bg-[#F1F5F9]/80" : "focus-within:bg-blue-50/50"
-                                              }`}
+                                              className={`p-1 border-r border-[#E2E8F0] ${isSuperAdminFixed ? "bg-[#F1F5F9]/80" : "focus-within:bg-blue-50/50"
+                                                }`}
                                             >
                                               <textarea
                                                 rows={typeof evalVal === "string" && String(evalVal).includes("\n") ? 2 : 1}
@@ -753,13 +778,12 @@ export default function ObservationSheetFiller({ observationId, templateId, onBa
                                                   setActiveCellRef(cellRef);
                                                 }}
                                                 placeholder=""
-                                                className={`w-full bg-transparent px-2 py-1.5 text-xs focus:outline-none resize-none overflow-hidden whitespace-pre-wrap leading-relaxed ${
-                                                  isSuperAdminFixed
-                                                    ? "font-bold text-[#243744] cursor-not-allowed select-none"
-                                                    : isBold
+                                                className={`w-full bg-transparent px-2 py-1.5 text-xs focus:outline-none resize-none overflow-hidden whitespace-pre-wrap leading-relaxed ${isSuperAdminFixed
+                                                  ? "font-bold text-[#243744] cursor-not-allowed select-none"
+                                                  : isBold
                                                     ? "font-extrabold text-[#0F172A]"
                                                     : "text-[#1E293B]"
-                                                } ${isItalic ? "italic" : ""} ${isCenter ? "text-center" : ""}`}
+                                                  } ${isItalic ? "italic" : ""} ${isCenter ? "text-center" : ""}`}
                                                 title={isSuperAdminFixed ? "Fixed template label set by SuperAdmin (Read-only)" : ""}
                                               />
                                             </td>
@@ -771,7 +795,6 @@ export default function ObservationSheetFiller({ observationId, templateId, onBa
                                 </tbody>
                               </table>
                             </div>
-                          </div>
                         ) : (
                           renderDynamicField(f)
                         )}
@@ -789,26 +812,44 @@ export default function ObservationSheetFiller({ observationId, templateId, onBa
               <UserCheck size={18} className="text-emerald-600" />
               <span>Ensure all required test readings are filled before submitting for QA/QC approval.</span>
             </div>
-            
+
             <div className="flex items-center gap-3 w-full sm:w-auto shrink-0">
               <button
                 type="button"
                 disabled={submitting}
                 onClick={() => handleSubmitReadings("Draft")}
-                className="w-full sm:w-auto rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-xs font-bold text-slate-700 shadow-2xs hover:bg-slate-50 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+                className="w-full sm:w-auto rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-xs font-bold text-slate-700 shadow-2xs hover:bg-slate-50 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5 cursor-pointer"
               >
-                <Save size={15} />
-                <span>Save Draft</span>
+                {submitting ? (
+                  <>
+                    <Loader2 size={15} className="animate-spin text-slate-500" />
+                    <span>Saving...</span>
+                  </>
+                ) : (
+                  <>
+                    <Save size={15} />
+                    <span>Save Draft</span>
+                  </>
+                )}
               </button>
 
               <button
                 type="button"
                 disabled={submitting}
                 onClick={() => handleSubmitReadings("Submitted")}
-                className="w-full sm:w-auto rounded-xl bg-[#243744] px-6 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-[#1A2733] transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+                className="w-full sm:w-auto rounded-xl bg-[#243744] px-6 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-[#1A2733] transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5 cursor-pointer"
               >
-                <CheckCircle2 size={15} />
-                <span>{submitting ? "Submitting..." : "Submit Test Readings"}</span>
+                {submitting ? (
+                  <>
+                    <Loader2 size={15} className="animate-spin" />
+                    <span>Submitting...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 size={15} />
+                    <span>Submit Test Readings</span>
+                  </>
+                )}
               </button>
             </div>
           </div>

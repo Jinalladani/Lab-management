@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   UserPlus, Download, RefreshCw, Eye, Pencil,
-  MoreHorizontal, Users, Search
+  MoreHorizontal, Users, Search, RotateCcw
 } from "lucide-react";
 import { usersAPI } from "../../api/users";
 import { rolesAPI } from "../../api/roles";
@@ -41,7 +41,7 @@ const PortalActionMenu = ({ anchorEl, open, onClose, actions }) => {
       const gap = 6;
 
       const spaceBelow = viewportHeight - rect.bottom;
-      
+
       let top;
       if (spaceBelow >= estimatedHeight + gap) {
         top = rect.bottom + window.scrollY + gap;
@@ -119,7 +119,7 @@ const UsersList = () => {
   const [errorMessage, setErrorMessage] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  
+
   const [activeDropdownId, setActiveDropdownId] = useState(null);
   const [activeAnchorEl, setActiveAnchorEl] = useState(null);
 
@@ -175,18 +175,16 @@ const UsersList = () => {
   };
 
   const getStatusBadge = (isActive) => (
-    <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full ${
-      isActive ? "bg-[#ECFDF5] text-[#10B981]" : "bg-[#FEF2F2] text-[#EF4444]"
-    }`}>
+    <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full ${isActive ? "bg-[#ECFDF5] text-[#10B981]" : "bg-[#FEF2F2] text-[#EF4444]"
+      }`}>
       <span className={`w-1.5 h-1.5 rounded-full ${isActive ? "bg-[#10B981]" : "bg-[#EF4444]"}`} />
       {isActive ? "Active" : "Inactive"}
     </span>
   );
 
   const getVerifiedBadge = (isVerified) => (
-    <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full ${
-      isVerified ? "bg-[#ECFDF5] text-[#10B981]" : "bg-[#F1F5F9] text-[#64748B]"
-    }`}>
+    <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full ${isVerified ? "bg-[#ECFDF5] text-[#10B981]" : "bg-[#F1F5F9] text-[#64748B]"
+      }`}>
       <span className={`w-1.5 h-1.5 rounded-full ${isVerified ? "bg-[#10B981]" : "bg-[#64748B]"}`} />
       {isVerified ? "Yes" : "No"}
     </span>
@@ -213,7 +211,7 @@ const UsersList = () => {
 
         {/* Toolbar */}
         <div className="mb-6 flex flex-col xl:flex-row gap-4 items-stretch xl:items-center justify-between">
-          
+
           {/* Search Box */}
           <div className="flex-1 max-w-xl flex h-10 items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3 focus-within:border-[#243744] focus-within:ring-2 focus-within:ring-[#243744]/10 transition-all">
             <Search size={16} className="text-[#94A3B8] shrink-0" />
@@ -271,6 +269,35 @@ const UsersList = () => {
           </div>
         </div>
 
+        {/* Active Filter Chips / Pills */}
+        {(search || statusFilter !== "all") && (
+          <div className="mb-4 flex flex-wrap items-center gap-2 text-xs">
+            <span className="font-semibold text-slate-500 mr-1">Active Filters:</span>
+            {search && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-100 border border-slate-200 rounded-full font-medium text-slate-700">
+                Search: "{search}"
+                <button type="button" onClick={() => setSearch("")} className="hover:text-red-500 font-bold ml-0.5 cursor-pointer">×</button>
+              </span>
+            )}
+            {statusFilter !== "all" && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 border border-blue-200 rounded-full font-medium text-blue-700">
+                Status: {statusFilter}
+                <button type="button" onClick={() => setStatusFilter("all")} className="hover:text-red-500 font-bold ml-0.5 cursor-pointer">×</button>
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                setSearch("");
+                setStatusFilter("all");
+              }}
+              className="text-xs font-bold text-slate-500 hover:text-[#243744] underline ml-2 cursor-pointer"
+            >
+              Clear All
+            </button>
+          </div>
+        )}
+
         {errorMessage && (
           <div className="mb-4 rounded-xl border border-[#FECACA] bg-[#FEF2F2] px-4 py-3 text-sm font-semibold text-[#DC2626] shrink-0 animate-pulse">
             {errorMessage}
@@ -285,7 +312,18 @@ const UsersList = () => {
             <div className="p-16 text-center">
               <Users size={40} className="mx-auto text-[#94A3B8] mb-3" />
               <h3 className="text-base font-bold text-[#1E293B]">No users found</h3>
-              <p className="text-xs text-[#64748B] mt-1">Try adjusting your search query or status filter.</p>
+              <p className="text-xs text-[#64748B] mt-1 mb-4">Try adjusting your search query or status filter.</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setSearch("");
+                  setStatusFilter("all");
+                }}
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#243744] hover:bg-[#1A2733] text-white text-xs font-bold rounded-xl transition-colors shadow-sm cursor-pointer"
+              >
+                <RotateCcw size={14} />
+                Reset Search & Filters
+              </button>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -309,10 +347,10 @@ const UsersList = () => {
                       <motion.tr key={user.user_id} variants={stagger.item} className="hover:bg-[#FAF9FF] transition-colors">
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
-                            <Avatar 
-                              name={fullNameVal} 
-                              size="sm" 
-                              bgClass={getAvatarBg()} 
+                            <Avatar
+                              name={fullNameVal}
+                              size="sm"
+                              bgClass={getAvatarBg()}
                             />
                             <span className="font-bold text-xs text-[#1E293B]">
                               {fullNameVal}
@@ -336,7 +374,7 @@ const UsersList = () => {
                           >
                             <MoreHorizontal size={16} />
                           </button>
-                          
+
                           <PortalActionMenu
                             anchorEl={activeDropdownId === user.user_id ? activeAnchorEl : null}
                             open={activeDropdownId === user.user_id}
@@ -362,19 +400,19 @@ const UsersList = () => {
               <span className="text-[#1E293B]">{allUsers.length}</span> users
             </p>
             <div className="flex items-center gap-1.5">
-              <button 
-                className="h-8 w-8 rounded-lg border border-[#E2E8F0] flex items-center justify-center text-xs font-semibold text-[#64748B] hover:bg-[#F8FAFC] transition-colors disabled:opacity-40" 
+              <button
+                className="h-8 w-8 rounded-lg border border-[#E2E8F0] flex items-center justify-center text-xs font-semibold text-[#64748B] hover:bg-[#F8FAFC] transition-colors disabled:opacity-40"
                 disabled
               >
                 &lt;
               </button>
-              <button 
+              <button
                 className="h-8 w-8 rounded-lg bg-[#243744] text-white flex items-center justify-center text-xs font-bold shadow-sm"
               >
                 1
               </button>
-              <button 
-                className="h-8 w-8 rounded-lg border border-[#E2E8F0] flex items-center justify-center text-xs font-semibold text-[#64748B] hover:bg-[#F8FAFC] transition-colors disabled:opacity-40" 
+              <button
+                className="h-8 w-8 rounded-lg border border-[#E2E8F0] flex items-center justify-center text-xs font-semibold text-[#64748B] hover:bg-[#F8FAFC] transition-colors disabled:opacity-40"
                 disabled
               >
                 &gt;
@@ -407,10 +445,10 @@ const UsersList = () => {
                     <div className="p-4">
                       <div className="flex justify-between items-start mb-3 gap-3">
                         <div className="flex items-center gap-3 min-w-0">
-                          <Avatar 
-                            name={fullNameVal} 
-                            size="md" 
-                            bgClass={getAvatarBg()} 
+                          <Avatar
+                            name={fullNameVal}
+                            size="md"
+                            bgClass={getAvatarBg()}
                           />
                           <div className="min-w-0">
                             <h3 className="font-bold text-sm text-[#1E293B] truncate">

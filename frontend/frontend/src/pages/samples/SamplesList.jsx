@@ -1,20 +1,19 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { createPortal } from "react-dom";
 import { useNavigate, useLocation } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import {
-  Plus, Eye, Pencil, Trash2, Search, RefreshCw, Download, MoreHorizontal, FlaskConical, FileText
+  Plus, Eye, Pencil, Trash2, Search, RefreshCw, FlaskConical, Sparkles, Layers, CheckCircle2, Clock, PackageCheck, TestTube, MoreVertical, RotateCcw
 } from "lucide-react";
 import { MainLayout } from "../../components/layout";
 import AddSampleDrawer from "../../components/projects/AddSampleDrawer";
-import {
-  getSampleEntries,
-  getSampleEntryById,
-  deleteSampleEntry,
-} from "../../api/sampleEntries";
+import { SampleDetailModal } from "../../components/samples/SampleDetailModal";
+import { BulkTestAssignmentModal } from "../../components/testAssignments/BulkTestAssignmentModal";
+import { getSampleEntries, getAllTestingSamples, deleteSampleEntry } from "../../api/sampleMaster";
 import { getProjects } from "../../api/projects";
-import { generateReport } from "../../api/reports";
 import { TableSkeleton } from "../../components/ui/Skeleton";
+import { PortalActionMenu } from "../../components/ui/PortalActionMenu";
+import { TablePagination } from "../../components/ui/TablePagination";
+import { useDebounce } from "../../hooks/useDebounce";
 import { toast, Toaster } from "sonner";
 
 const stagger = {
@@ -25,154 +24,81 @@ const stagger = {
   },
 };
 
-const getSampleId = (sample) => sample.sample_entry_id || sample.sample_id;
-
-const getStatusBadge = (status) => {
-  const norm = String(status || "").toLowerCase();
-  
-  const map = {
-    completed: { text: "Completed", bg: "bg-[#ECFDF5] text-[#10B981] border-[#D1FAE5]", dot: "bg-[#10B981]" },
-    approved: { text: "Approved", bg: "bg-[#ECFDF5] text-[#10B981] border-[#D1FAE5]", dot: "bg-[#10B981]" },
-    rejected: { text: "Rejected", bg: "bg-[#FEF2F2] text-[#EF4444] border-[#FEE2E2]", dot: "bg-[#EF4444]" },
-    assigned: { text: "Assigned", bg: "bg-[#EFF6FF] text-[#2563EB] border-[#DBEAFE]", dot: "bg-[#2563EB]" },
-    testing: { text: "Testing", bg: "bg-[#EFF6FF] text-[#2563EB] border-[#DBEAFE]", dot: "bg-[#2563EB]" },
-  };
-  
-  const config = map[norm] || { text: status || "Received", bg: "bg-[#F8FAFC] text-[#475569] border-[#E2E8F0]", dot: "bg-[#475569]" };
-
-  return (
-    <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full border ${config.bg}`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${config.dot}`} />
-      {config.text}
-    </span>
-  );
-};
-
-// Reusable Portal Action Menu to prevent parent clip and handle screen boundary directions
-const PortalActionMenu = ({ anchorEl, open, onClose, actions }) => {
-  const [style, setStyle] = useState(null);
-
-  useEffect(() => {
-    if (!open || !anchorEl) return;
-
-    const updatePosition = () => {
-      const rect = anchorEl.getBoundingClientRect();
-      const viewportWidth = window.innerWidth;
-      const viewportHeight = window.innerHeight;
-
-      const estimatedHeight = actions.length * 36 + 12;
-      const dropdownWidth = 150;
-      const gap = 6;
-
-      const spaceBelow = viewportHeight - rect.bottom;
-      
-      let top;
-      if (spaceBelow >= estimatedHeight + gap) {
-        top = rect.bottom + window.scrollY + gap;
-      } else {
-        top = rect.top + window.scrollY - estimatedHeight - gap;
-      }
-
-      let left = rect.right - dropdownWidth + window.scrollX;
-      if (left < 8) left = 8;
-      if (left + dropdownWidth > viewportWidth - 8) {
-        left = viewportWidth - dropdownWidth - 8;
-      }
-
-      setStyle({
-        position: "absolute",
-        top: `${top}px`,
-        left: `${left}px`,
-        width: `${dropdownWidth}px`,
-        zIndex: 9999,
-      });
-    };
-
-    updatePosition();
-    window.addEventListener("resize", updatePosition);
-    window.addEventListener("scroll", updatePosition, true);
-
-    const handleClickOutside = (event) => {
-      if (anchorEl && !anchorEl.contains(event.target) && !event.target.closest(".portal-action-menu")) {
-        onClose();
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-
-    return () => {
-      window.removeEventListener("resize", updatePosition);
-      window.removeEventListener("scroll", updatePosition, true);
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [open, anchorEl, onClose, actions]);
-
-  if (!open || !anchorEl || !style) return null;
-
-  return createPortal(
-    <div
-      style={style}
-      className="portal-action-menu bg-white rounded-xl border border-[#E2E8F0] shadow-lg py-1.5 text-left text-slate-800"
-    >
-      {actions.map((act, idx) => {
-        const Icon = act.icon;
-        return (
-          <button
-            key={idx}
-            onClick={() => {
-              onClose();
-              act.onClick();
-            }}
-            className={`w-full px-4 py-2 text-xs font-semibold flex items-center gap-2 hover:bg-[#FAF9FF] transition-colors ${
-              act.danger ? "text-red-600 hover:text-red-700 hover:bg-red-50" : "text-[#475569] hover:text-[#243744]"
-            }`}
-          >
-            {Icon && <Icon size={14} />}
-            {act.label}
-          </button>
-        );
-      })}
-    </div>,
-    document.body
-  );
+const getReceiptBadge = (status) => {
+  const norm = String(status || "").toUpperCase();
+  if (norm === "FULLY_ALLOCATED") {
+    return <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full border bg-emerald-50 text-emerald-700 border-emerald-200"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />Fully Allocated</span>;
+  }
+  if (norm === "PARTIALLY_ALLOCATED") {
+    return <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full border bg-blue-50 text-blue-700 border-blue-200"><span className="w-1.5 h-1.5 rounded-full bg-blue-500" />Partially Allocated</span>;
+  }
+  return <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full border bg-amber-50 text-amber-700 border-amber-200"><span className="w-1.5 h-1.5 rounded-full bg-amber-500" />Received</span>;
 };
 
 const SamplesList = () => {
-  const [samples, setSamples] = useState([]);
+  const [activeTab, setActiveTab] = useState("receipts"); // 'receipts' vs 'testing_samples'
+  const [receipts, setReceipts] = useState([]);
+  const [testingSamples, setTestingSamples] = useState([]);
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebounce(search, 300);
   const navigate = useNavigate();
   const location = useLocation();
+
   const [projectFilter, setProjectFilter] = useState(() => {
     const queryId = new URLSearchParams(window.location.search).get("project_id");
     return queryId || "all";
   });
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [drawerMode, setDrawerMode] = useState("add");
-  const [drawerSample, setDrawerSample] = useState(null);
 
+  // Modals State
+  const [addReceiptDrawerOpen, setAddReceiptDrawerOpen] = useState(false);
+  const [bulkAssignModalOpen, setBulkAssignModalOpen] = useState(false);
+  const [selectedReceiptForAssign, setSelectedReceiptForAssign] = useState(null);
+  const [sampleDetailId, setSampleDetailId] = useState(null);
   const [activeDropdownId, setActiveDropdownId] = useState(null);
   const [activeAnchorEl, setActiveAnchorEl] = useState(null);
+
+  const handleToggleDropdown = (id, event) => {
+    if (activeDropdownId === id) {
+      setActiveDropdownId(null);
+      setActiveAnchorEl(null);
+    } else {
+      setActiveDropdownId(id);
+      setActiveAnchorEl(event.currentTarget);
+    }
+  };
 
   const fetchProjects = async () => {
     try {
       const res = await getProjects();
       setProjects(res.data?.data || res.data?.projects || []);
     } catch (error) {
-      console.error("Failed to load projects:", error);
       toast.error("Failed to load projects");
     }
   };
 
-  const fetchSamples = useCallback(async () => {
+  const fetchReceipts = useCallback(async () => {
     try {
       setLoading(true);
       const params = projectFilter !== "all" ? { project_id: projectFilter } : {};
       const res = await getSampleEntries(params);
-      setSamples(res.data?.data || []);
+      setReceipts(res.data?.data || []);
     } catch (error) {
-      console.error("Failed to load samples:", error);
-      toast.error("Failed to load samples");
+      toast.error("Failed to load sample receipts");
+    } finally {
+      setLoading(false);
+    }
+  }, [projectFilter]);
+
+  const fetchTestingSamplesData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const params = projectFilter !== "all" ? { project_id: projectFilter } : {};
+      const res = await getAllTestingSamples(params);
+      setTestingSamples(res.data?.data || []);
+    } catch (error) {
+      toast.error("Failed to load physical testing samples");
     } finally {
       setLoading(false);
     }
@@ -183,113 +109,105 @@ const SamplesList = () => {
   }, []);
 
   useEffect(() => {
-    const queryId = new URLSearchParams(location.search).get("project_id");
-    setProjectFilter(queryId || "all");
-  }, [location.search]);
+    if (activeTab === "receipts") {
+      fetchReceipts();
+    } else {
+      fetchTestingSamplesData();
+    }
+  }, [activeTab, fetchReceipts, fetchTestingSamplesData]);
 
-  useEffect(() => {
-    fetchSamples();
-  }, [fetchSamples]);
-
-  const filteredSamples = useMemo(() => {
-    const needle = search.trim().toLowerCase();
-    if (!needle) return samples;
-
-    return samples.filter((sample) =>
-      [
-        sample.sample_no,
-        sample.project_no,
-        sample.project_code,
-        sample.project_name,
-        sample.client_name,
-        sample.material_name,
-        sample.status,
-      ]
+  const filteredReceipts = useMemo(() => {
+    const needle = debouncedSearch.trim().toLowerCase();
+    if (!needle) return receipts;
+    return receipts.filter((r) =>
+      [r.receipt_no, r.project_code, r.project_name, r.client_name, r.material_name, r.receipt_status]
         .filter(Boolean)
         .join(" ")
         .toLowerCase()
         .includes(needle)
     );
-  }, [samples, search]);
+  }, [receipts, debouncedSearch]);
 
-  const openDrawer = async (mode, sample = null) => {
-    setDrawerMode(mode);
-    setDrawerSample(null);
-    setDrawerOpen(true);
+  const filteredTestingSamples = useMemo(() => {
+    const needle = debouncedSearch.trim().toLowerCase();
+    if (!needle) return testingSamples;
+    return testingSamples.filter((s) =>
+      [s.sample_code, s.receipt_no, s.project_code, s.location_name, s.borelog_no, s.client_sample_reference]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(needle)
+    );
+  }, [testingSamples, debouncedSearch]);
 
-    if (mode === "add" || !sample) return;
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, debouncedSearch, projectFilter]);
+
+  const paginatedReceipts = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredReceipts.slice(start, start + pageSize);
+  }, [filteredReceipts, currentPage, pageSize]);
+
+  const paginatedTestingSamples = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredTestingSamples.slice(start, start + pageSize);
+  }, [filteredTestingSamples, currentPage, pageSize]);
+
+  const handleDeleteReceipt = async (receiptId) => {
+    if (!window.confirm("Are you sure you want to delete this sample receipt No.?")) return;
     try {
-      const res = await getSampleEntryById(getSampleId(sample));
-      setDrawerSample(res.data?.data || sample);
+      await deleteSampleEntry(receiptId);
+      toast.success("Receipt No. deleted");
+      fetchReceipts();
     } catch (error) {
-      console.error("Failed to load sample details:", error);
-      setDrawerSample(sample);
-      toast.error("Sample details API failed. Opening available sample data.");
-    }
-  };
-
-  const closeDrawer = () => {
-    setDrawerOpen(false);
-    setDrawerMode("add");
-    setDrawerSample(null);
-  };
-
-  const handleDelete = async (sample) => {
-    if (!window.confirm("Are you sure you want to delete this sample?")) return;
-
-    try {
-      await deleteSampleEntry(getSampleId(sample));
-      toast.success("Sample deleted successfully");
-      fetchSamples();
-    } catch (error) {
-      toast.error(error.response?.data?.message || "Failed to delete sample");
-    }
-  };
-
-  const handleGenerateReport = async (sample) => {
-    const sampleId = getSampleId(sample);
-    try {
-      toast.loading("Generating test report from observations...");
-      const res = await generateReport(sampleId);
-      toast.dismiss();
-      if (res.success && res.data) {
-        toast.success(res.message || "Report generated successfully!");
-        navigate(`/reports/view/${res.data.report_id}`);
-      } else {
-        toast.error(res.message || "Failed to generate report.");
-      }
-    } catch (err) {
-      toast.dismiss();
-      toast.error(err.response?.data?.message || err.message || "Failed to generate report.");
-    }
-  };
-
-  const handleToggleDropdown = (sampleId, event) => {
-    if (activeDropdownId === sampleId) {
-      setActiveDropdownId(null);
-      setActiveAnchorEl(null);
-    } else {
-      setActiveDropdownId(sampleId);
-      setActiveAnchorEl(event.currentTarget);
+      toast.error("Failed to delete receipt");
     }
   };
 
   return (
-    <MainLayout headerTitle="Samples" headerSubtitle="Full sample register list">
+    <MainLayout headerTitle="Sample Register" headerSubtitle="Material Lot Receipts & Physical Testing Samples">
       <Toaster position="top-right" richColors />
       <div className="mx-auto w-full max-w-[1800px] px-4 py-5 sm:px-5 lg:px-6">
 
+        {/* Tab Navigation */}
+        <div className="flex items-center gap-3 mb-6 border-b border-gray-200 overflow-x-auto whitespace-nowrap">
+          <button
+            onClick={() => setActiveTab("receipts")}
+            className={`flex items-center gap-2 pb-3 px-2 text-sm font-bold border-b-2 transition-all ${activeTab === "receipts"
+                ? "border-[#243744] text-[#243744]"
+                : "border-transparent text-gray-400 hover:text-gray-600"
+              }`}
+          >
+            <PackageCheck className="w-4 h-4" />
+            Sample Receipts / Material Lots ({receipts.length})
+          </button>
+
+          <button
+            onClick={() => setActiveTab("testing_samples")}
+            className={`flex items-center gap-2 pb-3 px-2 text-sm font-bold border-b-2 transition-all ${activeTab === "testing_samples"
+                ? "border-[#243744] text-[#243744]"
+                : "border-transparent text-gray-400 hover:text-gray-600"
+              }`}
+          >
+            <TestTube className="w-4 h-4" />
+            Physical Testing Samples ({testingSamples.length})
+          </button>
+        </div>
+
         {/* Toolbar */}
         <div className="mb-6 flex flex-col xl:flex-row gap-4 items-stretch xl:items-center justify-between">
-          
+
           {/* Search Box */}
-          <div className="flex-1 max-w-xl flex h-10 items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3 focus-within:border-[#243744] focus-within:ring-2 focus-within:ring-[#243744]/10 transition-all">
+          <div className="flex-1 max-w-xl flex h-10 items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3 focus-within:border-[#243744] focus-within:ring-2 focus-within:ring-[#243744]/10 transition-all shadow-sm">
             <Search size={16} className="text-[#94A3B8] shrink-0" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search sample, project, client or material..."
+              placeholder={activeTab === "receipts" ? "Search receipt no, material, project, client..." : "Search sample code, location, borelog..."}
               className="w-full bg-transparent text-sm text-[#0F172A] placeholder:text-[#94A3B8] outline-none"
             />
           </div>
@@ -299,207 +217,402 @@ const SamplesList = () => {
             <select
               value={projectFilter}
               onChange={(e) => setProjectFilter(e.target.value)}
-              className="h-10 px-3.5 py-2 text-xs font-semibold text-[#475569] border border-[#E2E8F0] bg-white rounded-xl outline-none focus:border-[#243744] focus:ring-2 focus:ring-[#243744]/10 transition-all shrink-0 max-w-[200px] appearance-none"
-              style={{
-                backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%238A97A4' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
-                backgroundPosition: "right 10px center",
-                backgroundRepeat: "no-repeat",
-                backgroundSize: "16px",
-                paddingRight: "30px"
-              }}
-              aria-label="Filter samples by project"
+              className="h-10 px-3.5 py-2 text-xs font-semibold text-[#475569] border border-[#E2E8F0] bg-white rounded-xl outline-none focus:border-[#243744] shadow-sm"
             >
               <option value="all">All Projects</option>
-              {projects.map((project) => (
-                <option key={project.project_id} value={project.project_id}>
-                  {project.project_code} - {project.project_name}
+              {projects.map((p) => (
+                <option key={p.project_id} value={p.project_id}>
+                  {p.project_code} - {p.project_name}
                 </option>
               ))}
             </select>
 
             <button
-              onClick={fetchSamples}
-              className="flex h-10 items-center justify-center gap-1.5 rounded-xl border border-[#E2E8F0] bg-white hover:bg-[#F8FAFC] px-4 text-xs font-bold text-[#475569] transition-colors"
+              onClick={activeTab === "receipts" ? fetchReceipts : fetchTestingSamplesData}
+              className="flex h-10 items-center justify-center gap-1.5 rounded-xl border border-[#E2E8F0] bg-white hover:bg-[#F8FAFC] px-4 text-xs font-bold text-[#475569] transition-colors shadow-sm"
             >
-              <RefreshCw size={14} className="text-[#8A97A4]" />
-              Refresh
+              <RefreshCw size={14} className="text-[#8A97A4]" /> Refresh
             </button>
+
+            {activeTab === "receipts" && (
+              <button
+                type="button"
+                onClick={() => setAddReceiptDrawerOpen(true)}
+                className="flex h-10 items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 px-4 text-xs font-bold text-white shadow-sm transition-colors"
+              >
+                <Plus size={15} /> Receive Material Lot
+              </button>
+            )}
 
             <button
               type="button"
-              onClick={() => openDrawer("add")}
-              className="flex h-10 items-center justify-center gap-1.5 rounded-xl bg-[#243744] hover:bg-[#1A2733] px-4 text-xs font-bold text-white shadow-sm transition-colors"
+              onClick={() => {
+                setSelectedReceiptForAssign(null);
+                setBulkAssignModalOpen(true);
+              }}
+              className="flex h-10 items-center justify-center gap-2 rounded-xl bg-[#243744] hover:bg-[#1A2733] px-4 text-xs font-bold text-white shadow-sm transition-colors"
             >
-              <Plus size={14} />
-              Add Sample
+              <Sparkles size={15} className="text-emerald-400" /> Assign Tests
             </button>
           </div>
         </div>
 
-        {/* Desktop Table View */}
-        <div className="hidden lg:block bg-white rounded-2xl border border-[#E2E8F0] shadow-sm overflow-hidden">
-          {loading ? (
-            <TableSkeleton rows={5} cols={8} />
-          ) : filteredSamples.length === 0 ? (
-            <div className="p-16 text-center">
-              <FlaskConical size={40} className="mx-auto text-[#94A3B8] mb-3" />
-              <h3 className="text-base font-bold text-[#1E293B]">No samples found</h3>
-              <p className="text-xs text-[#64748B] mt-1">Try adjusting your search query or project filter.</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-[#E2E8F0] bg-[#FAFBFD] text-[10px] font-bold text-[#64748B] uppercase tracking-wider">
-                    <th className="px-6 py-3.5">Sample No</th>
-                    <th className="px-6 py-3.5">Project</th>
-                    <th className="px-6 py-3.5">Client</th>
-                    <th className="px-6 py-3.5">Material</th>
-                    <th className="px-6 py-3.5 text-center">Qty</th>
-                    <th className="px-6 py-3.5">Received Date</th>
-                    <th className="px-6 py-3.5">Status</th>
-                    <th className="px-6 py-3.5 text-right w-[90px]">Actions</th>
-                  </tr>
-                </thead>
-                <motion.tbody variants={stagger.container} initial="hidden" animate="visible" className="divide-y divide-[#F1F5F9]">
-                  {filteredSamples.map((sample) => {
-                    const sampleId = getSampleId(sample);
-                    return (
-                      <motion.tr key={sampleId} variants={stagger.item} className="hover:bg-[#FAF9FF] transition-colors">
-                        <td className="px-6 py-4 text-xs font-bold text-[#1E293B]">{sample.sample_no || sampleId}</td>
-                        <td className="px-6 py-4 text-xs font-semibold text-[#475569]">{sample.project_no || sample.project_code || "—"}</td>
-                        <td className="px-6 py-4 text-xs font-semibold text-[#475569]">{sample.client_name || "—"}</td>
-                        <td className="px-6 py-4 text-xs font-semibold text-[#475569]">{sample.material_name || "—"}</td>
-                        <td className="px-6 py-4 text-center text-xs font-bold text-[#1E293B]">{sample.quantity || sample.nos || "—"}</td>
-                        <td className="px-6 py-4 text-xs font-semibold text-[#475569]">{sample.received_date || sample.sample_received_date || "—"}</td>
-                        <td className="px-6 py-4">{getStatusBadge(sample.status)}</td>
-                        <td className="px-6 py-4 text-right">
-                          <button
-                            onClick={(e) => handleToggleDropdown(sampleId, e)}
-                            className="p-1.5 hover:bg-[#F1F5F9] rounded-lg transition-colors text-[#8A97A4] hover:text-[#1A2733]"
-                          >
-                            <MoreHorizontal size={16} />
-                          </button>
+        {/* Active Filter Chips / Pills */}
+        {(search || projectFilter !== "all") && (
+          <div className="mb-4 flex flex-wrap items-center gap-2 text-xs">
+            <span className="font-semibold text-slate-500 mr-1">Active Filters:</span>
+            {search && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-100 border border-slate-200 rounded-full font-medium text-slate-700">
+                Search: "{search}"
+                <button type="button" onClick={() => setSearch("")} className="hover:text-red-500 font-bold ml-0.5 cursor-pointer">×</button>
+              </span>
+            )}
+            {projectFilter !== "all" && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 border border-blue-200 rounded-full font-medium text-blue-700">
+                Project: {projects.find((p) => String(p.project_id) === String(projectFilter))?.project_code || projectFilter}
+                <button type="button" onClick={() => setProjectFilter("all")} className="hover:text-red-500 font-bold ml-0.5 cursor-pointer">×</button>
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                setSearch("");
+                setProjectFilter("all");
+              }}
+              className="text-xs font-bold text-slate-500 hover:text-[#243744] underline ml-2 cursor-pointer"
+            >
+              Clear All
+            </button>
+          </div>
+        )}
 
-                          <PortalActionMenu
-                            anchorEl={activeDropdownId === sampleId ? activeAnchorEl : null}
-                            open={activeDropdownId === sampleId}
-                            onClose={() => { setActiveDropdownId(null); setActiveAnchorEl(null); }}
-                            actions={[
-                              { label: "View Details", icon: Eye, onClick: () => openDrawer("view", sample) },
-                              { label: "Edit Sample", icon: Pencil, onClick: () => openDrawer("edit", sample) },
-                              { label: "Generate Report", icon: FileText, onClick: () => handleGenerateReport(sample) },
-                              { label: "Delete Sample", icon: Trash2, danger: true, onClick: () => handleDelete(sample) }
-                            ]}
-                          />
-                        </td>
-                      </motion.tr>
-                    );
-                  })}
-                </motion.tbody>
-              </table>
-            </div>
-          )}
+        {/* TAB 1: RECEIPTS LOTS TABLE & CARDS */}
+        {activeTab === "receipts" && (
+          <div>
+            {/* Desktop Table View */}
+            <div className="hidden lg:block bg-white rounded-2xl border border-[#E2E8F0] shadow-sm overflow-hidden">
+              {loading ? (
+                <TableSkeleton rows={6} cols={8} />
+              ) : filteredReceipts.length === 0 ? (
+                <div className="p-16 text-center">
+                  <PackageCheck size={40} className="mx-auto text-[#94A3B8] mb-3" />
+                  <h3 className="text-base font-bold text-[#1E293B]">No sample receipts recorded</h3>
+                  <p className="text-xs text-[#64748B] mt-1 mb-4">Use "Receive Material Lot" to record incoming sample quantities.</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearch("");
+                      setProjectFilter("all");
+                    }}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#243744] hover:bg-[#1A2733] text-white text-xs font-bold rounded-xl transition-colors shadow-sm cursor-pointer"
+                  >
+                    <RotateCcw size={14} />
+                    Reset Search & Filters
+                  </button>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="border-b border-[#E2E8F0] bg-[#FAFBFD] font-bold text-[#64748B] uppercase tracking-wider">
+                        <th className="px-5 py-3.5 whitespace-nowrap">Receipt No</th>
+                        <th className="px-5 py-3.5 whitespace-nowrap">Project</th>
+                        <th className="px-5 py-3.5 whitespace-nowrap">Material</th>
+                        <th className="px-5 py-3.5 text-center whitespace-nowrap">Qty Received</th>
+                        <th className="px-5 py-3.5 text-center whitespace-nowrap">Allocated</th>
+                        <th className="px-5 py-3.5 text-center whitespace-nowrap">Remaining</th>
+                        <th className="px-5 py-3.5 whitespace-nowrap">Received Date</th>
+                        <th className="px-5 py-3.5 whitespace-nowrap">Status</th>
+                        <th className="px-5 py-3.5 text-right whitespace-nowrap w-[90px]">Actions</th>
+                      </tr>
+                    </thead>
+                    <motion.tbody variants={stagger.container} initial="hidden" animate="visible" className="divide-y divide-[#F1F5F9] bg-white">
+                      {paginatedReceipts.map((r) => (
+                        <motion.tr key={r.receipt_id} variants={stagger.item} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="px-5 py-4 font-bold font-mono text-[#243744] whitespace-nowrap">{r.receipt_no}</td>
+                          <td className="px-5 py-4 font-semibold text-gray-700 whitespace-nowrap">{r.project_code}</td>
+                          <td className="px-5 py-4 font-semibold text-gray-800 whitespace-nowrap">{r.material_name}</td>
+                          <td className="px-5 py-4 text-center font-bold text-gray-800 whitespace-nowrap">{r.quantity_received} {r.quantity_unit}</td>
+                          <td className="px-5 py-4 text-center font-bold text-blue-600 whitespace-nowrap">{r.quantity_allocated}</td>
+                          <td className="px-5 py-4 text-center font-bold text-emerald-600 whitespace-nowrap">{r.quantity_remaining}</td>
+                          <td className="px-5 py-4 font-medium text-gray-600 whitespace-nowrap">{r.received_date}</td>
+                          <td className="px-5 py-4 whitespace-nowrap">{getReceiptBadge(r.receipt_status)}</td>
+                          <td className="px-5 py-4 text-right whitespace-nowrap">
+                            <button
+                              onClick={(e) => handleToggleDropdown(r.receipt_id, e)}
+                              className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500 hover:text-slate-900 transition-colors"
+                            >
+                              <MoreVertical size={16} />
+                            </button>
 
-          {/* Pagination */}
-          <div className="flex items-center justify-between border-t border-[#E2E8F0] px-6 py-4 bg-white select-none">
-            <p className="text-xs font-semibold text-[#64748B]">
-              Showing <span className="text-[#1E293B]">{filteredSamples.length}</span> of{" "}
-              <span className="text-[#1E293B]">{samples.length}</span> samples
-            </p>
-            <div className="flex items-center gap-1.5">
-              <button className="h-8 w-8 rounded-lg border border-[#E2E8F0] flex items-center justify-center text-xs font-semibold text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-40" disabled>&lt;</button>
-              <button className="h-8 w-8 rounded-lg bg-[#243744] text-white flex items-center justify-center text-xs font-bold shadow-sm">1</button>
-              <button className="h-8 w-8 rounded-lg border border-[#E2E8F0] flex items-center justify-center text-xs font-semibold text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-40" disabled>&gt;</button>
+                            <PortalActionMenu
+                              anchorEl={activeDropdownId === r.receipt_id ? activeAnchorEl : null}
+                              open={activeDropdownId === r.receipt_id}
+                              onClose={() => { setActiveDropdownId(null); setActiveAnchorEl(null); }}
+                              actions={[
+                                {
+                                  label: "Assign Tests",
+                                  icon: Sparkles,
+                                  onClick: () => {
+                                    setSelectedReceiptForAssign(r);
+                                    setBulkAssignModalOpen(true);
+                                  }
+                                },
+                                {
+                                  label: "Delete Receipt",
+                                  icon: Trash2,
+                                  danger: true,
+                                  onClick: () => handleDeleteReceipt(r.receipt_id)
+                                }
+                              ]}
+                            />
+                          </td>
+                        </motion.tr>
+                      ))}
+                    </motion.tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Table Pagination */}
+              <TablePagination
+                totalItems={filteredReceipts.length}
+                pageSize={pageSize}
+                currentPage={currentPage}
+                onPageChange={setCurrentPage}
+                onPageSizeChange={setPageSize}
+                itemLabel="sample receipts"
+              />
+            </div>
+
+            {/* Mobile & Tablet Card View */}
+            <div className="lg:hidden">
+              {loading ? (
+                <div className="space-y-3">
+                  {[0, 1, 2].map((i) => <div key={i} className="h-40 bg-slate-100 rounded-2xl animate-pulse" />)}
+                </div>
+              ) : filteredReceipts.length === 0 ? (
+                <div className="p-8 text-center bg-white border border-slate-200 rounded-2xl shadow-sm">
+                  <PackageCheck size={32} className="mx-auto text-slate-400 mb-2" />
+                  <h3 className="text-sm font-bold text-slate-800">No sample receipts recorded</h3>
+                </div>
+              ) : (
+                <motion.div className="grid grid-cols-1 sm:grid-cols-2 gap-4" variants={stagger.container} initial="hidden" animate="visible">
+                  {filteredReceipts.map((r) => (
+                    <motion.div
+                      key={r.receipt_id}
+                      variants={stagger.item}
+                      className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-col justify-between space-y-3 relative hover:shadow-md transition-shadow"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <span className="text-[11px] font-bold font-mono text-[#243744] bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-lg">
+                            {r.receipt_no}
+                          </span>
+                          <h4 className="font-bold text-sm text-slate-900 mt-2 truncate">{r.material_name}</h4>
+                          <p className="text-xs text-slate-500 font-semibold">{r.project_code}</p>
+                        </div>
+                        <div>
+                          {getReceiptBadge(r.receipt_status)}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2 text-xs pt-2 border-t border-slate-100 text-center">
+                        <div>
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Qty Recv</p>
+                          <p className="font-bold text-slate-800">{r.quantity_received} {r.quantity_unit}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Allocated</p>
+                          <p className="font-bold text-blue-600">{r.quantity_allocated}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Remaining</p>
+                          <p className="font-bold text-emerald-600">{r.quantity_remaining}</p>
+                        </div>
+                      </div>
+
+                      <div className="pt-2 border-t border-slate-100 flex items-center gap-2">
+                        <button
+                          onClick={() => {
+                            setSelectedReceiptForAssign(r);
+                            setBulkAssignModalOpen(true);
+                          }}
+                          className="flex-1 py-2 px-3 bg-[#243744] hover:bg-[#1a2832] text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-colors shadow-sm"
+                        >
+                          <Sparkles size={14} className="text-emerald-400" />
+                          Assign Tests
+                        </button>
+                        <button
+                          onClick={() => handleDeleteReceipt(r.receipt_id)}
+                          className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 border border-slate-200 rounded-xl transition-colors"
+                          title="Delete Receipt"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
+                    </motion.div>
+                  ))}
+                </motion.div>
+              )}
             </div>
           </div>
-        </div>
+        )}
 
-        {/* Mobile View */}
-        <div className="lg:hidden">
-          {loading ? (
-            <div className="space-y-3">
-              {[0, 1, 2].map((i) => <div key={i} className="lab-skeleton h-44" />)}
-            </div>
-          ) : filteredSamples.length === 0 ? (
-            <div className="p-8 text-center bg-white border border-[#E2E8F0] rounded-2xl">
-              <FlaskConical size={32} className="mx-auto text-[#94A3B8] mb-2" />
-              <h3 className="text-sm font-bold text-[#1E293B]">No samples found</h3>
-            </div>
-          ) : (
-            <motion.div className="space-y-4" variants={stagger.container} initial="hidden" animate="visible">
-              {filteredSamples.map((sample) => {
-                const sampleId = getSampleId(sample);
-                return (
-                  <motion.div
-                    key={sampleId}
-                    className="bg-white border border-[#E2E8F0] rounded-2xl shadow-sm overflow-hidden"
-                    variants={stagger.item}
+        {/* TAB 2: PHYSICAL TESTING SAMPLES TABLE & CARDS */}
+        {activeTab === "testing_samples" && (
+          <div>
+            {/* Desktop Table View */}
+            <div className="hidden lg:block bg-white rounded-2xl border border-[#E2E8F0] shadow-sm overflow-hidden">
+              {loading ? (
+                <TableSkeleton rows={6} cols={8} />
+              ) : filteredTestingSamples.length === 0 ? (
+                <div className="p-16 text-center">
+                  <TestTube size={40} className="mx-auto text-[#94A3B8] mb-3" />
+                  <h3 className="text-base font-bold text-[#1E293B]">No physical testing samples allocated yet</h3>
+                  <p className="text-xs text-[#64748B] mt-1 mb-4">Physical samples are allocated from receipts during test assignment scheduling.</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearch("");
+                      setProjectFilter("all");
+                    }}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#243744] hover:bg-[#1A2733] text-white text-xs font-bold rounded-xl transition-colors shadow-sm cursor-pointer"
                   >
-                    <div className="p-4">
-                      <div className="flex justify-between items-start mb-3 gap-3">
-                        <div className="min-w-0">
-                          <h3 className="font-bold text-sm text-[#1E293B] truncate">
-                            {sample.sample_no || sampleId}
-                          </h3>
-                          <p className="text-xs text-[#64748B] truncate mt-0.5">{sample.project_name || "No Project"}</p>
+                    <RotateCcw size={14} />
+                    Reset Search & Filters
+                  </button>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="border-b border-[#E2E8F0] bg-[#FAFBFD] font-bold text-[#64748B] uppercase tracking-wider">
+                        <th className="px-5 py-3.5 whitespace-nowrap">Sample Code</th>
+                        <th className="px-5 py-3.5 whitespace-nowrap">Receipt No.</th>
+                        <th className="px-5 py-3.5 whitespace-nowrap">Location</th>
+                        <th className="px-5 py-3.5 whitespace-nowrap">Borelog</th>
+                        <th className="px-5 py-3.5 whitespace-nowrap">Depth</th>
+                        <th className="px-5 py-3.5 text-center whitespace-nowrap">Assigned Tests</th>
+                        <th className="px-5 py-3.5 text-center whitespace-nowrap">Completed Tests</th>
+                        <th className="px-5 py-3.5 whitespace-nowrap">Status</th>
+                      </tr>
+                    </thead>
+                    <motion.tbody variants={stagger.container} initial="hidden" animate="visible" className="divide-y divide-[#F1F5F9] bg-white">
+                      {paginatedTestingSamples.map((s) => (
+                        <motion.tr key={s.testing_sample_id} variants={stagger.item} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="px-5 py-4 font-bold font-mono text-[#243744] whitespace-nowrap">{s.sample_code}</td>
+                          <td className="px-5 py-4 font-semibold text-gray-700 whitespace-nowrap">{s.receipt_no}</td>
+                          <td className="px-5 py-4 font-medium text-gray-800 whitespace-nowrap">{s.location_name || "—"}</td>
+                          <td className="px-5 py-4 font-mono text-gray-700 whitespace-nowrap">{s.borelog_no || "—"}</td>
+                          <td className="px-5 py-4 font-semibold text-gray-600 whitespace-nowrap">{s.depth_display || "—"}</td>
+                          <td className="px-5 py-4 text-center font-bold text-blue-600 whitespace-nowrap">{s.assigned_test_count}</td>
+                          <td className="px-5 py-4 text-center font-bold text-emerald-600 whitespace-nowrap">{s.completed_test_count}</td>
+                          <td className="px-5 py-4 whitespace-nowrap">
+                            <span className="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-blue-50 text-blue-700 border border-blue-200 whitespace-nowrap">
+                              Active
+                            </span>
+                          </td>
+                        </motion.tr>
+                      ))}
+                    </motion.tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Table Pagination */}
+              <TablePagination
+                totalItems={filteredTestingSamples.length}
+                pageSize={pageSize}
+                currentPage={currentPage}
+                onPageChange={setCurrentPage}
+                onPageSizeChange={setPageSize}
+                itemLabel="physical testing samples"
+              />
+            </div>
+
+            {/* Mobile & Tablet Card View */}
+            <div className="lg:hidden">
+              {loading ? (
+                <div className="space-y-3">
+                  {[0, 1, 2].map((i) => <div key={i} className="h-36 bg-slate-100 rounded-2xl animate-pulse" />)}
+                </div>
+              ) : filteredTestingSamples.length === 0 ? (
+                <div className="p-8 text-center bg-white border border-slate-200 rounded-2xl shadow-sm">
+                  <TestTube size={32} className="mx-auto text-slate-400 mb-2" />
+                  <h3 className="text-sm font-bold text-slate-800">No physical testing samples allocated yet</h3>
+                </div>
+              ) : (
+                <motion.div className="grid grid-cols-1 sm:grid-cols-2 gap-4" variants={stagger.container} initial="hidden" animate="visible">
+                  {filteredTestingSamples.map((s) => (
+                    <motion.div
+                      key={s.testing_sample_id}
+                      variants={stagger.item}
+                      className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-col justify-between space-y-3 relative hover:shadow-md transition-shadow"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <span className="text-[11px] font-bold font-mono text-[#243744] bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-lg">
+                            {s.sample_code}
+                          </span>
+                          <h4 className="font-bold text-sm text-slate-900 mt-2 truncate">{s.receipt_no}</h4>
                         </div>
-                        {getStatusBadge(sample.status)}
+                        <span className="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                          Active
+                        </span>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-3 mb-4 text-xs pt-2">
+                      <div className="grid grid-cols-2 gap-2 text-xs pt-2 border-t border-slate-100">
                         <div>
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-[#8A97A4] mb-0.5">Client</p>
-                          <p className="font-semibold text-[#1E293B] truncate">{sample.client_name || "—"}</p>
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Location / Bore</p>
+                          <p className="font-semibold text-slate-700 truncate">{s.location_name || "—"} {s.borelog_no ? `(${s.borelog_no})` : ""}</p>
                         </div>
                         <div>
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-[#8A97A4] mb-0.5">Material</p>
-                          <p className="font-semibold text-[#1E293B] truncate">{sample.material_name || "—"}</p>
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Depth</p>
+                          <p className="font-semibold text-slate-700">{s.depth_display || "—"}</p>
                         </div>
                         <div>
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-[#8A97A4] mb-0.5">Quantity</p>
-                          <p className="font-bold text-[#1E293B]">{sample.quantity || sample.nos || "—"}</p>
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Assigned Tests</p>
+                          <p className="font-bold text-blue-600">{s.assigned_test_count}</p>
                         </div>
                         <div>
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-[#8A97A4] mb-0.5">Received Date</p>
-                          <p className="font-semibold text-[#1E293B] truncate">{sample.received_date || sample.sample_received_date || "—"}</p>
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Completed Tests</p>
+                          <p className="font-bold text-emerald-600">{s.completed_test_count}</p>
                         </div>
                       </div>
+                    </motion.div>
+                  ))}
+                </motion.div>
+              )}
+            </div>
+          </div>
+        )}
 
-                      <div className="flex gap-2 pt-3 border-t border-[#F1F5F9]">
-                        <button
-                          onClick={() => openDrawer("view", sample)}
-                          className="flex-1 py-2 text-xs font-bold text-[#475569] hover:bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl flex items-center justify-center gap-1.5 transition-colors"
-                        >
-                          <Eye size={14} />
-                          View Details
-                        </button>
-                        <button
-                          onClick={() => openDrawer("edit", sample)}
-                          className="flex-1 py-2 text-xs font-bold text-[#243744] hover:bg-[#243744]/5 border border-[#243744]/20 rounded-xl flex items-center justify-center gap-1.5 transition-colors"
-                        >
-                          <Pencil size={14} />
-                          Edit Sample
-                        </button>
-                      </div>
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </motion.div>
-          )}
-        </div>
       </div>
 
+      {/* Modals */}
       <AddSampleDrawer
-        open={drawerOpen}
+        open={addReceiptDrawerOpen}
         projectOptions={projects}
-        sampleEntry={drawerSample}
-        mode={drawerMode}
-        onClose={closeDrawer}
+        mode="add"
+        onClose={() => setAddReceiptDrawerOpen(false)}
         onSaved={() => {
-          toast.success(drawerMode === "edit" ? "Sample updated" : "Sample added");
-          fetchSamples();
+          toast.success("Sample receipt No. created successfully!");
+          fetchReceipts();
+        }}
+      />
+
+      <BulkTestAssignmentModal
+        isOpen={bulkAssignModalOpen}
+        initialReceipt={selectedReceiptForAssign}
+        initialProjectId={projectFilter !== "all" ? projectFilter : ""}
+        onClose={() => {
+          setBulkAssignModalOpen(false);
+          setSelectedReceiptForAssign(null);
+        }}
+        onSuccess={() => {
+          fetchReceipts();
+          if (activeTab === "testing_samples") fetchTestingSamplesData();
         }}
       />
     </MainLayout>

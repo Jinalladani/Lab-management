@@ -10,7 +10,15 @@ sample_observations_bp = Blueprint('sample_observations', __name__)
 
 @sample_observations_bp.before_request
 def ensure_sample_observations_table():
-    pass
+    try:
+        db.session.execute(text("""
+            ALTER TABLE sample_observations DROP CONSTRAINT IF EXISTS fk_sample_obs_sample;
+            ALTER TABLE sample_observations DROP CONSTRAINT IF EXISTS fk_sample_obs_project;
+            ALTER TABLE sample_observations ADD COLUMN IF NOT EXISTS testing_sample_id BIGINT;
+        """))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
 
 
 @sample_observations_bp.route('', methods=['GET'])
@@ -18,12 +26,25 @@ def get_all_observations():
     try:
         project_id = request.args.get("project_id", "").strip()
         sample_id = request.args.get("sample_id", "").strip()
+        scope_test_id = request.args.get("scope_test_id", "").strip()
         
         query = """
-            SELECT so.*, p.project_name, p.project_code, srr.sample_no
+            SELECT 
+                so.*, 
+                p.project_name, 
+                p.project_code, 
+                COALESCE(srr.sample_no, srr_direct.sample_no, '') AS receipt_no,
+                COALESCE(ts.sample_code, srr_direct.sample_no, CONCAT('SAMPLE-', so.sample_id)) AS sample_code,
+                COALESCE(ts.location_name, '') AS location_name,
+                COALESCE(ts.borelog_no, '') AS borelog_no,
+                COALESCE(st.test_name, so.test_name) AS actual_test_name,
+                st.test_method AS scope_test_method
             FROM sample_observations so
             LEFT JOIN projects p ON so.project_id = p.project_id
-            LEFT JOIN sample_receipt_register srr ON so.sample_id = srr.sample_id
+            LEFT JOIN testing_samples ts ON (so.testing_sample_id = ts.testing_sample_id OR so.sample_id = ts.testing_sample_id)
+            LEFT JOIN sample_receipt_register srr ON ts.receipt_id = srr.sample_id
+            LEFT JOIN sample_receipt_register srr_direct ON so.sample_id = srr_direct.sample_id
+            LEFT JOIN scope_tests st ON so.scope_test_id = st.scope_test_id
         """
         where_clauses = []
         params = {}
@@ -32,8 +53,11 @@ def get_all_observations():
             where_clauses.append("so.project_id = :project_id")
             params["project_id"] = project_id
         if sample_id:
-            where_clauses.append("so.sample_id = :sample_id")
+            where_clauses.append("(so.sample_id = :sample_id OR so.testing_sample_id = :sample_id)")
             params["sample_id"] = sample_id
+        if scope_test_id:
+            where_clauses.append("so.scope_test_id = :scope_test_id")
+            params["scope_test_id"] = scope_test_id
             
         if where_clauses:
             query += " WHERE " + " AND ".join(where_clauses)
@@ -112,39 +136,13 @@ def create_observation():
         except (ValueError, TypeError):
             scope_test_id = None
 
-        # Verify or fallback project_id
         if not project_id:
-            first_project = db.session.execute(text("SELECT project_id FROM projects ORDER BY project_id ASC LIMIT 1")).scalar()
-            if first_project:
-                project_id = first_project
-            else:
-                db.session.execute(text("INSERT INTO projects (project_name, project_code, status) VALUES ('General Lab Project', 'PROJ-GEN', 'Active')"))
-                db.session.commit()
-                project_id = db.session.execute(text("SELECT project_id FROM projects ORDER BY project_id DESC LIMIT 1")).scalar()
-
-        # Verify or fallback sample_id
-        if not sample_id:
-            first_sample = db.session.execute(text("SELECT sample_id FROM sample_receipt_register ORDER BY sample_id ASC LIMIT 1")).scalar()
-            if first_sample:
-                sample_id = first_sample
-            else:
-                db.session.execute(text("INSERT INTO sample_receipt_register (project_id, sample_no, status) VALUES (:pid, 'LAB/2026/SOIL-094', 'Received')"), {"pid": project_id})
-                db.session.commit()
-                sample_id = db.session.execute(text("SELECT sample_id FROM sample_receipt_register ORDER BY sample_id DESC LIMIT 1")).scalar()
-
-        # Check if project_id exists in projects table
-        proj_exists = db.session.execute(text("SELECT 1 FROM projects WHERE project_id = :pid"), {"pid": project_id}).scalar()
-        if not proj_exists:
             first_proj = db.session.execute(text("SELECT project_id FROM projects ORDER BY project_id ASC LIMIT 1")).scalar()
-            if first_proj:
-                project_id = first_proj
+            project_id = first_proj or 1
 
-        # Check if sample_id exists in sample_receipt_register table
-        samp_exists = db.session.execute(text("SELECT 1 FROM sample_receipt_register WHERE sample_id = :sid"), {"sid": sample_id}).scalar()
-        if not samp_exists:
+        if not sample_id:
             first_samp = db.session.execute(text("SELECT sample_id FROM sample_receipt_register ORDER BY sample_id ASC LIMIT 1")).scalar()
-            if first_samp:
-                sample_id = first_samp
+            sample_id = first_samp or 1
 
         # UPSERT Logic: Check if observation record already exists for this sample and template/scope
         existing = None
@@ -177,6 +175,12 @@ def create_observation():
                 'message': "Observation entry updated successfully",
                 'data': existing.to_dict()
             }), 200
+
+        raw_sample_id = data.get('sample_id') or data.get('testing_sample_id')
+        try:
+            sample_id = int(raw_sample_id) if raw_sample_id else 1
+        except (ValueError, TypeError):
+            sample_id = 1
 
         # Create new record
         new_obs = SampleObservation(

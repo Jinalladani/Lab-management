@@ -1,761 +1,588 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { createPortal } from "react-dom";
 import { useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Plus, Search, RefreshCw, X, Trash2, FlaskConical, Briefcase, Eye, Clipboard, HelpCircle, MoreHorizontal
+  Search, RefreshCw, Trash2, Briefcase, Sparkles, Play,
+  FileSpreadsheet, Clock, AlertTriangle, CheckCircle2, Layers,
+  UserCheck, Filter, ChevronRight, X, MoreVertical, RotateCcw
 } from "lucide-react";
 import { MainLayout } from "../../components/layout";
 import { getProjects } from "../../api/projects";
-import { getSampleEntries } from "../../api/sampleEntries";
 import {
-  createTestAssignment,
-  deleteTestAssignment,
-  getAssignmentsByProject,
-  getAvailableTests,
+  getAssignmentsList,
+  getAssignmentDashboardSummary,
+  changeAssignmentStatus,
+  deleteTestAssignment
 } from "../../api/testAssignments";
 import { usersAPI } from "../../api/users";
+import { BulkTestAssignmentModal } from "../../components/testAssignments/BulkTestAssignmentModal";
 import { TableSkeleton } from "../../components/ui/Skeleton";
+import { PortalActionMenu } from "../../components/ui/PortalActionMenu";
+import { TablePagination } from "../../components/ui/TablePagination";
+import { useDebounce } from "../../hooks/useDebounce";
 import { toast, Toaster } from "sonner";
-
-const inputClass =
-  "w-full border border-gray-300 rounded-xl px-3 py-2.5 outline-none focus:ring-2 focus:ring-[#243744]/10 focus:border-[#243744] bg-white/90 text-sm transition-all";
 
 const stagger = {
   container: { hidden: {}, visible: { transition: { staggerChildren: 0.04 } } },
   item: {
     hidden: { opacity: 0, y: 8 },
-    visible: { opacity: 1, y: 0, transition: { duration: 0.25, ease: [0.22, 0.68, 0, 1] } },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.22, ease: [0.22, 0.68, 0, 1] } },
   },
 };
-
-const getUserName = (user) =>
-  user.full_name ||
-  [user.first_name, user.last_name].filter(Boolean).join(" ").trim() ||
-  user.name ||
-  user.email ||
-  "";
 
 const getStatusBadge = (status) => {
   const norm = String(status || "").toLowerCase();
 
-  const map = {
-    completed: { text: "Completed", bg: "bg-[#ECFDF5] text-[#10B981] border-[#D1FAE5]", dot: "bg-[#10B981]" },
-    approved: { text: "Approved", bg: "bg-[#ECFDF5] text-[#10B981] border-[#D1FAE5]", dot: "bg-[#10B981]" },
-    testing: { text: "Testing", bg: "bg-[#EFF6FF] text-[#2563EB] border-[#DBEAFE]", dot: "bg-[#2563EB]" },
-    in_progress: { text: "In Progress", bg: "bg-[#EFF6FF] text-[#2563EB] border-[#DBEAFE]", dot: "bg-[#2563EB]" },
-    review: { text: "Review", bg: "bg-[#F5F3FF] text-[#7C3AED] border-[#EDE9FE]", dot: "bg-[#7C3AED]" },
-    result: { text: "Result", bg: "bg-[#FFFBEB] text-[#D97706] border-[#FEF3C7]", dot: "bg-[#D97706]" },
-  };
-
-  const config = map[norm] || { text: status || "Assigned", bg: "bg-[#F8FAFC] text-[#475569] border-[#E2E8F0]", dot: "bg-[#475569]" };
-
+  if (norm.includes("completed") || norm.includes("approved")) {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full border bg-emerald-50 text-emerald-700 border-emerald-200 whitespace-nowrap">
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+        Completed
+      </span>
+    );
+  }
+  if (norm.includes("progress") || norm.includes("testing")) {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full border bg-blue-50 text-blue-700 border-blue-200 whitespace-nowrap">
+        <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+        In Progress
+      </span>
+    );
+  }
+  if (norm.includes("hold")) {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full border bg-amber-50 text-amber-700 border-amber-200 whitespace-nowrap">
+        <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+        On Hold
+      </span>
+    );
+  }
   return (
-    <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full border ${config.bg}`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${config.dot}`} />
-      {config.text}
+    <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full border bg-purple-50 text-purple-700 border-purple-200 whitespace-nowrap">
+      <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
+      Assigned
     </span>
-  );
-};
-
-// Reusable Portal Action Menu to prevent parent clip and handle screen boundary directions
-const PortalActionMenu = ({ anchorEl, open, onClose, actions }) => {
-  const [style, setStyle] = useState(null);
-
-  useEffect(() => {
-    if (!open || !anchorEl) return;
-
-    const updatePosition = () => {
-      const rect = anchorEl.getBoundingClientRect();
-      const viewportWidth = window.innerWidth;
-      const viewportHeight = window.innerHeight;
-
-      const estimatedHeight = actions.length * 36 + 12;
-      const dropdownWidth = 160;
-      const gap = 6;
-
-      const spaceBelow = viewportHeight - rect.bottom;
-
-      let top;
-      if (spaceBelow >= estimatedHeight + gap) {
-        top = rect.bottom + window.scrollY + gap;
-      } else {
-        top = rect.top + window.scrollY - estimatedHeight - gap;
-      }
-
-      let left = rect.right - dropdownWidth + window.scrollX;
-      if (left < 8) left = 8;
-      if (left + dropdownWidth > viewportWidth - 8) {
-        left = viewportWidth - dropdownWidth - 8;
-      }
-
-      setStyle({
-        position: "absolute",
-        top: `${top}px`,
-        left: `${left}px`,
-        width: `${dropdownWidth}px`,
-        zIndex: 9999,
-      });
-    };
-
-    updatePosition();
-    window.addEventListener("resize", updatePosition);
-    window.addEventListener("scroll", updatePosition, true);
-
-    const handleClickOutside = (event) => {
-      if (anchorEl && !anchorEl.contains(event.target) && !event.target.closest(".portal-action-menu")) {
-        onClose();
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-
-    return () => {
-      window.removeEventListener("resize", updatePosition);
-      window.removeEventListener("scroll", updatePosition, true);
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [open, anchorEl, onClose, actions]);
-
-  if (!open || !anchorEl || !style) return null;
-
-  return createPortal(
-    <div
-      style={style}
-      className="portal-action-menu bg-white rounded-xl border border-[#E2E8F0] shadow-lg py-1.5 text-left text-slate-800"
-    >
-      {actions.map((act, idx) => {
-        const Icon = act.icon;
-        return (
-          <button
-            key={idx}
-            onClick={() => {
-              onClose();
-              act.onClick();
-            }}
-            className={`w-full px-4 py-2 text-xs font-semibold flex items-center gap-2 hover:bg-[#FAF9FF] transition-colors ${act.danger ? "text-red-600 hover:text-red-700 hover:bg-red-50" : "text-[#475569] hover:text-[#243744]"
-              }`}
-          >
-            {Icon && <Icon size={14} />}
-            {act.label}
-          </button>
-        );
-      })}
-    </div>,
-    document.body
   );
 };
 
 const TestAssignmentsList = () => {
   const navigate = useNavigate();
+
   const [projects, setProjects] = useState([]);
-  const [samples, setSamples] = useState([]);
+  const [technicians, setTechnicians] = useState([]);
   const [assignments, setAssignments] = useState([]);
-  const [labUsers, setLabUsers] = useState([]);
-  const [availableTests, setAvailableTests] = useState([]);
+  const [summary, setSummary] = useState({ total_assigned: 0, in_progress: 0, due_today: 0, overdue: 0, completed: 0 });
   const [loading, setLoading] = useState(false);
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [availableTestsLoading, setAvailableTestsLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [search, setSearch] = useState("");
-  const location = useLocation();
+  const [activeDropdownId, setActiveDropdownId] = useState(null);
+  const [activeAnchorEl, setActiveAnchorEl] = useState(null);
+
+  const handleToggleDropdown = (id, event) => {
+    if (activeDropdownId === id) {
+      setActiveDropdownId(null);
+      setActiveAnchorEl(null);
+    } else {
+      setActiveDropdownId(id);
+      setActiveAnchorEl(event.currentTarget);
+    }
+  };
+
+  // Filters
   const [projectFilter, setProjectFilter] = useState(() => {
     const queryId = new URLSearchParams(window.location.search).get("project_id");
     return queryId || "all";
   });
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [technicianFilter, setTechnicianFilter] = useState("all");
+  const [search, setSearch] = useState("");
+  const debouncedSearch = useDebounce(search, 300);
 
-  const [activeDropdownId, setActiveDropdownId] = useState(null);
-  const [activeAnchorEl, setActiveAnchorEl] = useState(null);
+  // Modal State
+  const [bulkModalOpen, setBulkModalOpen] = useState(false);
 
-  const [form, setForm] = useState({
-    project_id: "",
-    sample_id: "",
-    scope_test_ids: [],
-    assigned_to: "",
-    target_date: "",
-    priority: "Normal",
-    remarks: "",
-  });
+  useEffect(() => {
+    fetchInitialOptions();
+  }, []);
 
-  const fetchProjects = async () => {
-    try {
-      const res = await getProjects();
-      setProjects(res.data?.data || res.data?.projects || []);
-    } catch (error) {
-      console.error("Failed to load projects:", error);
-      toast.error("Failed to load projects");
-    }
+  const extractArray = (res) => {
+    if (!res) return [];
+    if (Array.isArray(res)) return res;
+    if (Array.isArray(res.data)) return res.data;
+    if (Array.isArray(res.data?.data)) return res.data.data;
+    if (Array.isArray(res.projects)) return res.projects;
+    return [];
   };
 
-  const fetchSamples = useCallback(async () => {
+  const fetchInitialOptions = async () => {
     try {
-      const params = form.project_id ? { project_id: form.project_id } : {};
-      const res = await getSampleEntries(params);
-      setSamples(res.data?.data || []);
-    } catch (error) {
-      console.error("Failed to load samples:", error);
-      toast.error("Failed to load samples");
-    }
-  }, [form.project_id]);
-
-  const fetchLabUsers = async () => {
-    try {
-      const data = await usersAPI.getLabUsers();
-      setLabUsers(data?.data?.users || data?.users || []);
-    } catch (error) {
-      console.error("Failed to load users:", error);
+      const pRes = await getProjects().catch(() => ({ data: [] }));
+      const uRes = await usersAPI.getLabUsers().catch(() => ({ data: [] }));
+      setProjects(extractArray(pRes));
+      setTechnicians(extractArray(uRes));
+    } catch (err) {
+      console.error(err);
+      setProjects([]);
+      setTechnicians([]);
     }
   };
 
   const fetchAssignments = useCallback(async () => {
     try {
       setLoading(true);
-      const sourceProjects = projectFilter !== "all"
-        ? projects.filter((project) => String(project.project_id) === String(projectFilter))
-        : projects;
+      const params = {};
+      if (projectFilter !== "all") params.project_id = projectFilter;
+      if (statusFilter !== "all") params.status = statusFilter;
+      if (technicianFilter !== "all") params.assigned_to = technicianFilter;
+      if (debouncedSearch) params.search = debouncedSearch;
 
-      if (sourceProjects.length === 0) {
-        setAssignments([]);
-        return;
+      const [listRes, summaryRes] = await Promise.all([
+        getAssignmentsList(params).catch(() => ({ data: { success: false, data: [] } })),
+        getAssignmentDashboardSummary(projectFilter !== "all" ? projectFilter : "").catch(() => ({ data: { success: false, data: {} } }))
+      ]);
+
+      if (listRes.data?.data) {
+        setAssignments(extractArray(listRes.data));
       }
-
-      const responses = await Promise.all(
-        sourceProjects.map((project) =>
-          getAssignmentsByProject(project.project_id)
-            .then((res) =>
-              (res.data?.data || []).map((assignment) => ({
-                ...assignment,
-                project_id: assignment.project_id || project.project_id,
-                project_code: assignment.project_code || project.project_no || project.project_code,
-                project_name: assignment.project_name || project.project_name,
-              }))
-            )
-            .catch(() => [])
-        )
-      );
-
-      setAssignments(responses.flat());
-    } catch (error) {
-      console.error("Failed to load assignments:", error);
+      if (summaryRes.data?.data) {
+        setSummary(summaryRes.data.data || { total_assigned: 0, in_progress: 0, due_today: 0, overdue: 0, completed: 0 });
+      }
+    } catch (err) {
       toast.error("Failed to load test assignments");
     } finally {
       setLoading(false);
     }
-  }, [projectFilter, projects]);
+  }, [projectFilter, statusFilter, technicianFilter, debouncedSearch]);
 
   useEffect(() => {
-    fetchProjects();
-    fetchLabUsers();
-  }, []);
+    fetchAssignments();
+  }, [fetchAssignments]);
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   useEffect(() => {
-    const queryId = new URLSearchParams(location.search).get("project_id");
-    setProjectFilter(queryId || "all");
-  }, [location.search]);
+    setCurrentPage(1);
+  }, [projectFilter, statusFilter, technicianFilter, debouncedSearch]);
 
-  useEffect(() => {
-    if (projects.length > 0) fetchAssignments();
-  }, [fetchAssignments, projects.length]);
+  const paginatedAssignments = useMemo(() => {
+    const list = Array.isArray(assignments) ? assignments : [];
+    const start = (currentPage - 1) * pageSize;
+    return list.slice(start, start + pageSize);
+  }, [assignments, currentPage, pageSize]);
 
-  useEffect(() => {
-    if (drawerOpen) fetchSamples();
-  }, [drawerOpen, fetchSamples]);
-
-  const filteredSamples = useMemo(() => {
-    if (!form.project_id) return samples;
-    return samples.filter((sample) => String(sample.project_id) === String(form.project_id));
-  }, [samples, form.project_id]);
-
-  const selectedSample = samples.find((sample) => String(sample.sample_id) === String(form.sample_id));
-
-  const filteredAssignments = useMemo(() => {
-    const needle = search.trim().toLowerCase();
-    if (!needle) return assignments;
-
-    return assignments.filter((assignment) =>
-      [
-        assignment.assignment_code,
-        assignment.project_code,
-        assignment.project_name,
-        assignment.sample_no,
-        assignment.material_name,
-        assignment.test_name,
-        assignment.assigned_to_name,
-        assignment.status,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase()
-        .includes(needle)
-    );
-  }, [assignments, search]);
-
-  const openDrawer = () => {
-    setForm({
-      project_id: "",
-      sample_id: "",
-      scope_test_ids: [],
-      assigned_to: "",
-      target_date: "",
-      priority: "Normal",
-      remarks: "",
-    });
-    setAvailableTests([]);
-    setDrawerOpen(true);
-  };
-
-  const closeDrawer = () => {
-    setDrawerOpen(false);
-    setAvailableTests([]);
-  };
-
-  const handleProjectChange = (projectId) => {
-    setForm((prev) => ({
-      ...prev,
-      project_id: projectId,
-      sample_id: "",
-      scope_test_ids: [],
-    }));
-    setAvailableTests([]);
-  };
-
-  const handleSampleChange = async (sampleId) => {
-    setForm((prev) => ({ ...prev, sample_id: sampleId, scope_test_ids: [] }));
-    setAvailableTests([]);
-
-    if (!sampleId) return;
-
+  const handleOpenObservationSheet = async (assignment) => {
     try {
-      setAvailableTestsLoading(true);
-      const res = await getAvailableTests(sampleId);
-      setAvailableTests(res.data?.data || []);
-    } catch (error) {
-      console.error("Failed to load available tests:", error);
-      toast.error("Failed to load available tests");
-    } finally {
-      setAvailableTestsLoading(false);
-    }
-  };
-
-  const toggleTest = (testId, checked) => {
-    setForm((prev) => ({
-      ...prev,
-      scope_test_ids: checked
-        ? [...prev.scope_test_ids, testId]
-        : prev.scope_test_ids.filter((id) => id !== testId),
-    }));
-  };
-
-  const saveAssignment = async () => {
-    if (!form.sample_id || form.scope_test_ids.length === 0) {
-      toast.error("Please select a sample and at least one test");
-      return;
-    }
-    if (!form.assigned_to || !form.target_date) {
-      toast.error("Please select assigned user and target date");
-      return;
-    }
-
-    try {
-      setSaving(true);
-      const res = await createTestAssignment({
-        sample_id: Number(form.sample_id),
-        scope_test_ids: form.scope_test_ids,
-        assigned_to: form.assigned_to,
-        target_date: form.target_date,
-        priority: form.priority,
-        remarks: form.remarks,
-      });
-
-      if (res.data?.success) {
-        toast.success("Test assigned successfully");
-        closeDrawer();
-        fetchAssignments();
+      if (assignment.status === "Assigned") {
+        await changeAssignmentStatus(assignment.assignment_id, "In Progress").catch(() => { });
       }
-    } catch (error) {
-      toast.error(error.response?.data?.message || "Failed to assign test");
-    } finally {
-      setSaving(false);
+      const sid = assignment.testing_sample_id || assignment.receipt_id;
+      const stid = assignment.project_scope_test_id;
+      const aid = assignment.assignment_id;
+      navigate(`/observation-entry?sample_id=${sid}&scope_test_id=${stid}&assignment_id=${aid}`);
+    } catch (err) {
+      toast.error("Failed to open observation sheet");
     }
   };
 
-  const handleDelete = async (assignment) => {
-    const assignmentId = assignment.assignment_id || assignment.test_assignment_id;
-    if (!assignmentId) {
-      toast.error("Assignment id not found");
-      return;
-    }
-    if (!window.confirm("Are you sure you want to delete this assignment?")) return;
-
+  const handleCancelAssignment = async (id) => {
+    if (!window.confirm("Are you sure you want to cancel this test assignment?")) return;
     try {
-      await deleteTestAssignment(assignmentId);
-      toast.success("Assignment deleted successfully");
+      await deleteTestAssignment(id);
+      toast.success("Assignment cancelled");
       fetchAssignments();
-    } catch (error) {
-      toast.error(error.response?.data?.message || "Failed to delete assignment");
-    }
-  };
-
-  const handleToggleDropdown = (assignmentId, event) => {
-    if (activeDropdownId === assignmentId) {
-      setActiveDropdownId(null);
-      setActiveAnchorEl(null);
-    } else {
-      setActiveDropdownId(assignmentId);
-      setActiveAnchorEl(event.currentTarget);
+    } catch (err) {
+      toast.error("Failed to cancel assignment");
     }
   };
 
   return (
-    <MainLayout headerTitle="Test Assign" headerSubtitle="Full test assignment list">
+    <MainLayout headerTitle="Test Assignments" headerSubtitle="Manage physical specimen testing & observation sheets">
       <Toaster position="top-right" richColors />
-      <div className="mx-auto w-full max-w-[1800px] px-4 py-5 sm:px-5 lg:px-6">
+      <div className="mx-auto w-full max-w-[1800px] px-4 py-5 sm:px-5 lg:px-6 space-y-6">
 
-        {/* Toolbar */}
-        <div className="mb-6 flex flex-col xl:flex-row gap-4 items-stretch xl:items-center justify-between">
+        {/* Dashboard Metric KPI Cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4">
+          <motion.div whileHover={{ y: -2 }} className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-3">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 shrink-0">
+              <Layers size={18} />
+            </div>
+            <div className="min-w-0">
+              <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider block truncate">Total Scheduled</span>
+              <span className="text-xl sm:text-2xl font-black text-[#243744]">{summary.total_assigned || 0}</span>
+            </div>
+          </motion.div>
 
-          {/* Search Box */}
-          <div className="flex-1 max-w-xl flex h-10 items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3 focus-within:border-[#243744] focus-within:ring-2 focus-within:ring-[#243744]/10 transition-all">
-            <Search size={16} className="text-[#94A3B8] shrink-0" />
+          <motion.div whileHover={{ y: -2 }} className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-3">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 shrink-0">
+              <Clock size={18} />
+            </div>
+            <div className="min-w-0">
+              <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider block truncate">In Progress</span>
+              <span className="text-xl sm:text-2xl font-black text-blue-600">{summary.in_progress || 0}</span>
+            </div>
+          </motion.div>
+
+          <motion.div whileHover={{ y: -2 }} className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-3">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600 shrink-0">
+              <AlertTriangle size={18} />
+            </div>
+            <div className="min-w-0">
+              <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider block truncate">Due Today</span>
+              <span className="text-xl sm:text-2xl font-black text-amber-600">{summary.due_today || 0}</span>
+            </div>
+          </motion.div>
+
+          <motion.div whileHover={{ y: -2 }} className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-3">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-red-50 border border-red-200 flex items-center justify-center text-red-600 shrink-0">
+              <AlertTriangle size={18} />
+            </div>
+            <div className="min-w-0">
+              <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider block truncate">Overdue</span>
+              <span className="text-xl sm:text-2xl font-black text-red-600">{summary.overdue || 0}</span>
+            </div>
+          </motion.div>
+
+          <motion.div whileHover={{ y: -2 }} className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-3 col-span-2 sm:col-span-1">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shrink-0">
+              <CheckCircle2 size={18} />
+            </div>
+            <div className="min-w-0">
+              <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider block truncate">Completed</span>
+              <span className="text-xl sm:text-2xl font-black text-emerald-600">{summary.completed || 0}</span>
+            </div>
+          </motion.div>
+        </div>
+
+        {/* Filters & Control Bar */}
+        <div className="flex flex-col lg:flex-row gap-4 items-stretch lg:items-center justify-between bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+
+          {/* Quick Search */}
+          <div className="flex-1 max-w-lg flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/50 px-3 focus-within:bg-white focus-within:border-[#243744] focus-within:ring-2 focus-within:ring-[#243744]/10 transition-all">
+            <Search size={16} className="text-slate-400 shrink-0" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search assignment, sample, test, material, technician..."
-              className="w-full bg-transparent text-sm text-[#0F172A] placeholder:text-[#94A3B8] outline-none"
+              placeholder="Search sample code, test, location, technician..."
+              className="w-full bg-transparent text-xs font-medium text-slate-800 placeholder:text-slate-400 outline-none"
             />
+            {search && (
+              <button onClick={() => setSearch("")} className="text-slate-400 hover:text-slate-600">
+                <X size={14} />
+              </button>
+            )}
           </div>
 
-          {/* Action Row */}
-          <div className="flex flex-wrap items-center gap-3">
+          {/* Quick Filters */}
+          <div className="flex flex-wrap items-center gap-2.5">
             <select
               value={projectFilter}
               onChange={(e) => setProjectFilter(e.target.value)}
-              className="h-10 px-3.5 py-2 text-xs font-semibold text-[#475569] border border-[#E2E8F0] bg-white rounded-xl outline-none focus:border-[#243744] focus:ring-2 focus:ring-[#243744]/10 transition-all shrink-0 max-w-[200px] appearance-none"
-              style={{
-                backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%238A97A4' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
-                backgroundPosition: "right 10px center",
-                backgroundRepeat: "no-repeat",
-                backgroundSize: "16px",
-                paddingRight: "30px"
-              }}
-              aria-label="Filter assignments by project"
+              className="h-10 px-3 py-2 text-xs font-semibold text-slate-700 border border-slate-200 bg-white rounded-xl outline-none focus:border-[#243744] shadow-sm"
             >
               <option value="all">All Projects</option>
-              {projects.map((project) => (
-                <option key={project.project_id} value={project.project_id}>
-                  {project.project_code} - {project.project_name}
-                </option>
+              {(Array.isArray(projects) ? projects : []).map((p) => (
+                <option key={p.project_id} value={p.project_id}>{p.project_code} — {p.project_name}</option>
               ))}
+            </select>
+
+            <select
+              value={technicianFilter}
+              onChange={(e) => setTechnicianFilter(e.target.value)}
+              className="h-10 px-3 py-2 text-xs font-semibold text-slate-700 border border-slate-200 bg-white rounded-xl outline-none focus:border-[#243744] shadow-sm"
+            >
+              <option value="all">All Technicians</option>
+              {(Array.isArray(technicians) ? technicians : []).map((u) => (
+                <option key={u.user_id} value={u.user_id}>{u.full_name || u.name}</option>
+              ))}
+            </select>
+
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="h-10 px-3 py-2 text-xs font-semibold text-slate-700 border border-slate-200 bg-white rounded-xl outline-none focus:border-[#243744] shadow-sm"
+            >
+              <option value="all">All Statuses</option>
+              <option value="Assigned">Assigned</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Completed">Completed</option>
             </select>
 
             <button
               onClick={fetchAssignments}
-              className="flex h-10 items-center justify-center gap-1.5 rounded-xl border border-[#E2E8F0] bg-white hover:bg-[#F8FAFC] px-4 text-xs font-bold text-[#475569] transition-colors"
+              title="Refresh Test List"
+              className="flex h-10 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 px-3.5 text-xs font-bold text-slate-700 transition-colors shadow-sm"
             >
-              <RefreshCw size={14} className="text-[#8A97A4]" />
-              Refresh
+              <RefreshCw size={14} className="text-slate-500" />
             </button>
 
             <button
-              type="button"
-              onClick={openDrawer}
-              className="flex h-10 items-center justify-center gap-1.5 rounded-xl bg-[#243744] hover:bg-[#1A2733] px-4 text-xs font-bold text-white shadow-sm transition-colors"
+              onClick={() => setBulkModalOpen(true)}
+              className="flex h-10 items-center justify-center gap-2 rounded-xl bg-[#243744] hover:bg-[#1a2832] px-4 text-xs font-bold text-white shadow-md transition-colors"
             >
-              <Plus size={14} />
-              Add Test Assign
+              <Sparkles size={15} className="text-emerald-400" />
+              Assign Test Work
             </button>
           </div>
         </div>
 
-        {/* Desktop Table View */}
-        <div className="hidden lg:block bg-white rounded-2xl border border-[#E2E8F0] shadow-sm overflow-hidden">
+        {/* Active Filter Chips / Pills */}
+        {(search || projectFilter !== "all" || statusFilter !== "all" || technicianFilter !== "all") && (
+          <div className="mb-4 flex flex-wrap items-center gap-2 text-xs">
+            <span className="font-semibold text-slate-500 mr-1">Active Filters:</span>
+            {search && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-100 border border-slate-200 rounded-full font-medium text-slate-700">
+                Search: "{search}"
+                <button type="button" onClick={() => setSearch("")} className="hover:text-red-500 font-bold ml-0.5 cursor-pointer">×</button>
+              </span>
+            )}
+            {projectFilter !== "all" && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 border border-blue-200 rounded-full font-medium text-blue-700">
+                Project: {projects.find((p) => String(p.project_id) === String(projectFilter))?.project_code || projectFilter}
+                <button type="button" onClick={() => setProjectFilter("all")} className="hover:text-red-500 font-bold ml-0.5 cursor-pointer">×</button>
+              </span>
+            )}
+            {statusFilter !== "all" && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 border border-amber-200 rounded-full font-medium text-amber-700">
+                Status: {statusFilter}
+                <button type="button" onClick={() => setStatusFilter("all")} className="hover:text-red-500 font-bold ml-0.5 cursor-pointer">×</button>
+              </span>
+            )}
+            {technicianFilter !== "all" && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 border border-emerald-200 rounded-full font-medium text-emerald-700">
+                Technician: {technicianFilter}
+                <button type="button" onClick={() => setTechnicianFilter("all")} className="hover:text-red-500 font-bold ml-0.5 cursor-pointer">×</button>
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                setSearch("");
+                setProjectFilter("all");
+                setStatusFilter("all");
+                setTechnicianFilter("all");
+              }}
+              className="text-xs font-bold text-slate-500 hover:text-[#243744] underline ml-2 cursor-pointer"
+            >
+              Clear All
+            </button>
+          </div>
+        )}
+
+        {/* Work Items View: Desktop Table & Mobile/Tablet Card View */}
+        <div className="hidden lg:block bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           {loading ? (
-            <TableSkeleton rows={5} cols={9} />
-          ) : filteredAssignments.length === 0 ? (
+            <TableSkeleton rows={6} cols={10} />
+          ) : assignments.length === 0 ? (
             <div className="p-16 text-center">
-              <Briefcase size={40} className="mx-auto text-[#94A3B8] mb-3" />
-              <h3 className="text-base font-bold text-[#1E293B]">No test assignments found</h3>
-              <p className="text-xs text-[#64748B] mt-1">Try adjusting your filters or search query.</p>
+              <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3 text-slate-400">
+                <Briefcase size={28} />
+              </div>
+              <h3 className="text-sm font-bold text-slate-800">No test assignments found</h3>
+              <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                No active tests matched your filters. Click "Assign Test Work" to schedule test assignments for physical specimens.
+              </p>
+              <div className="mt-4 flex items-center justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearch("");
+                    setProjectFilter("all");
+                    setStatusFilter("all");
+                    setTechnicianFilter("all");
+                  }}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl transition-colors shadow-2xs cursor-pointer"
+                >
+                  <RotateCcw size={14} />
+                  Reset Filters
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setBulkModalOpen(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-[#243744] text-white text-xs font-bold rounded-xl hover:bg-[#1a2832] transition-colors shadow-sm"
+                >
+                  <Sparkles size={14} className="text-emerald-400" />
+                  Assign Test Work
+                </button>
+              </div>
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
+              <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="border-b border-[#E2E8F0] bg-[#FAFBFD] text-[10px] font-bold text-[#64748B] uppercase tracking-wider">
-                    {/* <th className="px-6 py-3.5">Assignment</th> */}
-                    <th className="px-6 py-3.5">Project</th>
-                    <th className="px-6 py-3.5">Sample</th>
-                    <th className="px-6 py-3.5">Material</th>
-                    <th className="px-6 py-3.5">Test</th>
-                    <th className="px-6 py-3.5">Assigned To</th>
-                    <th className="px-6 py-3.5">Target Date</th>
-                    <th className="px-6 py-3.5">Status</th>
-                    <th className="px-6 py-3.5 text-right w-[90px]">Actions</th>
+                  <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-bold text-slate-600 uppercase tracking-wider">
+                    <th className="px-5 py-3.5 whitespace-nowrap">Sample Code</th>
+                    <th className="px-5 py-3.5 whitespace-nowrap">Receipt No.</th>
+                    <th className="px-5 py-3.5 whitespace-nowrap">Location</th>
+                    <th className="px-5 py-3.5 whitespace-nowrap">Borehole</th>
+                    <th className="px-5 py-3.5 max-w-[180px] whitespace-nowrap">Test Name</th>
+                    <th className="px-5 py-3.5 whitespace-nowrap">Technician</th>
+                    <th className="px-5 py-3.5 whitespace-nowrap">Target Date</th>
+                    <th className="px-5 py-3.5 whitespace-nowrap">Priority</th>
+                    <th className="px-5 py-3.5 whitespace-nowrap">Status</th>
+                    <th className="px-5 py-3.5 text-right whitespace-nowrap w-[90px]">Actions</th>
                   </tr>
                 </thead>
-                <motion.tbody variants={stagger.container} initial="hidden" animate="visible" className="divide-y divide-[#F1F5F9]">
-                  {filteredAssignments.map((assignment, idx) => {
-                    const assignmentId = assignment.assignment_id || assignment.test_assignment_id || idx;
-                    return (
-                      <motion.tr key={assignmentId} variants={stagger.item} className="hover:bg-[#FAF9FF] transition-colors">
-                        {/* <td className="px-6 py-4 text-xs font-bold text-[#1E293B]">{assignment.assignment_code || assignment.assignment_id || "—"}</td> */}
-                        <td className="px-6 py-4 text-xs font-semibold text-[#475569]">{assignment.project_code || assignment.project_name || "—"}</td>
-                        <td className="px-6 py-4 text-xs font-semibold text-[#475569]">{assignment.sample_no || "—"}</td>
-                        <td className="px-6 py-4 text-xs font-semibold text-[#475569]">{assignment.material_name || "—"}</td>
-                        <td className="px-6 py-4 text-xs font-semibold text-[#475569]">{assignment.test_name || "—"}</td>
-                        <td className="px-6 py-4 text-xs font-semibold text-[#475569]">{assignment.assigned_to_name || assignment.assigned_to || "—"}</td>
-                        <td className="px-6 py-4 text-xs font-semibold text-[#475569]">{assignment.target_date || "—"}</td>
-                        <td className="px-6 py-4">{getStatusBadge(assignment.status)}</td>
-                        <td className="px-6 py-4 text-right">
-                          <button
-                            onClick={(e) => handleToggleDropdown(assignmentId, e)}
-                            className="p-1.5 hover:bg-[#F1F5F9] rounded-lg transition-colors text-[#8A97A4] hover:text-[#1A2733]"
-                          >
-                            <MoreHorizontal size={16} />
-                          </button>
+                <motion.tbody variants={stagger.container} initial="hidden" animate="visible" className="divide-y divide-slate-100 bg-white">
+                  {paginatedAssignments.map((item) => (
+                    <motion.tr key={item.assignment_id} variants={stagger.item} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="px-5 py-4 whitespace-nowrap">
+                        <span className="font-bold font-mono text-[#243744] bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200 whitespace-nowrap">
+                          {item.sample_code}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4 font-semibold text-slate-600 whitespace-nowrap">{item.receipt_no}</td>
+                      <td className="px-5 py-4 font-medium text-slate-800 whitespace-nowrap">{item.location_name || "—"}</td>
+                      <td className="px-5 py-4 font-mono text-slate-700 whitespace-nowrap">{item.borelog_no || "—"}</td>
+                      <td className="px-5 py-4 max-w-[180px] truncate" title={item.test_name}>
+                        <span className="font-bold text-slate-900 truncate block">{item.test_name}</span>
+                      </td>
+                      <td className="px-5 py-4 whitespace-nowrap">
+                        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 whitespace-nowrap">
+                          <UserCheck size={14} className="text-slate-400" />
+                          {item.technician_name || "Unassigned"}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4 font-mono text-slate-600 whitespace-nowrap">{item.target_date || "—"}</td>
+                      <td className="px-5 py-4 whitespace-nowrap">
+                        <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap ${item.priority === "Urgent" ? "bg-red-100 text-red-800 border border-red-200" : item.priority === "High" ? "bg-amber-100 text-amber-800 border border-amber-200" : "bg-slate-100 text-slate-700 border border-slate-200"
+                          }`}>
+                          {item.priority}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4 whitespace-nowrap">{getStatusBadge(item.status)}</td>
+                      <td className="px-5 py-4 text-right whitespace-nowrap">
+                        <button
+                          onClick={(e) => handleToggleDropdown(item.assignment_id, e)}
+                          className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500 hover:text-slate-900 transition-colors"
+                        >
+                          <MoreVertical size={16} />
+                        </button>
 
-                          <PortalActionMenu
-                            anchorEl={activeDropdownId === assignmentId ? activeAnchorEl : null}
-                            open={activeDropdownId === assignmentId}
-                            onClose={() => { setActiveDropdownId(null); setActiveAnchorEl(null); }}
-                            actions={[
-                              {
-                                label: "Observation Sheet",
-                                icon: FlaskConical,
-                                onClick: () => {
-                                  navigate(
-                                    `/observation-entry?project_id=${assignment.project_id}&sample_id=${assignment.sample_id}&scope_test_id=${assignment.master_scope_test_id || assignment.scope_test_id}`
-                                  );
-                                }
-                              },
-                              { label: "Delete Assign", icon: Trash2, danger: true, onClick: () => handleDelete(assignment) }
-                            ]}
-                          />
-                        </td>
-                      </motion.tr>
-                    );
-                  })}
+                        <PortalActionMenu
+                          anchorEl={activeDropdownId === item.assignment_id ? activeAnchorEl : null}
+                          open={activeDropdownId === item.assignment_id}
+                          onClose={() => { setActiveDropdownId(null); setActiveAnchorEl(null); }}
+                          actions={[
+                            {
+                              label: "Observation Sheet",
+                              icon: FileSpreadsheet,
+                              onClick: () => handleOpenObservationSheet(item)
+                            },
+                            {
+                              label: "Cancel Assignment",
+                              icon: Trash2,
+                              danger: true,
+                              onClick: () => handleCancelAssignment(item.assignment_id)
+                            }
+                          ]}
+                        />
+                      </td>
+                    </motion.tr>
+                  ))}
                 </motion.tbody>
               </table>
             </div>
           )}
 
-          {/* Pagination */}
-          <div className="flex items-center justify-between border-t border-[#E2E8F0] px-6 py-4 bg-white select-none">
-            <p className="text-xs font-semibold text-[#64748B]">
-              Showing <span className="text-[#1E293B]">{filteredAssignments.length}</span> of{" "}
-              <span className="text-[#1E293B]">{assignments.length}</span> assignments
-            </p>
-            <div className="flex items-center gap-1.5">
-              <button className="h-8 w-8 rounded-lg border border-[#E2E8F0] flex items-center justify-center text-xs font-semibold text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-40" disabled>&lt;</button>
-              <button className="h-8 w-8 rounded-lg bg-[#243744] text-white flex items-center justify-center text-xs font-bold shadow-sm">1</button>
-              <button className="h-8 w-8 rounded-lg border border-[#E2E8F0] flex items-center justify-center text-xs font-semibold text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-40" disabled>&gt;</button>
-            </div>
-          </div>
+          {/* Table Pagination */}
+          <TablePagination
+            totalItems={(assignments || []).length}
+            pageSize={pageSize}
+            currentPage={currentPage}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={setPageSize}
+            itemLabel="test assignments"
+          />
         </div>
 
-        {/* Mobile View */}
+        {/* Mobile & Tablet Card View */}
         <div className="lg:hidden">
           {loading ? (
             <div className="space-y-3">
-              {[0, 1, 2].map((i) => <div key={i} className="lab-skeleton h-44" />)}
+              {[0, 1, 2].map((i) => <div key={i} className="h-44 bg-slate-100 rounded-2xl animate-pulse" />)}
             </div>
-          ) : filteredAssignments.length === 0 ? (
-            <div className="p-8 text-center bg-white border border-[#E2E8F0] rounded-2xl">
-              <Briefcase size={32} className="mx-auto text-[#94A3B8] mb-2" />
-              <h3 className="text-sm font-bold text-[#1E293B]">No assignments found</h3>
+          ) : assignments.length === 0 ? (
+            <div className="p-8 text-center bg-white border border-slate-200 rounded-2xl shadow-sm">
+              <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-2 text-slate-400">
+                <Briefcase size={22} />
+              </div>
+              <h3 className="text-sm font-bold text-slate-800">No test assignments found</h3>
             </div>
           ) : (
-            <motion.div className="space-y-4" variants={stagger.container} initial="hidden" animate="visible">
-              {filteredAssignments.map((assignment, idx) => {
-                const assignmentId = assignment.assignment_id || assignment.test_assignment_id || idx;
-                return (
-                  <motion.div
-                    key={assignmentId}
-                    className="bg-white border border-[#E2E8F0] rounded-2xl shadow-sm overflow-hidden"
-                    variants={stagger.item}
-                  >
-                    <div className="p-4">
-                      <div className="flex justify-between items-start mb-3 gap-3">
-                        <div className="min-w-0">
-                          <h3 className="font-bold text-sm text-[#1E293B] truncate">
-                            {assignment.assignment_code || `Assignment #${assignmentId}`}
-                          </h3>
-                          <p className="text-xs text-[#64748B] truncate mt-0.5">{assignment.project_name || "No Project"}</p>
-                        </div>
-                        {getStatusBadge(assignment.status)}
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-3 mb-4 text-xs pt-2">
-                        <div>
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-[#8A97A4] mb-0.5">Sample</p>
-                          <p className="font-semibold text-[#1E293B] truncate">{assignment.sample_no || "—"}</p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-[#8A97A4] mb-0.5">Material</p>
-                          <p className="font-semibold text-[#1E293B] truncate">{assignment.material_name || "—"}</p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-[#8A97A4] mb-0.5">Test</p>
-                          <p className="font-semibold text-[#1E293B] truncate">{assignment.test_name || "—"}</p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-[#8A97A4] mb-0.5">Assigned To</p>
-                          <p className="font-semibold text-[#1E293B] truncate">{assignment.assigned_to_name || "—"}</p>
-                        </div>
-                      </div>
-
-                      <div className="flex gap-2 pt-3 border-t border-[#F1F5F9]">
-                        <button
-                          onClick={() => {
-                            navigate(
-                              `/observation-entry?project_id=${assignment.project_id}&sample_id=${assignment.sample_id}&scope_test_id=${assignment.master_scope_test_id || assignment.scope_test_id}`
-                            );
-                          }}
-                          className="flex-1 py-2 text-xs font-bold text-[#475569] hover:bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl flex items-center justify-center gap-1.5 transition-colors"
-                        >
-                          <FlaskConical size={14} />
-                          Observation Sheet
-                        </button>
-                      </div>
+            <motion.div className="grid grid-cols-1 sm:grid-cols-2 gap-4" variants={stagger.container} initial="hidden" animate="visible">
+              {(Array.isArray(assignments) ? assignments : []).map((item) => (
+                <motion.div
+                  key={item.assignment_id}
+                  variants={stagger.item}
+                  className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-col justify-between space-y-3 relative hover:shadow-md transition-shadow"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <span className="text-[11px] font-bold font-mono text-[#243744] bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-lg">
+                        {item.sample_code}
+                      </span>
+                      <h4 className="font-bold text-sm text-slate-900 mt-2 line-clamp-1">{item.test_name}</h4>
+                      <p className="text-xs text-slate-500 font-semibold">{item.receipt_no}</p>
                     </div>
-                  </motion.div>
-                );
-              })}
+                    <div>
+                      {getStatusBadge(item.status)}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-xs pt-2 border-t border-slate-100">
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Technician</p>
+                      <p className="font-semibold text-slate-700 truncate">{item.technician_name || "Unassigned"}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Target Date</p>
+                      <p className="font-mono font-semibold text-slate-700">{item.target_date || "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Location / Bore</p>
+                      <p className="font-semibold text-slate-700 truncate">
+                        {item.location_name || "—"} {item.borelog_no ? `(${item.borelog_no})` : ""}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Priority</p>
+                      <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold ${item.priority === "Urgent" ? "bg-red-100 text-red-800" : item.priority === "High" ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-700"
+                        }`}>
+                        {item.priority}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-100 flex items-center gap-2">
+                    <button
+                      onClick={() => handleOpenObservationSheet(item)}
+                      className="flex-1 py-2 px-3 bg-[#243744] hover:bg-[#1a2832] text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-colors shadow-sm"
+                    >
+                      <FileSpreadsheet size={14} className="text-emerald-400" />
+                      Observation Sheet
+                    </button>
+                    <button
+                      onClick={() => handleCancelAssignment(item.assignment_id)}
+                      className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 border border-slate-200 rounded-xl transition-colors"
+                      title="Cancel Assignment"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                </motion.div>
+              ))}
             </motion.div>
           )}
         </div>
+
       </div>
 
-      {drawerOpen && (
-        <>
-          <div className="fixed inset-0 z-[1000] bg-slate-900/45 backdrop-blur-sm" onClick={closeDrawer} />
-          <aside className="fixed top-0 right-0 z-[1001] flex h-full w-full flex-col bg-white shadow-2xl md:max-w-[700px] lg:max-w-[560px]">
-            <div className="sticky top-0 z-20 border-b border-slate-100 bg-white/80 px-5 py-4 backdrop-blur-xl sm:px-6">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h2 className="text-xl font-bold text-gray-900 sm:text-2xl">Assign Test</h2>
-                  <p className="mt-1 text-sm text-gray-500">Select project, sample, tests and assignment details.</p>
-                </div>
-                <button type="button" onClick={closeDrawer} className="rounded-xl p-2 hover:bg-gray-100">
-                  <X />
-                </button>
-              </div>
-            </div>
-
-            <div className="flex-1 space-y-6 overflow-y-auto px-5 py-5 sm:px-6 bg-[#FAFCFF]">
-              <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                <h3 className="font-semibold text-gray-900 flex items-center gap-1.5"><FlaskConical size={16} className="text-[#243744]" /> Sample Details</h3>
-                <div>
-                  <label className="mb-1.5 block text-xs font-bold text-gray-600 uppercase tracking-wider">Project *</label>
-                  <select value={form.project_id} onChange={(e) => handleProjectChange(e.target.value)} className={inputClass}>
-                    <option value="">Select project</option>
-                    {projects.map((project) => (
-                      <option key={project.project_id} value={project.project_id}>
-                        {project.project_code} - {project.project_name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="mb-1.5 block text-xs font-bold text-gray-600 uppercase tracking-wider">Sample *</label>
-                  <select value={form.sample_id} onChange={(e) => handleSampleChange(e.target.value)} className={inputClass}>
-                    <option value="">Select sample</option>
-                    {filteredSamples.map((sample) => (
-                      <option key={sample.sample_id} value={sample.sample_id}>
-                        {sample.sample_no || `Sample ${sample.sample_id}`}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="mb-1.5 block text-xs font-bold text-gray-600 uppercase tracking-wider">Material</label>
-                    <input readOnly value={selectedSample?.material_name || ""} className="w-full rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2.5 text-sm font-semibold text-gray-800 outline-none" />
-                  </div>
-                  <div>
-                    <label className="mb-1.5 block text-xs font-bold text-gray-600 uppercase tracking-wider">Quantity</label>
-                    <input readOnly value={selectedSample?.quantity || selectedSample?.nos || ""} className="w-full rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2.5 text-sm font-semibold text-gray-800 outline-none" />
-                  </div>
-                </div>
-              </section>
-
-              <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-                <div className="border-b border-slate-100 bg-[#FAFBFD] px-4 py-3">
-                  <h4 className="text-sm font-bold text-[#243744] uppercase tracking-wider">Project Scope Tests</h4>
-                </div>
-                <div className="max-h-72 space-y-2 overflow-y-auto p-3">
-                  {availableTestsLoading ? (
-                    <div className="py-8 text-center text-sm text-gray-500">Loading project scope tests...</div>
-                  ) : !form.sample_id ? (
-                    <div className="py-8 text-center text-sm text-gray-500 font-medium">Select a sample to assign tests.</div>
-                  ) : availableTests.length === 0 ? (
-                    <div className="py-8 text-center text-sm text-gray-500 font-medium">No pending scope tests for this sample.</div>
-                  ) : (
-                    availableTests.map((test) => (
-                      <label key={test.project_scope_test_id} className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-3 hover:bg-slate-50 transition-colors">
-                        <input
-                          type="checkbox"
-                          className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                          checked={form.scope_test_ids.includes(test.project_scope_test_id)}
-                          onChange={(e) => toggleTest(test.project_scope_test_id, e.target.checked)}
-                        />
-                        <span className="min-w-0">
-                          <span className="block text-sm font-bold text-gray-900">{test.test_name || "Unnamed Test"}</span>
-                          <span className="block text-xs text-gray-500 font-semibold mt-0.5">{[test.group_name, test.test_method].filter(Boolean).join(" | ") || "No method"}</span>
-                        </span>
-                      </label>
-                    ))
-                  )}
-                </div>
-              </section>
-
-              <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                <h3 className="font-semibold text-gray-900 flex items-center gap-1.5"><Clipboard size={16} className="text-[#243744]" /> Assignment Details</h3>
-                <div>
-                  <label className="mb-1.5 block text-xs font-bold text-gray-600 uppercase tracking-wider">Assign To *</label>
-                  <select value={form.assigned_to} onChange={(e) => setForm((prev) => ({ ...prev, assigned_to: e.target.value }))} className={inputClass}>
-                    <option value="">Select user</option>
-                    {labUsers.map((user) => (
-                      <option key={user.user_id} value={user.user_id}>
-                        {getUserName(user)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="mb-1.5 block text-xs font-bold text-gray-600 uppercase tracking-wider">Target Date *</label>
-                    <input type="date" value={form.target_date} onChange={(e) => setForm((prev) => ({ ...prev, target_date: e.target.value }))} className={inputClass} />
-                  </div>
-                  <div>
-                    <label className="mb-1.5 block text-xs font-bold text-gray-600 uppercase tracking-wider">Priority</label>
-                    <select value={form.priority} onChange={(e) => setForm((prev) => ({ ...prev, priority: e.target.value }))} className={inputClass}>
-                      <option value="Normal">Normal</option>
-                      <option value="High">High</option>
-                      <option value="Urgent">Urgent</option>
-                    </select>
-                  </div>
-                </div>
-                <div>
-                  <label className="mb-1.5 block text-xs font-bold text-gray-600 uppercase tracking-wider">Remarks</label>
-                  <textarea rows="3" value={form.remarks} onChange={(e) => setForm((prev) => ({ ...prev, remarks: e.target.value }))} className={inputClass} />
-                </div>
-              </section>
-            </div>
-
-            <div className="sticky bottom-0 z-20 border-t border-slate-100 bg-white/90 px-5 py-4 backdrop-blur-xl sm:px-6">
-              <div className="flex justify-end gap-3">
-                <button type="button" onClick={closeDrawer} className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-bold text-gray-700 hover:bg-slate-50 transition-colors">
-                  Cancel
-                </button>
-                <button type="button" disabled={saving} onClick={saveAssignment} className="rounded-xl bg-[#243744] hover:bg-[#1A2733] px-4 py-2.5 text-sm font-bold text-white shadow transition-colors disabled:opacity-60">
-                  {saving ? "Assigning..." : "Assign Selected Tests"}
-                </button>
-              </div>
-            </div>
-          </aside>
-        </>
-      )}
+      <BulkTestAssignmentModal
+        isOpen={bulkModalOpen}
+        initialProjectId={projectFilter !== "all" ? projectFilter : ""}
+        onClose={() => setBulkModalOpen(false)}
+        onSuccess={fetchAssignments}
+      />
     </MainLayout>
   );
 };

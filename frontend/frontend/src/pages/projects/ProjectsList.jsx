@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus, Eye, Pencil, Trash2, RefreshCw, Download, Search,
-  ChevronDown, Archive, Copy, FileText, FlaskConical, CheckSquare, Table2
+  ChevronDown, Archive, Copy, FileText, FlaskConical, CheckSquare, Table2, MoreVertical, RotateCcw
 } from "lucide-react";
 import { getProjects, deleteProject, updateProjectStatus } from "../../api/projects";
 import { getSampleEntries } from "../../api/sampleMaster";
@@ -12,6 +12,8 @@ import { getClients } from "../../api/clients";
 import { MainLayout } from "../../components/layout";
 import AddSampleDrawer from "../../components/projects/AddSampleDrawer";
 import { TableSkeleton } from "../../components/ui/Skeleton";
+import { TablePagination } from "../../components/ui/TablePagination";
+import { useDebounce } from "../../hooks/useDebounce";
 
 const STATUS_OPTIONS = [
   { value: "all", label: "All Status" },
@@ -67,7 +69,7 @@ const PortalActionMenu = ({ anchorEl, open, onClose, actions }) => {
       const gap = 6;
 
       const spaceBelow = viewportHeight - rect.bottom;
-      
+
       let top;
       if (spaceBelow >= estimatedHeight + gap) {
         top = rect.bottom + window.scrollY + gap;
@@ -99,12 +101,21 @@ const PortalActionMenu = ({ anchorEl, open, onClose, actions }) => {
         onClose();
       }
     };
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    };
+
     document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
 
     return () => {
       window.removeEventListener("resize", updatePosition);
       window.removeEventListener("scroll", updatePosition, true);
       document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
     };
   }, [open, anchorEl, onClose, actions]);
 
@@ -124,9 +135,8 @@ const PortalActionMenu = ({ anchorEl, open, onClose, actions }) => {
               onClose();
               act.onClick();
             }}
-            className={`w-full px-4 py-2 text-xs font-semibold flex items-center gap-2 hover:bg-[#FAF9FF] transition-colors ${
-              act.danger ? "text-red-600 hover:text-red-700 hover:bg-red-50" : "text-[#475569] hover:text-[#243744]"
-            }`}
+            className={`w-full px-4 py-2 text-xs font-semibold flex items-center gap-2 hover:bg-[#FAF9FF] transition-colors ${act.danger ? "text-red-600 hover:text-red-700 hover:bg-red-50" : "text-[#475569] hover:text-[#243744]"
+              }`}
           >
             {Icon && <Icon size={14} />}
             {act.label}
@@ -146,6 +156,7 @@ const ProjectsList = () => {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebounce(search, 300);
   const [statusFilter, setStatusFilter] = useState("all");
   const [clientFilter, setClientFilter] = useState("all");
   const [drawerProject, setDrawerProject] = useState(null);
@@ -158,7 +169,7 @@ const ProjectsList = () => {
       setLoading(true);
       setErrorMessage("");
       const [projectsRes, samplesRes, clientsRes] = await Promise.all([
-        getProjects({ search }),
+        getProjects({ search: debouncedSearch }),
         getSampleEntries(),
         getClients(),
       ]);
@@ -170,11 +181,18 @@ const ProjectsList = () => {
     } finally {
       setLoading(false);
     }
-  }, [search]);
+  }, [debouncedSearch]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch, statusFilter, clientFilter]);
 
   const filteredProjects = useMemo(() => {
     return projects.filter((project) => {
@@ -183,6 +201,11 @@ const ProjectsList = () => {
       return true;
     });
   }, [projects, statusFilter, clientFilter]);
+
+  const paginatedProjects = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredProjects.slice(start, start + pageSize);
+  }, [filteredProjects, currentPage, pageSize]);
 
   const handleDeleteProject = async (project) => {
     if (!window.confirm(`Delete project "${project.project_name}"?`)) return;
@@ -232,7 +255,7 @@ const ProjectsList = () => {
 
         {/* Toolbar */}
         <div className="mb-6 flex flex-col xl:flex-row gap-4 items-stretch xl:items-center justify-between">
-          
+
           {/* Search Box */}
           <div className="flex-1 max-w-xl flex h-10 items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3 focus-within:border-[#243744] focus-within:ring-2 focus-within:ring-[#243744]/10 transition-all">
             <Search size={16} className="text-[#94A3B8] shrink-0" />
@@ -247,7 +270,7 @@ const ProjectsList = () => {
 
           {/* Filters and Actions */}
           <div className="flex flex-wrap items-center gap-3">
-            
+
             {/* Status select */}
             <select
               value={statusFilter}
@@ -313,6 +336,42 @@ const ProjectsList = () => {
           </div>
         </div>
 
+        {/* Active Filter Chips / Pills */}
+        {(search || statusFilter !== "all" || clientFilter !== "all") && (
+          <div className="mb-4 flex flex-wrap items-center gap-2 text-xs">
+            <span className="font-semibold text-slate-500 mr-1">Active Filters:</span>
+            {search && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-100 border border-slate-200 rounded-full font-medium text-slate-700">
+                Search: "{search}"
+                <button type="button" onClick={() => setSearch("")} className="hover:text-red-500 font-bold ml-0.5 cursor-pointer">×</button>
+              </span>
+            )}
+            {statusFilter !== "all" && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 border border-blue-200 rounded-full font-medium text-blue-700">
+                Status: {statusFilter}
+                <button type="button" onClick={() => setStatusFilter("all")} className="hover:text-red-500 font-bold ml-0.5 cursor-pointer">×</button>
+              </span>
+            )}
+            {clientFilter !== "all" && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 border border-emerald-200 rounded-full font-medium text-emerald-700">
+                Client ID: {clientFilter}
+                <button type="button" onClick={() => setClientFilter("all")} className="hover:text-red-500 font-bold ml-0.5 cursor-pointer">×</button>
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                setSearch("");
+                setStatusFilter("all");
+                setClientFilter("all");
+              }}
+              className="text-xs font-bold text-slate-500 hover:text-[#243744] underline ml-2 cursor-pointer"
+            >
+              Clear All
+            </button>
+          </div>
+        )}
+
         {errorMessage && (
           <div className="mb-4 rounded-xl border border-[#FECACA] bg-[#FEF2F2] px-4 py-3 text-sm font-semibold text-[#DC2626] animate-pulse">
             {errorMessage}
@@ -327,7 +386,19 @@ const ProjectsList = () => {
             <div className="p-16 text-center">
               <FlaskConical size={40} className="mx-auto text-[#94A3B8] mb-3" />
               <h3 className="text-base font-bold text-[#1E293B]">No projects found</h3>
-              <p className="text-xs text-[#64748B] mt-1">Try adjusting your filters or search query.</p>
+              <p className="text-xs text-[#64748B] mt-1 mb-4">Try adjusting your filters or search query.</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setSearch("");
+                  setStatusFilter("all");
+                  setClientFilter("all");
+                }}
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#243744] hover:bg-[#1A2733] text-white text-xs font-bold rounded-xl transition-colors shadow-sm cursor-pointer"
+              >
+                <RotateCcw size={14} />
+                Reset Search & Filters
+              </button>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -345,7 +416,7 @@ const ProjectsList = () => {
                   </tr>
                 </thead>
                 <motion.tbody variants={stagger.container} initial="hidden" animate="visible" className="divide-y divide-[#F1F5F9]">
-                  {filteredProjects.map((project) => (
+                  {paginatedProjects.map((project) => (
                     <motion.tr key={project.project_id} variants={stagger.item} className="hover:bg-[#FAF9FF] transition-colors">
                       <td className="px-6 py-4 text-xs font-bold text-[#1E293B]">{project.project_code}</td>
                       <td className="px-6 py-4 text-xs font-bold text-[#1E293B]">{project.project_name}</td>
@@ -359,7 +430,7 @@ const ProjectsList = () => {
                           onClick={(e) => handleToggleDropdown(project.project_id, e)}
                           className="p-1.5 hover:bg-[#F1F5F9] rounded-lg transition-colors text-[#8A97A4] hover:text-[#1A2733]"
                         >
-                          <ChevronDown size={16} />
+                          <MoreVertical size={16} />
                         </button>
 
                         <PortalActionMenu
@@ -388,18 +459,15 @@ const ProjectsList = () => {
             </div>
           )}
 
-          {/* Pagination */}
-          <div className="flex items-center justify-between border-t border-[#E2E8F0] px-6 py-4 bg-white select-none">
-            <p className="text-xs font-semibold text-[#64748B]">
-              Showing <span className="text-[#1E293B]">{filteredProjects.length}</span> of{" "}
-              <span className="text-[#1E293B]">{projects.length}</span> projects
-            </p>
-            <div className="flex items-center gap-1.5">
-              <button className="h-8 w-8 rounded-lg border border-[#E2E8F0] flex items-center justify-center text-xs font-semibold text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-40" disabled>&lt;</button>
-              <button className="h-8 w-8 rounded-lg bg-[#243744] text-white flex items-center justify-center text-xs font-bold shadow-sm">1</button>
-              <button className="h-8 w-8 rounded-lg border border-[#E2E8F0] flex items-center justify-center text-xs font-semibold text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-40" disabled>&gt;</button>
-            </div>
-          </div>
+          {/* Table Pagination */}
+          <TablePagination
+            totalItems={filteredProjects.length}
+            pageSize={pageSize}
+            currentPage={currentPage}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={setPageSize}
+            itemLabel="projects"
+          />
         </div>
 
         {/* Mobile Cards View */}
@@ -415,7 +483,7 @@ const ProjectsList = () => {
             </div>
           ) : (
             <motion.div className="space-y-4" variants={stagger.container} initial="hidden" animate="visible">
-              {filteredProjects.map((project) => (
+              {paginatedProjects.map((project) => (
                 <motion.div
                   key={project.project_id}
                   className="bg-white border border-[#E2E8F0] rounded-2xl shadow-sm overflow-hidden"

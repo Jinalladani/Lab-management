@@ -132,3 +132,19 @@ export const getSampleGradesByCategory = (categoryId) => api.get(`/sample-entrie
 export const getSampleEntryScopeTests = (sampleEntryId) => api.get(`/sample-entries/${sampleEntryId}/scope-tests`);
 
 export const updateSampleEntryScopeTests = (sampleEntryId, data) => api.put(`/sample-entries/${sampleEntryId}/scope-tests`, data);
+
+export const bulkApplyRequiredTests = (data) => api.post("/sample-entries/bulk-required-tests", data);
+
+// Project locations & borelogs lookup
+export const getProjectLocations = (projectId = "") => api.get("/sample-entries/locations", { params: { project_id: projectId } });
+
+export const getProjectBorelogs = (projectId = "", locationName = "") => api.get("/sample-entries/borelogs", { params: { project_id: projectId, location_name: locationName } });
+
+// Physical Testing Samples APIs
+export const getAllTestingSamples = (params = {}) => api.get("/sample-entries/all-testing-samples", { params });
+
+export const getTestingSamplesByReceipt = (receiptId) => api.get(`/sample-entries/${receiptId}/testing-samples`);
+
+export const bulkCreateTestingSamples = (receiptId, data) => api.post(`/sample-entries/${receiptId}/testing-samples/bulk-create`, data);
+
+

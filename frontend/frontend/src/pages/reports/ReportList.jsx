@@ -2,10 +2,11 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Eye, Trash2, Search, RefreshCw, FileText, ChevronLeft, ChevronRight, Download, Filter
+  Eye, Trash2, Search, RefreshCw, FileText, ChevronLeft, ChevronRight, Download, Filter, RotateCcw
 } from "lucide-react";
-import { getReports, deleteReport } from "../../api/reports";
+import { getReports, deleteReport, updateReportStatus } from "../../api/reports";
 import { getProjects } from "../../api/projects";
+import { useDebounce } from "../../hooks/useDebounce";
 import { MainLayout } from "../../components/layout";
 import { Button, Input, Select } from "../../components/ui";
 
@@ -20,7 +21,7 @@ const getStatusBadge = (status) => {
     locked: { text: "Locked", bg: "bg-teal-50 text-teal-700 border-teal-200" }
   };
   const config = map[norm] || { text: status, bg: "bg-gray-100 text-gray-700 border-gray-200" };
-  
+
   return (
     <span className={`inline-flex items-center text-[10px] font-bold px-2.5 py-0.5 rounded-full border uppercase ${config.bg}`}>
       {config.text}
@@ -34,9 +35,10 @@ const ReportList = () => {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
-  
+
   // Filters & Search State
   const [search, setSearch] = useState("");
+  const debouncedSearch = useDebounce(search, 300);
   const [statusFilter, setStatusFilter] = useState("");
   const [projectFilter, setProjectFilter] = useState("");
   const [dateFrom, setDateFrom] = useState("");
@@ -58,10 +60,10 @@ const ReportList = () => {
       setLoading(true);
       setErrorMessage("");
       const params = {};
-      if (search) params.search = search;
+      if (debouncedSearch) params.search = debouncedSearch;
       if (statusFilter) params.status = statusFilter;
       if (projectFilter) params.project_id = projectFilter;
-      
+
       const res = await getReports(params);
       if (res.success && res.data) {
         // Client-side date filter if date limits exist
@@ -85,7 +87,7 @@ const ReportList = () => {
   useEffect(() => {
     fetchFilters();
     fetchReports();
-  }, [statusFilter, projectFilter, dateFrom, dateTo]);
+  }, [debouncedSearch, statusFilter, projectFilter, dateFrom, dateTo]);
 
   const handleDelete = async (reportId) => {
     if (!window.confirm("Are you sure you want to delete this report?")) return;
@@ -116,7 +118,7 @@ const ReportList = () => {
                 className="w-full bg-transparent text-sm text-[#0F172A] placeholder:text-[#94A3B8] outline-none"
               />
             </div>
-            
+
             <div className="flex items-center gap-2 w-full lg:w-auto">
               <Button onClick={fetchReports} variant="secondary" icon={RefreshCw}>
                 Search / Refresh
@@ -195,6 +197,56 @@ const ReportList = () => {
           </div>
         </div>
 
+        {/* Active Filter Chips / Pills */}
+        {(search || statusFilter || projectFilter || dateFrom || dateTo) && (
+          <div className="mb-4 flex flex-wrap items-center gap-2 text-xs">
+            <span className="font-semibold text-slate-500 mr-1">Active Filters:</span>
+            {search && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-100 border border-slate-200 rounded-full font-medium text-slate-700">
+                Search: "{search}"
+                <button type="button" onClick={() => setSearch("")} className="hover:text-red-500 font-bold ml-0.5 cursor-pointer">×</button>
+              </span>
+            )}
+            {statusFilter && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 border border-blue-200 rounded-full font-medium text-blue-700">
+                Status: {statusFilter}
+                <button type="button" onClick={() => setStatusFilter("")} className="hover:text-red-500 font-bold ml-0.5 cursor-pointer">×</button>
+              </span>
+            )}
+            {projectFilter && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 border border-emerald-200 rounded-full font-medium text-emerald-700">
+                Project: {projects.find((p) => String(p.project_id) === String(projectFilter))?.project_code || projectFilter}
+                <button type="button" onClick={() => setProjectFilter("")} className="hover:text-red-500 font-bold ml-0.5 cursor-pointer">×</button>
+              </span>
+            )}
+            {dateFrom && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 border border-amber-200 rounded-full font-medium text-amber-700">
+                From: {dateFrom}
+                <button type="button" onClick={() => setDateFrom("")} className="hover:text-red-500 font-bold ml-0.5 cursor-pointer">×</button>
+              </span>
+            )}
+            {dateTo && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 border border-amber-200 rounded-full font-medium text-amber-700">
+                To: {dateTo}
+                <button type="button" onClick={() => setDateTo("")} className="hover:text-red-500 font-bold ml-0.5 cursor-pointer">×</button>
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                setSearch("");
+                setStatusFilter("");
+                setProjectFilter("");
+                setDateFrom("");
+                setDateTo("");
+              }}
+              className="text-xs font-bold text-slate-500 hover:text-[#243744] underline ml-2 cursor-pointer"
+            >
+              Clear All
+            </button>
+          </div>
+        )}
+
         {errorMessage && (
           <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs font-semibold text-rose-600">
             {errorMessage}
@@ -213,7 +265,21 @@ const ReportList = () => {
             <div className="p-16 text-center">
               <FileText size={40} className="mx-auto text-[#94A3B8] mb-3" />
               <h3 className="text-base font-bold text-[#1E293B]">No reports registered</h3>
-              <p className="text-xs text-[#64748B] mt-1">Try expanding search metrics or assigning scope observations.</p>
+              <p className="text-xs text-[#64748B] mt-1 mb-4">Try expanding search metrics or assigning scope observations.</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setSearch("");
+                  setStatusFilter("");
+                  setProjectFilter("");
+                  setDateFrom("");
+                  setDateTo("");
+                }}
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#243744] hover:bg-[#1A2733] text-white text-xs font-bold rounded-xl transition-colors shadow-sm cursor-pointer"
+              >
+                <RotateCcw size={14} />
+                Reset Search & Filters
+              </button>
             </div>
           ) : (
             <div className="overflow-x-auto">

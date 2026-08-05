@@ -200,7 +200,7 @@ const Sidebar = ({ isOpen, isCollapsed, onClose, onToggleCollapse }) => {
         { path: "/samples", label: "Samples", icon: "microscope" },
         { path: "/test-assignments", label: "Test Assign", icon: "checkSquare" },
         { path: "/observation-entry", label: "Observation", icon: "table" },
-        { path: "/reports", label: "Reports", icon: "fileText" },
+        { path: "/reports", label: "Test Reports", icon: "fileText" },
         { path: "/scope", label: "Testing Scope", icon: "flask" },
       ];
 
