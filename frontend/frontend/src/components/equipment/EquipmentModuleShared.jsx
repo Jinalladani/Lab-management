@@ -155,11 +155,30 @@ export const ActionLink = ({ children, onClick }) => (
   </button>
 );
 
+export const getRuntimeCalibrationStatus = (nextDueStr) => {
+  if (!nextDueStr) return "Valid";
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const nextDue = new Date(nextDueStr);
+  nextDue.setHours(0, 0, 0, 0);
+  
+  if (isNaN(nextDue.getTime())) return "Valid";
+
+  const diffTime = nextDue.getTime() - today.getTime();
+  const diffDays = Math.round(diffTime / (1000 * 3600 * 24));
+
+  if (diffDays < 0) return "Overdue";
+  if (diffDays === 0) return "Due Today";
+  if (diffDays <= 7) return "Due within 7 Days";
+  return "Valid";
+};
+
 export const getCalibrationBadgeClass = (status) => {
   const norm = String(status || "").toLowerCase();
   if (norm === "valid") return "lab-badge lab-badge-success";
+  if (norm === "due today") return "lab-badge lab-badge-warning";
+  if (norm.includes("7 days")) return "lab-badge lab-badge-orange";
   if (norm === "overdue") return "lab-badge lab-badge-danger";
-  if (norm.includes("7 days")) return "lab-badge lab-badge-danger";
   if (norm.includes("soon")) return "lab-badge lab-badge-warning";
   if (norm === "not required") return "lab-badge";
   return "lab-badge lab-badge-warning";

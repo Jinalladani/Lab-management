@@ -138,28 +138,10 @@ const AddEquipment = () => {
 
     try {
       setLoading(true);
-      const today = new Date();
-      const nextDue = new Date(formData.nextDue || today);
-      const diffDays = Math.ceil((nextDue - today) / (1000 * 60 * 60 * 24));
-      
-      let calStatus = "Valid";
-      if (formData.calibrationRequired === "No") {
-        calStatus = "Not Required";
-      } else {
-        if (diffDays < 0) {
-          calStatus = "Overdue";
-        } else if (diffDays <= 7) {
-          calStatus = "Due within 7 Days";
-        } else if (diffDays <= 30) {
-          calStatus = "Due Soon";
-        }
-      }
-
       const payload = {
         ...formData,
         calibrationRequired: formData.calibrationRequired === "Yes",
         maintenanceRequired: false,
-        calibrationStatus: calStatus,
         lastCalibration: formData.purchaseDate
       };
 

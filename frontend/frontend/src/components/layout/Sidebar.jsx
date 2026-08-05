@@ -188,8 +188,9 @@ const Sidebar = ({ isOpen, isCollapsed, onClose, onToggleCollapse }) => {
       ? [
         { path: "/dashboard", label: "Dashboard", icon: "layoutDashboard" },
         { path: "/labs/manage", label: "Lab Management", icon: "building" },
+        { path: "/superadmin/roles", label: "Role Management", icon: "shield" },
         { path: "/superadmin/subscriptions", label: "Subscriptions", icon: "creditCard" },
-        { path: "/superadmin/observation-builder", label: "Observation Form Builder", icon: "table" },
+        // { path: "/superadmin/observation-builder", label: "Observation Form Builder", icon: "table" },
       ]
       : [
         { path: "/dashboard", label: "Dashboard", icon: "layoutDashboard" },
@@ -334,12 +335,12 @@ const Sidebar = ({ isOpen, isCollapsed, onClose, onToggleCollapse }) => {
                   />
                 ))}
                 <SidebarSection title="Platform Configuration" collapsed={isCollapsed} />
-                <SidebarLink to="/superadmin/master-data" label="Master Data" icon="database" collapsed={isCollapsed} onClick={onClose} />
+                {/* <SidebarLink to="/superadmin/master-data" label="Master Data" icon="database" collapsed={isCollapsed} onClick={onClose} /> */}
                 <SidebarLink to="/superadmin/observation-templates" label="Observation Templates" icon="clipboard" collapsed={isCollapsed} onClick={onClose} />
                 <SidebarLink to="/superadmin/report-templates" label="Report Templates" icon="fileStack" collapsed={isCollapsed} onClick={onClose} />
-                <SidebarSection title="Governance" collapsed={isCollapsed} />
+                {/* <SidebarSection title="Governance" collapsed={isCollapsed} />
                 <SidebarLink to="/superadmin/audit-logs" label="Audit Logs" icon="shield" collapsed={isCollapsed} onClick={onClose} />
-                <SidebarLink to="/superadmin/settings" label="Settings" icon="settings" collapsed={isCollapsed} onClick={onClose} />
+                <SidebarLink to="/superadmin/settings" label="Settings" icon="settings" collapsed={isCollapsed} onClick={onClose} /> */}
               </>
             ) : navItems.map((item) => {
               if (item.subItems) {
@@ -370,35 +371,35 @@ const Sidebar = ({ isOpen, isCollapsed, onClose, onToggleCollapse }) => {
             })}
 
             {!(user?.role === "superadmin" || user?.role === "super_admin") && (
-            <div className="!mt-3 pt-3 border-t border-white/8 space-y-1.5">
-              {moduleItems.map((item) => {
-                if (item.subItems) {
+              <div className="!mt-3 pt-3 border-t border-white/8 space-y-1.5">
+                {moduleItems.map((item) => {
+                  if (item.subItems) {
+                    return (
+                      <SidebarSubmenu
+                        key={item.label}
+                        label={item.label}
+                        icon={item.icon}
+                        subItems={item.subItems}
+                        collapsed={isCollapsed}
+                        onClose={onClose}
+                        activeWhen={item.activeWhen}
+                        path={item.path}
+                      />
+                    );
+                  }
                   return (
-                    <SidebarSubmenu
-                      key={item.label}
+                    <SidebarLink
+                      key={item.path}
+                      to={item.path}
                       label={item.label}
                       icon={item.icon}
-                      subItems={item.subItems}
                       collapsed={isCollapsed}
-                      onClose={onClose}
+                      onClick={onClose}
                       activeWhen={item.activeWhen}
-                      path={item.path}
                     />
                   );
-                }
-                return (
-                  <SidebarLink
-                    key={item.path}
-                    to={item.path}
-                    label={item.label}
-                    icon={item.icon}
-                    collapsed={isCollapsed}
-                    onClick={onClose}
-                    activeWhen={item.activeWhen}
-                  />
-                );
-              })}
-            </div>
+                })}
+              </div>
             )}
           </nav>
         </div>

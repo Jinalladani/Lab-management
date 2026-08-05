@@ -14,40 +14,50 @@ def get_calibration_dashboard():
         if not lab_id:
             return jsonify({"success": False, "message": "Lab ID not found in token"}), 400
 
-        # 1. Total KPI stats
+        # 1. Total KPI stats dynamically computed from next_due & CURRENT_DATE
         kpi_query = text("""
             SELECT 
                 COUNT(*) as total_eq,
-                COUNT(*) FILTER (WHERE calibration_status = 'Valid') as valid,
-                COUNT(*) FILTER (WHERE calibration_status = 'Due Soon') as due_soon,
-                COUNT(*) FILTER (WHERE calibration_status = 'Due within 7 Days') as due_7,
-                COUNT(*) FILTER (WHERE calibration_status = 'Overdue') as overdue
+                COUNT(*) FILTER (WHERE next_due IS NOT NULL AND next_due > CURRENT_DATE + 7) as valid,
+                COUNT(*) FILTER (WHERE next_due = CURRENT_DATE) as due_today,
+                COUNT(*) FILTER (WHERE next_due > CURRENT_DATE AND next_due <= CURRENT_DATE + 7) as due_7,
+                COUNT(*) FILTER (WHERE next_due < CURRENT_DATE) as overdue
             FROM equipment
             WHERE lab_id = :lab_id
         """)
         kpi = db.session.execute(kpi_query, {"lab_id": lab_id}).fetchone()
 
-        # 2. Upcoming calibrations (Next 30 Days)
+        # 2. Upcoming / non-valid calibrations
         upcoming_query = text("""
-            SELECT equipment_id, name, next_due, calibration_status, laboratory
+            SELECT equipment_id, name, next_due, laboratory
             FROM equipment
-            WHERE lab_id = :lab_id AND calibration_status != 'Valid' AND calibration_status != 'Not Required'
+            WHERE lab_id = :lab_id AND next_due IS NOT NULL AND next_due <= CURRENT_DATE + 7
             ORDER BY next_due ASC
             LIMIT 10
         """)
         upcoming_rows = db.session.execute(upcoming_query, {"lab_id": lab_id}).fetchall()
         upcoming = []
+        today = date.today()
         for ur in upcoming_rows:
+            due_d = ur.next_due
+            if due_d < today:
+                status_str = "Overdue"
+            elif due_d == today:
+                status_str = "Due Today"
+            elif (due_d - today).days <= 7:
+                status_str = "Due within 7 Days"
+            else:
+                status_str = "Valid"
+
             upcoming.append({
                 "id": ur.equipment_id,
                 "name": ur.name,
                 "nextDue": ur.next_due.isoformat() if ur.next_due else None,
-                "calibrationStatus": ur.calibration_status,
+                "calibrationStatus": status_str,
                 "laboratory": ur.laboratory
             })
 
         # 3. Monthly calibration trend (Last 6 Months)
-        # For simplicity, group counts of calibration records by month
         trend_query = text("""
             SELECT TO_CHAR(calibration_date, 'Mon') as month_name, COUNT(*) as count
             FROM calibration_records
@@ -63,7 +73,6 @@ def get_calibration_dashboard():
                 "calibrations": tr.count
             })
 
-        # Default trend data if none found to prevent empty charts
         if not trend_list:
             trend_list = [
                 {"name": "Jan", "calibrations": 4},
@@ -86,7 +95,7 @@ def get_calibration_dashboard():
             "stats": {
                 "totalCount": kpi.total_eq or 0,
                 "validCount": kpi.valid or 0,
-                "dueCount": kpi.due_soon or 0,
+                "dueCount": kpi.due_today or 0,
                 "due7Count": kpi.due_7 or 0,
                 "overdueCount": kpi.overdue or 0
             },
@@ -197,18 +206,6 @@ def create_calibration():
         
         cal_date = datetime.strptime(data["calibrationDate"], "%Y-%m-%d").date()
         next_due = datetime.strptime(data["nextDue"], "%Y-%m-%d").date()
-        
-        # Calculate new calibration status for equipment
-        today = date.today()
-        diff_days = (next_due - today).days
-        if diff_days < 0:
-            cal_status = "Overdue"
-        elif diff_days <= 7:
-            cal_status = "Due within 7 Days"
-        elif diff_days <= 30:
-            cal_status = "Due Soon"
-        else:
-            cal_status = "Valid"
 
         res = db.session.execute(insert_query, {
             "lab_id": lab_id,
@@ -226,7 +223,7 @@ def create_calibration():
             "approved_by": data.get("approvedBy")
         })
 
-        # 2. Update equipment table with latest calibration data
+        # 2. Update equipment table with latest calibration data (without setting calibration_status)
         update_eq_query = text("""
             UPDATE equipment
             SET last_calibration = :cal_date,
@@ -234,7 +231,6 @@ def create_calibration():
                 frequency = :frequency,
                 agency = :agency,
                 certificate_no = :certificate_no,
-                calibration_status = :cal_status,
                 updated_at = CURRENT_TIMESTAMP
             WHERE lab_id = :lab_id AND equipment_id = :eq_id
         """)
@@ -244,7 +240,6 @@ def create_calibration():
             "frequency": data.get("frequency", "12 Months"),
             "agency": data["agency"],
             "certificate_no": data["certificateNo"],
-            "cal_status": cal_status,
             "lab_id": lab_id,
             "eq_id": data["eqId"]
         })

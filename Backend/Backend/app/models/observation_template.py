@@ -18,8 +18,9 @@ class ObservationTemplate(db.Model):
     status = db.Column(db.String(50), nullable=False, default="Draft")
     created_by = db.Column(db.String(255), nullable=True)
     
-    # JSON columns to store spreadsheet cells data and merge boundary configurations
+    # JSON columns to store spreadsheet cells data, sections structure and merge boundary configurations
     sheets_data = db.Column(db.JSON, nullable=False, default=dict)
+    sections_data = db.Column(db.JSON, nullable=True, default=list)
     merges_data = db.Column(db.JSON, nullable=False, default=list)
     
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
@@ -44,6 +45,7 @@ class ObservationTemplate(db.Model):
             'status': self.status,
             'created_by': self.created_by,
             'sheets_data': self.sheets_data,
+            'sections_data': self.sections_data or [],
             'merges_data': self.merges_data,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,

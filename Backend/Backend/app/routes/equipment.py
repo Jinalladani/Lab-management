@@ -2,12 +2,37 @@ from flask import Blueprint, jsonify, g, request, current_app
 from app.utils.auth_decorator import token_required
 from sqlalchemy import text
 from app.extensions import db
-from datetime import datetime
+from datetime import datetime, date
 import os
 import uuid
 from werkzeug.utils import secure_filename
 
 equipment_bp = Blueprint("equipment", __name__)
+
+def calculate_calibration_status(next_due_val):
+    if not next_due_val:
+        return "Valid"
+    if isinstance(next_due_val, datetime):
+        due_date = next_due_val.date()
+    elif isinstance(next_due_val, date):
+        due_date = next_due_val
+    elif isinstance(next_due_val, str):
+        try:
+            due_date = datetime.strptime(next_due_val[:10], "%Y-%m-%d").date()
+        except Exception:
+            return "Valid"
+    else:
+        return "Valid"
+
+    today = date.today()
+    if today > due_date:
+        return "Overdue"
+    elif today == due_date:
+        return "Due Today"
+    elif (due_date - today).days <= 7:
+        return "Due within 7 Days"
+    else:
+        return "Valid"
 
 @equipment_bp.route("/list", methods=["GET"])
 @token_required
@@ -21,10 +46,11 @@ def get_equipment_list():
         category = request.args.get("category", "")
         laboratory = request.args.get("laboratory", "")
         status = request.args.get("status", "")
+        cal_status_filter = request.args.get("calibrationStatus", "") or request.args.get("calibration_status", "")
 
         query_str = """
             SELECT equipment_id, lab_id, name, category, laboratory, status,
-                   calibration_status, next_due, last_calibration, frequency,
+                   next_due, last_calibration, frequency,
                    agency, certificate_no, model, serial_no, location,
                    responsible_person, manufacturer, supplier, purchase_date,
                    installation_date, measurement_range, least_count, accuracy,
@@ -61,6 +87,9 @@ def get_equipment_list():
 
         eq_list = []
         for r in rows:
+            runtime_cal_status = calculate_calibration_status(r.next_due)
+            if cal_status_filter and runtime_cal_status.lower() != cal_status_filter.lower():
+                continue
             eq_list.append({
                 "id": r.equipment_id,
                 "lab_id": r.lab_id,
@@ -68,7 +97,9 @@ def get_equipment_list():
                 "category": r.category,
                 "laboratory": r.laboratory,
                 "status": r.status,
-                "calibrationStatus": r.calibration_status,
+                "calibration_status": runtime_cal_status,
+                "calibrationStatus": runtime_cal_status,
+                "next_due": r.next_due.isoformat() if r.next_due else None,
                 "nextDue": r.next_due.isoformat() if r.next_due else None,
                 "lastCalibration": r.last_calibration.isoformat() if r.last_calibration else None,
                 "frequency": r.frequency,
@@ -150,7 +181,7 @@ def create_equipment():
         insert_query = text("""
             INSERT INTO equipment (
                 equipment_id, lab_id, name, category, laboratory, status,
-                calibration_status, next_due, last_calibration, frequency,
+                next_due, last_calibration, frequency,
                 agency, certificate_no, model, serial_no, location,
                 responsible_person, manufacturer, supplier, purchase_date,
                 installation_date, measurement_range, least_count, accuracy,
@@ -164,7 +195,7 @@ def create_equipment():
                 maintenance_required, maintenance_frequency
             ) VALUES (
                 :eq_id, :lab_id, :name, :category, :laboratory, :status,
-                :calibration_status, :next_due, :last_calibration, :frequency,
+                :next_due, :last_calibration, :frequency,
                 :agency, :certificate_no, :model, :serial_no, :location,
                 :responsible_person, :manufacturer, :supplier, :purchase_date,
                 :installation_date, :measurement_range, :least_count, :accuracy,
@@ -188,7 +219,6 @@ def create_equipment():
             "category": data["category"],
             "laboratory": data["laboratory"],
             "status": status,
-            "calibration_status": data.get("calibrationStatus", "Valid"),
             "next_due": datetime.strptime(data["nextDue"], "%Y-%m-%d").date() if data.get("nextDue") else None,
             "last_calibration": datetime.strptime(data["lastCalibration"], "%Y-%m-%d").date() if data.get("lastCalibration") else None,
             "frequency": data.get("frequency", "12 Months"),
@@ -355,7 +385,8 @@ def view_equipment(eq_id):
             "category": eq_row.category,
             "laboratory": eq_row.laboratory,
             "status": eq_row.status,
-            "calibrationStatus": eq_row.calibration_status,
+            "calibration_status": calculate_calibration_status(eq_row.next_due),
+            "calibrationStatus": calculate_calibration_status(eq_row.next_due),
             "nextDue": eq_row.next_due.isoformat() if eq_row.next_due else None,
             "lastCalibration": eq_row.last_calibration.isoformat() if eq_row.last_calibration else None,
             "frequency": eq_row.frequency,
@@ -429,7 +460,7 @@ def update_equipment(eq_id):
         update_query = text("""
             UPDATE equipment
             SET name = :name, category = :category, laboratory = :laboratory, status = :status,
-                calibration_status = :calibration_status, next_due = :next_due, last_calibration = :last_calibration,
+                next_due = :next_due, last_calibration = :last_calibration,
                 frequency = :frequency, agency = :agency, certificate_no = :certificate_no, model = :model,
                 serial_no = :serial_no, location = :location, responsible_person = :responsible_person,
                 manufacturer = :manufacturer, supplier = :supplier, purchase_date = :purchase_date,
@@ -455,7 +486,6 @@ def update_equipment(eq_id):
             "category": data["category"],
             "laboratory": data["laboratory"],
             "status": new_status,
-            "calibration_status": data.get("calibrationStatus", "Valid"),
             "next_due": datetime.strptime(data["nextDue"], "%Y-%m-%d").date() if data.get("nextDue") else None,
             "last_calibration": datetime.strptime(data["lastCalibration"], "%Y-%m-%d").date() if data.get("lastCalibration") else None,
             "frequency": data.get("frequency", "12 Months"),
@@ -788,7 +818,7 @@ def get_equipment_mappings():
         lab_id = g.jwt_payload.get("lab_id")
         query = """
             SELECT etm.mapping_id, etm.scope_test_id, etm.equipment_id, etm.is_mandatory,
-                   st.test_name, st.test_method, eq.name as equipment_name, eq.calibration_status,
+                   st.test_name, st.test_method, eq.name as equipment_name,
                    eq.next_due
             FROM equipment_test_mapping etm
             JOIN scope_tests st ON etm.scope_test_id = st.scope_test_id
@@ -806,7 +836,7 @@ def get_equipment_mappings():
                 "testName": r.test_name,
                 "testMethod": r.test_method,
                 "equipmentName": r.equipment_name,
-                "calibrationStatus": r.calibration_status,
+                "calibrationStatus": calculate_calibration_status(r.next_due),
                 "nextDue": r.next_due.isoformat() if r.next_due else None
             })
         return jsonify({"success": True, "data": mappings}), 200
@@ -821,7 +851,7 @@ def get_mappings_by_test(scope_test_id):
         lab_id = g.jwt_payload.get("lab_id")
         query = """
             SELECT etm.mapping_id, etm.scope_test_id, etm.equipment_id, etm.is_mandatory,
-                   eq.name as equipment_name, eq.calibration_status, eq.certificate_no,
+                   eq.name as equipment_name, eq.certificate_no,
                    eq.next_due
             FROM equipment_test_mapping etm
             JOIN equipment eq ON etm.equipment_id = eq.equipment_id
@@ -836,7 +866,7 @@ def get_mappings_by_test(scope_test_id):
                 "equipmentId": r.equipment_id,
                 "isMandatory": r.is_mandatory,
                 "equipmentName": r.equipment_name,
-                "calibrationStatus": r.calibration_status,
+                "calibrationStatus": calculate_calibration_status(r.next_due),
                 "certificateNo": r.certificate_no,
                 "nextDue": r.next_due.isoformat() if r.next_due else None
             })

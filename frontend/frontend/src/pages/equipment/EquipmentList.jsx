@@ -9,7 +9,7 @@ import MainLayout from "../../components/layout/MainLayout";
 import { mockEquipmentDb } from "../../utils/mockEquipmentData";
 import { getEquipmentList, createEquipment, deleteEquipment } from "../../api";
 import { TableSkeleton } from "../../components/ui/Skeleton";
-import { StatTile } from "../../components/equipment/EquipmentModuleShared";
+import { StatTile, getRuntimeCalibrationStatus, getCalibrationBadgeClass } from "../../components/equipment/EquipmentModuleShared";
 
 const stagger = {
   container: { hidden: {}, visible: { transition: { staggerChildren: 0.04 } } },
@@ -34,25 +34,11 @@ const getStatusBadge = (status) => {
   );
 };
 
-const getCalibrationBadge = (status) => {
-  const norm = String(status || "").toLowerCase();
-  if (norm === "valid") {
-    return (
-      <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full bg-[#F0FDF4] text-[#16A34A] border-[#BBF7D0]">
-        <span className="w-1.5 h-1.5 rounded-full bg-[#16A34A]" />
-        Valid
-      </span>
-    );
-  }
-  let color = "bg-[#FFFBEB] text-[#D97706] border-[#FEF3C7]";
-  let dotColor = "bg-[#D97706]";
-  if (norm.includes("7 days") || norm.includes("soon")) {
-    color = "bg-[#FEF2F2] text-[#DC2626] border-[#FECACA]";
-    dotColor = "bg-[#DC2626]";
-  }
+const getCalibrationBadge = (nextDueStr) => {
+  const status = getRuntimeCalibrationStatus(nextDueStr);
+  const badgeClass = getCalibrationBadgeClass(status);
   return (
-    <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full border ${color}`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
+    <span className={badgeClass}>
       {status}
     </span>
   );
@@ -75,7 +61,7 @@ const PortalActionMenu = ({ anchorEl, open, onClose, actions }) => {
       const gap = 6;
 
       const spaceBelow = viewportHeight - rect.bottom;
-      
+
       let top;
       if (spaceBelow >= estimatedHeight + gap) {
         top = rect.bottom + window.scrollY + gap;
@@ -132,9 +118,8 @@ const PortalActionMenu = ({ anchorEl, open, onClose, actions }) => {
               onClose();
               act.onClick();
             }}
-            className={`w-full px-4 py-2 text-xs font-semibold flex items-center gap-2 hover:bg-[#FAF9FF] transition-colors ${
-              act.danger ? "text-red-600 hover:text-red-700 hover:bg-red-50" : "text-[#475569] hover:text-[#243744]"
-            }`}
+            className={`w-full px-4 py-2 text-xs font-semibold flex items-center gap-2 hover:bg-[#FAF9FF] transition-colors ${act.danger ? "text-red-600 hover:text-red-700 hover:bg-red-50" : "text-[#475569] hover:text-[#243744]"
+              }`}
           >
             {Icon && <Icon size={14} />}
             {act.label}
@@ -149,11 +134,11 @@ const PortalActionMenu = ({ anchorEl, open, onClose, actions }) => {
 const EquipmentList = () => {
   const navigate = useNavigate();
   const routeLocation = useLocation();
-  
+
   // Data State
   const [equipments, setEquipments] = useState([]);
   const [loading, setLoading] = useState(false);
-  
+
   // Search & Filters
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedLab, setSelectedLab] = useState("all");
@@ -185,7 +170,7 @@ const EquipmentList = () => {
 
   useEffect(() => {
     fetchEquipment();
-    
+
     if (routeLocation.state?.openAddWizard) {
       navigate("/equipment/add");
       window.history.replaceState({}, document.title);
@@ -199,7 +184,7 @@ const EquipmentList = () => {
       } catch (err) {
         console.error("Failed to delete equipment via API:", err);
       }
-      
+
       setEquipments(prev => prev.filter(eq => eq.id !== id));
       mockEquipmentDb.deleteEquipment(id);
     }
@@ -243,7 +228,6 @@ const EquipmentList = () => {
           <table>
             <thead>
               <tr>
-                <th>Equipment ID</th>
                 <th>Equipment Code</th>
                 <th>Equipment Name</th>
                 <th>Category</th>
@@ -257,7 +241,6 @@ const EquipmentList = () => {
             <tbody>
               ${filteredEquipments.map(eq => `
                 <tr>
-                  <td><b>${eq.id}</b></td>
                   <td>${eq.equipmentCode || eq.assetTag || "—"}</td>
                   <td>${eq.name}</td>
                   <td>${eq.category}</td>
@@ -281,24 +264,29 @@ const EquipmentList = () => {
 
   // Filter logic
   const filteredEquipments = equipments.filter(eq => {
-    const matchesSearch = 
+    const matchesSearch =
       eq.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       eq.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
       eq.model.toLowerCase().includes(searchTerm.toLowerCase()) ||
       eq.serialNo.toLowerCase().includes(searchTerm.toLowerCase());
-      
+
     const matchesLab = selectedLab !== "all" ? eq.laboratory === selectedLab : true;
     const matchesCategory = selectedCategory !== "all" ? eq.category === selectedCategory : true;
     const matchesStatus = selectedStatus !== "all" ? eq.status === selectedStatus : true;
-    
+
     return matchesSearch && matchesLab && matchesCategory && matchesStatus;
   });
 
   const stats = React.useMemo(() => {
     const total = equipments.length;
     const active = equipments.filter(e => e.status === "Active").length;
-    const overdue = equipments.filter(e => e.calibrationStatus === "Overdue").length;
-    const dueSoon = equipments.filter(e => e.calibrationStatus === "Due Soon" || e.calibrationStatus === "Due within 7 Days").length;
+    let overdue = 0;
+    let dueSoon = 0;
+    equipments.forEach(e => {
+      const st = getRuntimeCalibrationStatus(e.nextDue);
+      if (st === "Overdue") overdue++;
+      if (st === "Due Today" || st === "Due within 7 Days") dueSoon++;
+    });
     return { total, active, overdue, dueSoon };
   }, [equipments]);
 
@@ -319,7 +307,7 @@ const EquipmentList = () => {
   return (
     <MainLayout headerTitle="Equipment Registry" headerSubtitle="Manage, inspect, and trace laboratory apparatus & calibration records">
       <div className="mx-auto w-full max-w-[1800px] px-4 py-5 sm:px-5 lg:px-6">
-        
+
         {/* KPI Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <StatTile label="Total Equipment" value={stats.total} icon="microscope" tone="primary" caption="Registry" />
@@ -327,7 +315,7 @@ const EquipmentList = () => {
           <StatTile label="Calibration Due" value={stats.dueSoon} icon="calendar" tone="warning" caption="30 Days" />
           <StatTile label="Overdue" value={stats.overdue} icon="warning" tone="danger" caption="Critical" />
         </div>
-        
+
         {/* Filters and Search Bar */}
         <div className="mb-6 flex flex-col xl:flex-row gap-4 items-stretch xl:items-center justify-between">
           <div className="flex-1 max-w-xl flex h-10 items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3 focus-within:border-[#243744] focus-within:ring-2 focus-within:ring-[#243744]/10 transition-all">
@@ -340,7 +328,7 @@ const EquipmentList = () => {
               className="w-full bg-transparent text-sm text-[#0F172A] placeholder:text-[#94A3B8] outline-none"
             />
           </div>
-          
+
           <div className="flex flex-wrap items-center gap-3">
             <select
               value={selectedLab}
@@ -437,7 +425,7 @@ const EquipmentList = () => {
                 <motion.tbody variants={stagger.container} initial="hidden" animate="visible" className="divide-y divide-[#F1F5F9]">
                   {filteredEquipments.map((eq) => (
                     <motion.tr key={eq.id} variants={stagger.item} className="hover:bg-[#FAF9FF] transition-colors">
-                       <td className="px-6 py-4 text-xs font-bold text-[#243744] hover:underline cursor-pointer" onClick={() => navigate(`/equipment/view/${eq.id}`)}>
+                      <td className="px-6 py-4 text-xs font-bold text-[#243744] hover:underline cursor-pointer" onClick={() => navigate(`/equipment/view/${eq.id}`)}>
                         {eq.equipmentCode || eq.id}
                       </td>
                       <td className="px-6 py-4">
@@ -447,7 +435,7 @@ const EquipmentList = () => {
                       <td className="px-6 py-4 text-xs font-semibold text-[#475569]">{eq.category}</td>
                       <td className="px-6 py-4 text-xs font-semibold text-[#475569]">{eq.location || eq.laboratory || "—"}</td>
                       <td className="px-6 py-4">{getStatusBadge(eq.status)}</td>
-                      <td className="px-6 py-4">{getCalibrationBadge(eq.calibrationStatus)}</td>
+                      <td className="px-6 py-4">{getCalibrationBadge(eq.nextDue)}</td>
                       <td className="px-6 py-4 text-xs font-semibold text-[#475569]">
                         {eq.nextDue ? new Date(eq.nextDue).toLocaleDateString("en-IN", { day: '2-digit', month: 'short', year: 'numeric' }) : "—"}
                       </td>
@@ -496,7 +484,7 @@ const EquipmentList = () => {
         {isQrModalOpen && activeQrEq && (
           <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 flex items-center justify-center p-4 backdrop-blur-xs">
             <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl border border-gray-100 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-              
+
               <div className="bg-gray-50 border-b border-gray-100 px-5 py-4 flex items-center justify-between">
                 <span className="text-sm font-bold text-gray-800">QR Code / Equipment Label</span>
                 <button onClick={() => setIsQrModalOpen(false)} className="p-1 hover:bg-gray-150 rounded-full text-gray-500 transition-colors">
@@ -506,11 +494,11 @@ const EquipmentList = () => {
 
               {/* Printable Label Section */}
               <div className="p-6 flex flex-col items-center justify-center">
-                
+
                 {/* Physical Label Design Card */}
                 <div id="equipment-printable-label" className="w-full bg-white border border-gray-300 rounded-2xl p-4 shadow-sm text-gray-900 flex flex-row items-center gap-4 relative">
                   <div className="absolute inset-2 border border-dashed border-gray-300 pointer-events-none rounded-lg" />
-                  
+
                   {/* Left QR Code Column */}
                   <div className="flex-shrink-0 flex flex-col items-center justify-center z-10 ml-2">
                     <img
@@ -527,7 +515,7 @@ const EquipmentList = () => {
                       <h4 className="text-sm font-extrabold tracking-tight text-gray-900 line-clamp-1">{activeQrEq.name}</h4>
                       <p className="text-[10px] font-bold text-gray-500 uppercase mt-0.5">{activeQrEq.laboratory} • {activeQrEq.location || "N/A"}</p>
                     </div>
-                    
+
                     <div className="space-y-1 mt-2.5">
                       <div className="flex justify-between items-center text-[10px] font-semibold text-gray-500">
                         <span>Device Status:</span>
@@ -535,11 +523,10 @@ const EquipmentList = () => {
                       </div>
                       <div className="flex justify-between items-center text-[10px] font-semibold text-gray-500">
                         <span>Calibration:</span>
-                        <span className={`font-extrabold uppercase text-[9px] px-1.5 py-0.25 rounded border ${
-                          activeQrEq.calibrationStatus === "Valid" 
-                            ? "text-emerald-700 bg-emerald-50 border-emerald-100" 
-                            : "text-amber-700 bg-amber-50 border-amber-100"
-                        }`}>{activeQrEq.calibrationStatus}</span>
+                        <span className={`font-extrabold uppercase text-[9px] px-1.5 py-0.25 rounded border ${activeQrEq.calibrationStatus === "Valid"
+                          ? "text-emerald-700 bg-emerald-50 border-emerald-100"
+                          : "text-amber-700 bg-amber-50 border-amber-100"
+                          }`}>{activeQrEq.calibrationStatus}</span>
                       </div>
                       <div className="flex justify-between items-center text-[10px] font-semibold text-gray-500">
                         <span>Next Due:</span>

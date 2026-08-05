@@ -163,7 +163,7 @@ const CalibrationDashboard = () => {
                 <thead>
                   <tr className="border-b border-[#E2E6EB] text-left text-[11px] font-semibold uppercase tracking-wider text-[#8A97A4]">
                     <th className="py-2.5 px-3">Equipment</th>
-                    <th className="py-2.5 px-3">Equipment ID</th>
+                    {/* <th className="py-2.5 px-3">Equipment ID</th> */}
                     <th className="py-2.5 px-3">Due Date</th>
                     <th className="py-2.5 px-3">Remaining</th>
                   </tr>
@@ -175,7 +175,7 @@ const CalibrationDashboard = () => {
                     return (
                       <tr key={eq.id} className="transition-colors hover:bg-[#F6F7F9]">
                         <td className="py-3 px-3 font-semibold text-[#1A2733]">{eq.name}</td>
-                        <td className="py-3 px-3 font-bold text-[#3F6E8C]">{eq.id}</td>
+                        {/* <td className="py-3 px-3 font-bold text-[#3F6E8C]">{eq.id}</td> */}
                         <td className="py-3 px-3 font-medium text-[#57687A]">{formatDate(eq.nextDue)}</td>
                         <td className="py-3 px-3"><span className={urgency.className}>{urgency.text}</span></td>
                       </tr>

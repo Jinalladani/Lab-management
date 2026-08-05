@@ -22,9 +22,8 @@ const getStatusBadge = (status) => {
   const norm = String(status || "").toLowerCase();
   const isPass = norm === "pass";
   return (
-    <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full ${
-      isPass ? "bg-[#F0FDF4] text-[#16A34A]" : "bg-[#FEF2F2] text-[#DC2626]"
-    }`}>
+    <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full ${isPass ? "bg-[#F0FDF4] text-[#16A34A]" : "bg-[#FEF2F2] text-[#DC2626]"
+      }`}>
       <span className={`w-1.5 h-1.5 rounded-full ${isPass ? "bg-[#16A34A]" : "bg-[#DC2626]"}`} />
       {status || "Pass"}
     </span>
@@ -48,7 +47,7 @@ const PortalActionMenu = ({ anchorEl, open, onClose, actions }) => {
       const gap = 6;
 
       const spaceBelow = viewportHeight - rect.bottom;
-      
+
       let top;
       if (spaceBelow >= estimatedHeight + gap) {
         top = rect.bottom + window.scrollY + gap;
@@ -105,9 +104,8 @@ const PortalActionMenu = ({ anchorEl, open, onClose, actions }) => {
               onClose();
               act.onClick();
             }}
-            className={`w-full px-4 py-2 text-xs font-semibold flex items-center gap-2 hover:bg-[#FAF9FF] transition-colors ${
-              act.danger ? "text-red-600 hover:text-red-700 hover:bg-red-50" : "text-[#475569] hover:text-[#243744]"
-            }`}
+            className={`w-full px-4 py-2 text-xs font-semibold flex items-center gap-2 hover:bg-[#FAF9FF] transition-colors ${act.danger ? "text-red-600 hover:text-red-700 hover:bg-red-50" : "text-[#475569] hover:text-[#243744]"
+              }`}
           >
             {Icon && <Icon size={14} />}
             {act.label}
@@ -276,7 +274,7 @@ const CalibrationRegister = () => {
     mockEquipmentDb.addCalibration(calibrationRecord);
     fetchData();
     setIsAddModalOpen(false);
-    
+
     setNewCal({
       eqId: equipmentList[0]?.id || "",
       calibrationDate: new Date().toISOString().substring(0, 10),
@@ -305,12 +303,12 @@ const CalibrationRegister = () => {
   // Filter
   const filteredCalibrations = calibrations.filter(cal => {
     const eq = equipmentList.find(e => e.id === cal.eqId);
-    
-    const matchesSearch = 
+
+    const matchesSearch =
       cal.eqName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       cal.eqId.toLowerCase().includes(searchTerm.toLowerCase()) ||
       cal.certificateNo.toLowerCase().includes(searchTerm.toLowerCase());
-      
+
     const matchesLab = selectedLab !== "all" ? (eq && eq.laboratory === selectedLab) : true;
     const matchesAgency = selectedAgency !== "all" ? cal.agency === selectedAgency : true;
     const matchesStatus = selectedStatus !== "all" ? cal.status === selectedStatus : true;
@@ -449,7 +447,7 @@ const CalibrationRegister = () => {
                       </td>
                       <td className="px-6 py-4 text-xs font-semibold text-[#475569]">{cal.frequency}</td>
                       <td className="px-6 py-4 text-xs font-semibold text-[#475569]">{cal.agency}</td>
-                      <td 
+                      <td
                         onClick={() => handleOpenCertificate(cal)}
                         className="px-6 py-4 text-xs font-extrabold text-[#243744] hover:underline cursor-pointer"
                       >
@@ -495,17 +493,15 @@ const CalibrationRegister = () => {
         </div>
 
         {/* ADD CALIBRATION RECORD DRAWER (Screen 8) */}
-        <div 
-          className={`fixed inset-0 bg-black/45 backdrop-blur-xs z-50 transition-opacity duration-300 ${
-            isAddModalOpen ? "opacity-100 visible" : "opacity-0 invisible"
-          }`} 
-          onClick={() => setIsAddModalOpen(false)} 
+        <div
+          className={`fixed inset-0 bg-black/45 backdrop-blur-xs z-50 transition-opacity duration-300 ${isAddModalOpen ? "opacity-100 visible" : "opacity-0 invisible"
+            }`}
+          onClick={() => setIsAddModalOpen(false)}
         />
 
-        <div 
-          className={`fixed top-0 right-0 h-full w-full sm:w-[500px] bg-white shadow-2xl z-50 transform transition-transform duration-300 ${
-            isAddModalOpen ? "translate-x-0" : "translate-x-full"
-          } flex flex-col`}
+        <div
+          className={`fixed top-0 right-0 h-full w-full sm:w-[500px] bg-white shadow-2xl z-50 transform transition-transform duration-300 ${isAddModalOpen ? "translate-x-0" : "translate-x-full"
+            } flex flex-col`}
         >
           <div className="bg-[#243744] text-white px-5 py-5 flex items-center justify-between">
             <div>
@@ -523,7 +519,7 @@ const CalibrationRegister = () => {
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Select Equipment <span className="text-red-500">*</span></label>
                 <select
                   value={newCal.eqId}
-                  onChange={(e) => setNewCal({...newCal, eqId: e.target.value})}
+                  onChange={(e) => setNewCal({ ...newCal, eqId: e.target.value })}
                   className="px-3.5 py-2.5 w-full border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#243744] focus:ring-2 focus:ring-[#243744]/10 transition-all bg-white"
                 >
                   {equipmentList.map(eq => (
@@ -538,7 +534,7 @@ const CalibrationRegister = () => {
                   type="text"
                   placeholder="Enter Calibration Agency"
                   value={newCal.agency}
-                  onChange={(e) => setNewCal({...newCal, agency: e.target.value})}
+                  onChange={(e) => setNewCal({ ...newCal, agency: e.target.value })}
                   className="px-3.5 py-2.5 w-full border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#243744] focus:ring-2 focus:ring-[#243744]/10 transition-all"
                   required
                 />
@@ -589,7 +585,7 @@ const CalibrationRegister = () => {
                     type="text"
                     placeholder="e.g. CAL-2026-085"
                     value={newCal.certificateNo}
-                    onChange={(e) => setNewCal({...newCal, certificateNo: e.target.value})}
+                    onChange={(e) => setNewCal({ ...newCal, certificateNo: e.target.value })}
                     className="px-3.5 py-2.5 w-full border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#243744] focus:ring-2 focus:ring-[#243744]/10 transition-all"
                   />
                 </div>
@@ -604,7 +600,7 @@ const CalibrationRegister = () => {
                     type="number"
                     placeholder="Enter amount"
                     value={newCal.cost}
-                    onChange={(e) => setNewCal({...newCal, cost: e.target.value})}
+                    onChange={(e) => setNewCal({ ...newCal, cost: e.target.value })}
                     className="px-3.5 py-2.5 w-full border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#243744] focus:ring-2 focus:ring-[#243744]/10 transition-all"
                   />
                 </div>
@@ -615,7 +611,7 @@ const CalibrationRegister = () => {
                     type="text"
                     placeholder="Technician name"
                     value={newCal.performedBy}
-                    onChange={(e) => setNewCal({...newCal, performedBy: e.target.value})}
+                    onChange={(e) => setNewCal({ ...newCal, performedBy: e.target.value })}
                     className="px-3.5 py-2.5 w-full border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#243744] focus:ring-2 focus:ring-[#243744]/10 transition-all"
                   />
                 </div>
@@ -626,7 +622,7 @@ const CalibrationRegister = () => {
                   <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Result/Status</label>
                   <select
                     value={newCal.status}
-                    onChange={(e) => setNewCal({...newCal, status: e.target.value})}
+                    onChange={(e) => setNewCal({ ...newCal, status: e.target.value })}
                     className="px-3.5 py-2.5 w-full border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#243744] focus:ring-2 focus:ring-[#243744]/10 transition-all bg-white"
                   >
                     <option value="Pass">Pass</option>
@@ -640,7 +636,7 @@ const CalibrationRegister = () => {
                     type="text"
                     placeholder="Optional notes"
                     value={newCal.remarks}
-                    onChange={(e) => setNewCal({...newCal, remarks: e.target.value})}
+                    onChange={(e) => setNewCal({ ...newCal, remarks: e.target.value })}
                     className="px-3.5 py-2.5 w-full border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#243744] focus:ring-2 focus:ring-[#243744]/10 transition-all"
                   />
                 </div>
@@ -690,7 +686,7 @@ const CalibrationRegister = () => {
         {isCertModalOpen && activeCert && (
           <div className="fixed inset-0 z-50 overflow-y-auto bg-black/60 flex items-center justify-center p-4 backdrop-blur-xs">
             <div className="bg-gray-900 rounded-3xl w-full max-w-4xl shadow-2xl flex flex-col md:flex-row overflow-hidden border border-gray-800 animate-in fade-in zoom-in-95 duration-200">
-              
+
               {/* Left Document Thumbnails panel */}
               <div className="w-full md:w-1/5 bg-gray-950 p-4 border-b md:border-b-0 md:border-r border-gray-800 flex flex-row md:flex-col gap-3 justify-center md:justify-start items-center">
                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest hidden md:block mb-4">Pages</span>
@@ -710,7 +706,7 @@ const CalibrationRegister = () => {
 
               {/* Right Interactive Certificate Document Content Area */}
               <div className="flex-1 bg-gray-850 flex flex-col justify-between min-h-[500px]">
-                
+
                 {/* PDF Header Controls */}
                 <div className="bg-gray-900 border-b border-gray-800 px-5 py-3 flex items-center justify-between">
                   <span className="text-xs font-bold text-white uppercase tracking-wider">Calibration Certificate Preview</span>
@@ -751,12 +747,12 @@ const CalibrationRegister = () => {
                           <span className="text-gray-400 font-bold block uppercase text-[9px]">Equipment Name:</span>
                           <span className="text-gray-900 font-bold">{activeCert.eqName}</span>
                         </div>
-                        <div>
+                        {/* <div>
                           <span className="text-gray-400 font-bold block uppercase text-[9px]">Equipment ID:</span>
                           <span className="text-gray-900 font-bold">{activeCert.eqId}</span>
-                        </div>
+                        </div> */}
                       </div>
-                      
+
                       <div className="space-y-2 pl-6">
                         <div>
                           <span className="text-gray-400 font-bold block uppercase text-[9px]">Date of Issue:</span>

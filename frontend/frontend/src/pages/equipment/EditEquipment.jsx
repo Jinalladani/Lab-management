@@ -145,7 +145,7 @@ const EditEquipment = () => {
     if (!formData.serialNo.trim()) newErrors.serialNo = "Serial number is required";
     if (!formData.purchaseDate) newErrors.purchaseDate = "Purchase date is required";
     if (!formData.status) newErrors.status = "Status is required";
-    
+
     if (formData.calibrationRequired === "Yes" && !formData.frequency) newErrors.frequency = "Calibration frequency is required";
     if (formData.calibrationRequired === "Yes" && !formData.nextDue) newErrors.nextDue = "Next calibration date is required";
 
@@ -162,28 +162,10 @@ const EditEquipment = () => {
 
     try {
       setLoading(true);
-      const today = new Date();
-      const nextDue = new Date(formData.nextDue || today);
-      const diffDays = Math.ceil((nextDue - today) / (1000 * 60 * 60 * 24));
-      
-      let calStatus = "Valid";
-      if (formData.calibrationRequired === "No") {
-        calStatus = "Not Required";
-      } else {
-        if (diffDays < 0) {
-          calStatus = "Overdue";
-        } else if (diffDays <= 7) {
-          calStatus = "Due within 7 Days";
-        } else if (diffDays <= 30) {
-          calStatus = "Due Soon";
-        }
-      }
-
       const payload = {
         ...formData,
         calibrationRequired: formData.calibrationRequired === "Yes",
-        maintenanceRequired: false,
-        calibrationStatus: calStatus
+        maintenanceRequired: false
       };
 
       await updateEquipment(id, payload);
@@ -239,7 +221,7 @@ const EditEquipment = () => {
   return (
     <MainLayout headerTitle="Edit Equipment Details" headerSubtitle="Modify configuration parameters and documents">
       <div className="mx-auto w-full max-w-[1800px] px-4 py-5 sm:px-5 lg:px-6">
-        
+
         {/* Hidden File Input */}
         <input
           type="file"
@@ -255,25 +237,25 @@ const EditEquipment = () => {
         <form onSubmit={handleSubmit}>
           <div className="bg-white rounded-2xl border border-[#E2E8F0] shadow-sm p-6 sm:p-8 !overflow-visible">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              
+
               {/* Left Column - Form Inputs */}
               <div className="lg:col-span-2 space-y-6">
-                
+
                 {/* Section 1: Basic Information */}
                 <div>
                   <h3 className="text-sm font-bold text-[#1A2733] flex items-center gap-2 mb-4">
                     <span className="w-5 h-5 bg-[#243744] text-white text-[10px] rounded-full flex items-center justify-center font-bold">1</span>
                     Basic Information
                   </h3>
-                  
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Input
+                    {/* <Input
                       label="Equipment ID"
                       name="id"
                       value={formData.id}
                       disabled
                       placeholder="Equipment ID"
-                    />
+                    /> */}
 
                     <Input
                       label="Equipment Code"
@@ -386,7 +368,7 @@ const EditEquipment = () => {
                     <span className="w-5 h-5 bg-[#243744] text-white text-[10px] rounded-full flex items-center justify-center font-bold">2</span>
                     Calibration Details
                   </h3>
-                  
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <Select
                       label="Calibration Required"
@@ -418,11 +400,11 @@ const EditEquipment = () => {
 
               {/* Right Column - Uploads & Reminders */}
               <div className="space-y-6">
-                
+
                 {/* Upload Photograph Box */}
                 <div className="bg-white rounded-2xl border border-[#E2E8F0] p-5 shadow-sm space-y-4">
                   <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider">Equipment Photograph</h3>
-                  
+
                   {/* File Dropzone */}
                   <div className="border-2 border-dashed border-gray-200 rounded-2xl p-5 bg-gray-50 hover:bg-gray-100 flex flex-col items-center justify-center cursor-pointer transition-colors text-center">
                     <Upload className="text-gray-400 w-8 h-8 mb-1.5" />
@@ -490,7 +472,7 @@ const EditEquipment = () => {
               <Button variant="secondary" onClick={() => navigate(`/equipment/view/${id}`)}>
                 Cancel
               </Button>
-              
+
               <Button
                 type="submit"
                 disabled={loading}

@@ -55,6 +55,7 @@ import ObservationTemplates from "./pages/superadmin/observation-templates/Obser
 import CreateObservationTemplate from "./pages/superadmin/observation-templates/CreateObservationTemplate";
 import TemplateBuilderPlaceholder from "./pages/superadmin/observation-templates/TemplateBuilderPlaceholder";
 import SuperAdminSettings from "./pages/superadmin/settings/SuperAdminSettings";
+import RolesManagement from "./pages/superadmin/roles/RolesManagement";
 
 import ObservationEntry from "./pages/observationBuilder/ObservationEntry";
 import ObservationBuilder from "./pages/observationBuilder/ObservationBuilder";
@@ -375,6 +376,22 @@ function App() {
       />
 
       {/* Superadmin Routes */}
+      <Route
+        path="/superadmin/roles"
+        element={
+          <ProtectedRoute>
+            <RolesManagement />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/roles"
+        element={
+          <ProtectedRoute>
+            <RolesManagement />
+          </ProtectedRoute>
+        }
+      />
       <Route
         path="/labs/manage"
         element={

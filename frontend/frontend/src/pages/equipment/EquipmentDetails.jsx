@@ -4,6 +4,7 @@ import { ArrowLeft, Edit, Paperclip, Download, Info, CheckCircle, XCircle, Brief
 import MainLayout from "../../components/layout/MainLayout";
 import { getEquipmentDetails } from "../../api";
 import { Button } from "../../components/ui";
+import { getRuntimeCalibrationStatus, getCalibrationBadgeClass } from "../../components/equipment/EquipmentModuleShared";
 
 const EquipmentDetails = () => {
   const { id } = useParams();
@@ -67,14 +68,14 @@ const EquipmentDetails = () => {
   return (
     <MainLayout headerTitle={`Specifications: ${equipment.id}`} headerSubtitle="Traceability & Performance metrics">
       <div className="mx-auto w-full max-w-[1800px] px-4 py-5 sm:px-5 lg:px-6">
-        
+
         <Button variant="ghost" size="sm" icon={ArrowLeft} onClick={() => navigate("/equipment/list")} className="mb-4">
           Back
         </Button>
 
         <div className="w-full">
           <div className="bg-white rounded-2xl border border-[#E2E8F0] shadow-sm p-4 sm:p-6 lg:p-8 !overflow-visible">
-            
+
             {/* Header Section */}
             <div className="p-4 border-b border-[#F1F5F9]">
               <div className="flex flex-col lg:flex-row lg:justify-between lg:items-start gap-4">
@@ -82,18 +83,17 @@ const EquipmentDetails = () => {
                   <h1 className="text-xl sm:text-2xl font-bold text-gray-900 break-words">
                     {equipment.name}
                   </h1>
-                  <p className="text-gray-600 mt-1 text-sm sm:text-base break-words">
+                  {/* <p className="text-gray-600 mt-1 text-sm sm:text-base break-words">
                     Equipment ID: {equipment.id}
-                  </p>
+                  </p> */}
                 </div>
 
                 <div className="flex flex-wrap items-center justify-start lg:justify-end gap-2 sm:gap-3 w-full lg:w-auto relative">
-                  <span className={`inline-flex px-2.5 py-1 rounded-full text-xs sm:text-sm font-semibold border ${
-                    equipment.status === "Active" ? "bg-emerald-50 text-emerald-700 border-emerald-100" : "bg-indigo-50 text-indigo-700 border-indigo-100"
-                  }`}>
+                  <span className={`inline-flex px-2.5 py-1 rounded-full text-xs sm:text-sm font-semibold border ${equipment.status === "Active" ? "bg-emerald-50 text-emerald-700 border-emerald-100" : "bg-indigo-50 text-indigo-700 border-indigo-100"
+                    }`}>
                     {equipment.status}
                   </span>
-                  
+
                   <Button
                     size="sm"
                     icon={Edit}
@@ -108,10 +108,10 @@ const EquipmentDetails = () => {
             {/* Content Section */}
             <div className="p-4 sm:p-6 lg:p-8">
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                
+
                 {/* Left Column - Specifications */}
                 <div className="lg:col-span-2 space-y-6">
-                  
+
                   {/* Basic Information */}
                   <div>
                     <h3 className="text-sm font-bold text-[#1A2733] flex items-center gap-2 mb-4">
@@ -119,10 +119,10 @@ const EquipmentDetails = () => {
                       Basic Information
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
+                      {/* <div>
                         <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Equipment ID</label>
                         <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 break-words">{equipment.id}</div>
-                      </div>
+                      </div> */}
                       <div>
                         <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Equipment Code</label>
                         <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 break-words">{equipment.equipmentCode || "—"}</div>
@@ -179,17 +179,31 @@ const EquipmentDetails = () => {
                       <CheckSquare size={16} className="text-[#3F6E8C]" />
                       Calibration Details
                     </h3>
-                    
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Calibration Required</label>
                         <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 break-words">{equipment.calibrationRequired ? "Yes" : "No"}</div>
                       </div>
                       {equipment.calibrationRequired && (
-                        <div>
-                          <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Calibration Frequency</label>
-                          <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 break-words">{equipment.frequency || "—"}</div>
-                        </div>
+                        <>
+                          <div>
+                            <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Calibration Frequency</label>
+                            <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 break-words">{equipment.frequency || "—"}</div>
+                          </div>
+                          <div>
+                            <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Next Due Date</label>
+                            <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 break-words">{equipment.nextDue || "—"}</div>
+                          </div>
+                          <div>
+                            <label className="block mb-1.5 text-xs font-bold text-gray-500 uppercase tracking-wider">Runtime Calibration Status</label>
+                            <div className="px-4 py-3 bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl text-sm font-semibold text-gray-800 flex items-center">
+                              <span className={getCalibrationBadgeClass(getRuntimeCalibrationStatus(equipment.nextDue))}>
+                                {getRuntimeCalibrationStatus(equipment.nextDue)}
+                              </span>
+                            </div>
+                          </div>
+                        </>
                       )}
                     </div>
                   </div>
@@ -203,22 +217,20 @@ const EquipmentDetails = () => {
                       <button
                         type="button"
                         onClick={() => setActiveHistoryTab("calibration")}
-                        className={`flex-1 px-4 py-2 rounded-lg transition-all ${
-                          activeHistoryTab === "calibration"
-                            ? "bg-white text-[#243744] shadow-sm font-extrabold"
-                            : "hover:bg-gray-100"
-                        }`}
+                        className={`flex-1 px-4 py-2 rounded-lg transition-all ${activeHistoryTab === "calibration"
+                          ? "bg-white text-[#243744] shadow-sm font-extrabold"
+                          : "hover:bg-gray-100"
+                          }`}
                       >
                         Calibration Records
                       </button>
                       <button
                         type="button"
                         onClick={() => setActiveHistoryTab("maintenance")}
-                        className={`flex-1 px-4 py-2 rounded-lg transition-all ${
-                          activeHistoryTab === "maintenance"
-                            ? "bg-white text-[#243744] shadow-sm font-extrabold"
-                            : "hover:bg-gray-100"
-                        }`}
+                        className={`flex-1 px-4 py-2 rounded-lg transition-all ${activeHistoryTab === "maintenance"
+                          ? "bg-white text-[#243744] shadow-sm font-extrabold"
+                          : "hover:bg-gray-100"
+                          }`}
                       >
                         Maintenance Logs
                       </button>
@@ -251,9 +263,8 @@ const EquipmentDetails = () => {
                                 <td className="px-4 py-3.5 text-gray-600">{cal.agency}</td>
                                 <td className="px-4 py-3.5 text-gray-600">{cal.performedBy}</td>
                                 <td className="px-4 py-3.5">
-                                  <span className={`inline-flex px-2 py-0.5 font-bold uppercase text-[9px] rounded ${
-                                    cal.status === "Pass" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
-                                  }`}>
+                                  <span className={`inline-flex px-2 py-0.5 font-bold uppercase text-[9px] rounded ${cal.status === "Pass" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"
+                                    }`}>
                                     {cal.status}
                                   </span>
                                 </td>
@@ -297,9 +308,8 @@ const EquipmentDetails = () => {
                                   ₹ {m.cost.toLocaleString("en-IN")}
                                 </td>
                                 <td className="px-4 py-3.5">
-                                  <span className={`inline-flex px-2 py-0.5 font-bold uppercase text-[9px] rounded ${
-                                    m.status === "Completed" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
-                                  }`}>
+                                  <span className={`inline-flex px-2 py-0.5 font-bold uppercase text-[9px] rounded ${m.status === "Completed" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
+                                    }`}>
                                     {m.status}
                                   </span>
                                 </td>
@@ -323,7 +333,7 @@ const EquipmentDetails = () => {
 
                 {/* Right Column - Uploads & Reminders */}
                 <div className="space-y-6">
-                  
+
                   {/* Photograph Box */}
                   <div className="bg-white rounded-2xl border border-[#E2E8F0] p-5 shadow-sm space-y-4">
                     <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider">Equipment Photograph</h3>

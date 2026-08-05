@@ -8,7 +8,7 @@ class SampleObservation(db.Model):
     project_id = db.Column(db.BigInteger, nullable=False)
     sample_id = db.Column(db.BigInteger, nullable=False)
     scope_test_id = db.Column(db.BigInteger, nullable=True)
-    template_id = db.Column(db.BigInteger, db.ForeignKey("observation_templates.template_id", ondelete="SET NULL"), nullable=True)
+    template_id = db.Column(db.BigInteger, nullable=True)
     test_name = db.Column(db.String(255), nullable=False)
     test_method = db.Column(db.String(255), nullable=True)
     operator_name = db.Column(db.String(255), nullable=True, default="Lab Technician")
@@ -18,7 +18,7 @@ class SampleObservation(db.Model):
     status = db.Column(db.String(50), nullable=False, default="Draft")
     
     # Equipment integration
-    equipment_id = db.Column(db.String(50), db.ForeignKey("equipment.equipment_id", ondelete="SET NULL"), nullable=True)
+    equipment_id = db.Column(db.String(50), nullable=True)
     equipment_name = db.Column(db.String(255), nullable=True)
     equipment_cert_no = db.Column(db.String(100), nullable=True)
     equipment_validity_date = db.Column(db.Date, nullable=True)

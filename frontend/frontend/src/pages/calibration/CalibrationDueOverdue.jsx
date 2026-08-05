@@ -12,6 +12,7 @@ import {
   getRemainingDays,
   formatDate,
   getUrgencyLabel,
+  getRuntimeCalibrationStatus,
   stagger,
 } from "../../components/equipment/EquipmentModuleShared";
 
@@ -34,12 +35,12 @@ const CalibrationDueOverdue = () => {
   const fetchDueEquipment = async () => {
     try {
       const res = await getEquipmentList();
-      const data = res.success && res.data?.equipment
-        ? res.data.equipment.filter((eq) => eq.calibrationStatus !== "Valid" && eq.calibrationStatus !== "Not Required")
-        : mockEquipmentDb.getEquipment().filter((eq) => eq.calibrationStatus !== "Valid" && eq.calibrationStatus !== "Not Required");
+      const raw = res.success && res.data?.equipment ? res.data.equipment : mockEquipmentDb.getEquipment();
+      const data = raw.filter((eq) => getRuntimeCalibrationStatus(eq.nextDue) !== "Valid");
       setEquipments(data);
     } catch {
-      setEquipments(mockEquipmentDb.getEquipment().filter((eq) => eq.calibrationStatus !== "Valid" && eq.calibrationStatus !== "Not Required"));
+      const data = mockEquipmentDb.getEquipment().filter((eq) => getRuntimeCalibrationStatus(eq.nextDue) !== "Valid");
+      setEquipments(data);
     }
   };
 
