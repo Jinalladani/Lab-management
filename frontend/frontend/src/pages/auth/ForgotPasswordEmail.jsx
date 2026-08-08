@@ -4,12 +4,9 @@ import { forgotPasswordRequest } from "../../api";
 import MailIcon from "@mui/icons-material/Mail";
 import VerifiedUserIcon from "@mui/icons-material/VerifiedUser";
 import ScienceIcon from "@mui/icons-material/Science";
+import { validateEmail } from "../../utils/validators";
 
 const EMAIL_KEY = "forgot_password_email";
-
-function isValidEmail(email) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-}
 
 const ForgotPasswordEmail = () => {
   const navigate = useNavigate();
@@ -24,11 +21,8 @@ const ForgotPasswordEmail = () => {
   };
 
   const validateForm = () => {
-    const email = (formData.email || "").trim().toLowerCase();
-    const newErrors = { email: "", common: "" };
-
-    if (!email) newErrors.email = "Email is required";
-    else if (!isValidEmail(email)) newErrors.email = "Enter a valid email address";
+    const emailErr = validateEmail(formData.email, { required: true });
+    const newErrors = { email: emailErr, common: "" };
 
     setErrors(newErrors);
     return !newErrors.email;

@@ -99,6 +99,28 @@ export const rejectReport = async (reportId, remarks) => {
   }
 };
 
+// Get Pending Observations submitted by Engineers/Helpers
+export const getPendingObservations = async () => {
+  try {
+    const response = await api.get("/reports/pending-observations");
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching pending observations:", error);
+    throw error;
+  }
+};
+
+// Generate Report directly from an Observation Sheet ID
+export const generateReportFromObservation = async (observationId) => {
+  try {
+    const response = await api.post(`/reports/generate-from-observation/${observationId}`);
+    return response.data;
+  } catch (error) {
+    console.error("Error generating report from observation:", error);
+    throw error;
+  }
+};
+
 // Create report revision
 export const createRevision = async (reportId, changeLog) => {
   try {

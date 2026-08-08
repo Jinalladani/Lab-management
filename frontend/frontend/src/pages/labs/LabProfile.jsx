@@ -12,6 +12,7 @@ import EditIcon from "@mui/icons-material/Edit";
 import SaveIcon from "@mui/icons-material/Save";
 import CancelIcon from "@mui/icons-material/Cancel";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
+import { validateEmail, validatePhone } from "../../utils/validators";
 
 const LabProfile = () => {
   const navigate = useNavigate();
@@ -220,9 +221,19 @@ const LabProfile = () => {
 
   const handleSave = async () => {
     try {
-      setSaveLoading(true);
       setError("");
-      
+      const emailErr = validateEmail(formData.email, { required: false });
+      if (emailErr) {
+        setError(emailErr);
+        return;
+      }
+      const phoneErr = validatePhone(formData.phone, { required: false });
+      if (phoneErr) {
+        setError(phoneErr);
+        return;
+      }
+
+      setSaveLoading(true);
       await updateLabInfo(formData);
       await fetchLabInfo();
       setIsEditing(false);

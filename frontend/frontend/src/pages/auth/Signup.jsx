@@ -9,6 +9,7 @@ import PhoneIcon from "@mui/icons-material/Phone";
 import BusinessIcon from "@mui/icons-material/Business";
 import ScienceIcon from "@mui/icons-material/Science";
 import { Link, useNavigate } from "react-router-dom";
+import { validateEmail, validatePhone } from "../../utils/validators";
 
 const Signup = () => {
   const navigate = useNavigate();
@@ -26,6 +27,7 @@ const Signup = () => {
     first_name: "",
     lab_name: "",
     email: "",
+    contact_no: "",
     password: "",
     confirm_password: "",
     common: "",
@@ -45,7 +47,8 @@ const Signup = () => {
     const newErrors = {
       first_name: "",
       lab_name: "",
-      email: "",
+      email: validateEmail(formData.email, { required: true }),
+      contact_no: validatePhone(formData.contact_no, { required: false, fieldName: "Contact number" }),
       password: "",
       confirm_password: "",
       common: "",
@@ -57,12 +60,6 @@ const Signup = () => {
 
     if (!formData.lab_name.trim()) {
       newErrors.lab_name = "Lab name is required";
-    }
-
-    if (!formData.email.trim()) {
-      newErrors.email = "Email is required";
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      newErrors.email = "Enter a valid email address";
     }
 
     if (!formData.password.trim()) {
@@ -83,6 +80,7 @@ const Signup = () => {
       !newErrors.first_name &&
       !newErrors.lab_name &&
       !newErrors.email &&
+      !newErrors.contact_no &&
       !newErrors.password &&
       !newErrors.confirm_password
     );
@@ -341,6 +339,9 @@ const Signup = () => {
                   className="w-full pl-9 pr-3 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2562AA] focus:border-transparent transition-all duration-200 text-gray-900 placeholder-gray-400"
                 />
               </div>
+              {errors.contact_no && (
+                <p className="text-red-500 text-xs mt-1">{errors.contact_no}</p>
+              )}
             </div>
 
             {/* Email */}

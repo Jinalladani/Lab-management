@@ -14,7 +14,7 @@ const ProtectedRoute = ({ children, requiredPermission }) => {
     try {
       const rawUser = localStorage.getItem("user");
       const user = rawUser ? JSON.parse(rawUser) : null;
-      const userRole = user?.role || "Engineer";
+      const userRole = user?.role || "none";
 
       if (!hasPermission(userRole, requiredPermission)) {
         return <Navigate to="/dashboard" replace />;

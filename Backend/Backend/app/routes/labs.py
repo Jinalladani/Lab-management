@@ -3,6 +3,7 @@ from flask import Blueprint, request, jsonify
 from sqlalchemy import text
 from app.extensions import db
 from app.utils.auth_decorator import token_required
+from app.utils.permissions import permission_required
 from flask import g
 
 labs_bp = Blueprint("labs", __name__)
@@ -12,6 +13,7 @@ def _utcnow():
 
 @labs_bp.route("/info", methods=["GET"])
 @token_required
+@permission_required("dashboard.view")
 def get_lab_info():
     """Get lab information for the authenticated user's lab."""
     try:
@@ -65,6 +67,7 @@ def get_lab_info():
 
 @labs_bp.route("/info", methods=["PUT"])
 @token_required
+@permission_required("settings.manage")
 def update_lab_info():
     """Update lab information for the authenticated user's lab."""
     try:
@@ -289,6 +292,7 @@ def update_lab_info():
 
 @labs_bp.route("/all", methods=["GET"])
 @token_required
+@permission_required("settings.manage")
 def get_all_labs():
     """Get all labs (admin only endpoint)."""
     try:

@@ -9,6 +9,7 @@ import EditIcon from "@mui/icons-material/Edit";
 import SaveIcon from "@mui/icons-material/Save";
 import CancelIcon from "@mui/icons-material/Cancel";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
+import { validateEmail } from "../utils/validators";
 
 const Profile = () => {
   const navigate = useNavigate();
@@ -22,6 +23,7 @@ const Profile = () => {
     role: ""
   });
   const [saveLoading, setSaveLoading] = useState(false);
+  const [emailError, setEmailError] = useState("");
 
   const dropdownRef = useRef(null);
   const buttonRef = useRef(null);
@@ -105,10 +107,12 @@ const Profile = () => {
   const handleEdit = () => {
     setIsEditing(true);
     setShowActionDropdown(false);
+    setEmailError("");
   };
 
   const handleCancel = () => {
     setIsEditing(false);
+    setEmailError("");
     if (user) {
       setFormData({
         first_name: user.first_name || "",
@@ -124,10 +128,17 @@ const Profile = () => {
       ...prev,
       [name]: value
     }));
+    if (name === "email") setEmailError("");
   };
 
   const handleSave = async () => {
     try {
+      const err = validateEmail(formData.email, { required: true });
+      if (err) {
+        setEmailError(err);
+        return;
+      }
+
       setSaveLoading(true);
       // Here you would typically make an API call to update the user profile
       // For now, we'll just update the local storage
@@ -323,6 +334,9 @@ const Profile = () => {
                             </p>
                           )}
                         </div>
+                        {emailError && (
+                          <p className="text-red-500 text-xs mt-1">{emailError}</p>
+                        )}
                       </div>
                     </div>
                   </div>

@@ -1043,7 +1043,7 @@ const ObservationTemplates = () => {
         {/* MODE 1: CREATED TEMPLATES SCOPE CATALOGUE LIST VIEW */}
         {viewMode === "list" ? (
           <div className="flex flex-col flex-1 overflow-hidden p-6 space-y-4">
-            
+
             {/* Top Toolbar Bar */}
             <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm shrink-0">
               <div className="flex items-center gap-3">
@@ -1117,7 +1117,7 @@ const ObservationTemplates = () => {
               </div>
             ) : (
               <div className="flex-1 flex flex-col lg:flex-row gap-6 min-h-0 overflow-hidden">
-                
+
                 {/* LEFT PANE: Material Groups Sidebar */}
                 <div className="w-full lg:w-[320px] shrink-0 bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
                   <div className="p-4 border-b border-slate-100 bg-slate-50/50">
@@ -1137,15 +1137,13 @@ const ObservationTemplates = () => {
                         <div
                           key={group.group_id}
                           onClick={() => setSelectedGroupId(group.group_id)}
-                          className={`w-full p-3 rounded-xl border transition-all cursor-pointer flex items-center gap-3 ${
-                            isActive
+                          className={`w-full p-3 rounded-xl border transition-all cursor-pointer flex items-center gap-3 ${isActive
                               ? "bg-[#2563EB] border-[#2563EB] text-white shadow-sm"
                               : "bg-white border-slate-200 hover:bg-slate-50"
-                          }`}
+                            }`}
                         >
-                          <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
-                            isActive ? "bg-white/20 text-white" : `${visuals.bgColor} ${visuals.iconColor}`
-                          }`}>
+                          <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${isActive ? "bg-white/20 text-white" : `${visuals.bgColor} ${visuals.iconColor}`
+                            }`}>
                             <IconComponent size={18} />
                           </div>
 
@@ -1168,7 +1166,7 @@ const ObservationTemplates = () => {
                 {/* RIGHT PANE: Group Materials & Created Templates Accordion */}
                 {activeGroup && (
                   <div className="flex-1 bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
-                    
+
                     {/* Header */}
                     <div className="p-5 border-b border-slate-100 bg-white flex items-center justify-between">
                       <div>
@@ -1306,7 +1304,7 @@ const ObservationTemplates = () => {
         ) : (
           /* MODE 2: TEMPLATE DESIGNER WORKSPACE */
           <div className="flex flex-col flex-1 overflow-hidden">
-            
+
             {/* Header */}
             <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 bg-white px-6 py-3 shadow-sm">
               <div className="flex items-center gap-3">
@@ -1471,7 +1469,7 @@ const ObservationTemplates = () => {
 
             {/* Designer Work Area */}
             <div className="flex flex-1 overflow-hidden">
-              
+
               {/* LEFT PALETTE */}
               <aside className="w-72 border-r border-slate-200 bg-white flex flex-col overflow-y-auto p-4 space-y-6 flex-shrink-0">
                 <div>
@@ -1510,7 +1508,7 @@ const ObservationTemplates = () => {
               {/* CENTER CANVAS */}
               <main className="flex-1 overflow-y-auto p-6 bg-[#F8FAFC]">
                 <div className={`mx-auto transition-all duration-200 ${deviceMode === "mobile" ? "max-w-md" : "w-full max-w-full px-2"}`}>
-                  
+
                   {/* Blank Template Canvas */}
                   {sections.length === 0 ? (
                     <div
@@ -1524,7 +1522,7 @@ const ObservationTemplates = () => {
                             if (data.source === "palette" && data.item) {
                               handleAddField(data.item);
                             }
-                          } catch (err) {}
+                          } catch (err) { }
                         }
                       }}
                       className="rounded-2xl border-2 border-dashed border-slate-300 bg-white p-12 text-center shadow-sm space-y-4 my-6"
@@ -1563,11 +1561,9 @@ const ObservationTemplates = () => {
                             onDragLeave={() => setDraggedOverSectionId(null)}
                             onDrop={(e) => handleDropOnSection(e, section.id, sIdx)}
                             onClick={() => setSelectedSectionId(section.id)}
-                            className={`rounded-2xl border bg-white shadow-sm transition-all ${
-                              isDraggedOver ? "border-[#2563EB] ring-4 ring-[#2563EB]/20 bg-blue-50/10" : ""
-                            } ${
-                              isSectionSelected ? "border-[#2563EB] ring-2 ring-[#2563EB]/10" : "border-slate-200"
-                            }`}
+                            className={`rounded-2xl border bg-white shadow-sm transition-all ${isDraggedOver ? "border-[#2563EB] ring-4 ring-[#2563EB]/20 bg-blue-50/10" : ""
+                              } ${isSectionSelected ? "border-[#2563EB] ring-2 ring-[#2563EB]/10" : "border-slate-200"
+                              }`}
                           >
                             <div
                               draggable
@@ -1615,8 +1611,8 @@ const ObservationTemplates = () => {
 
                                     const tableWidthClass =
                                       f.tableWidth === "33%" ? "w-full max-w-md" :
-                                      f.tableWidth === "50%" ? "w-full max-w-xl" :
-                                      f.tableWidth === "75%" ? "w-full max-w-3xl" : "w-full";
+                                        f.tableWidth === "50%" ? "w-full max-w-xl" :
+                                          f.tableWidth === "75%" ? "w-full max-w-3xl" : "w-full";
 
                                     return (
                                       <div
@@ -1630,13 +1626,11 @@ const ObservationTemplates = () => {
                                           setSelectedFieldId(f.id);
                                           setSelectedSectionId(section.id);
                                         }}
-                                        className={`relative rounded-xl border p-3.5 transition-all cursor-grab active:cursor-grabbing ${
-                                          isTable ? "col-span-full" : ""
-                                        } ${
-                                          isSelected
+                                        className={`relative rounded-xl border p-3.5 transition-all cursor-grab active:cursor-grabbing ${isTable ? "col-span-full" : ""
+                                          } ${isSelected
                                             ? "border-[#2563EB] bg-blue-50/20 ring-2 ring-[#2563EB]/20"
                                             : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50"
-                                        }`}
+                                          }`}
                                       >
                                         <div className="flex items-center justify-between mb-2">
                                           <div className="flex items-center gap-2">
@@ -1692,9 +1686,8 @@ const ObservationTemplates = () => {
                                                     e.stopPropagation();
                                                     handleToggleCellFormat(f.id, "bold");
                                                   }}
-                                                  className={`p-1.5 rounded border text-xs font-bold ${
-                                                    activeCellRef && f.cellStyles?.[activeCellRef]?.bold ? "bg-blue-600 text-white" : "bg-white"
-                                                  }`}
+                                                  className={`p-1.5 rounded border text-xs font-bold ${activeCellRef && f.cellStyles?.[activeCellRef]?.bold ? "bg-blue-600 text-white" : "bg-white"
+                                                    }`}
                                                 >
                                                   <Bold size={13} />
                                                 </button>
@@ -1704,9 +1697,8 @@ const ObservationTemplates = () => {
                                                     e.stopPropagation();
                                                     handleToggleCellFormat(f.id, "italic");
                                                   }}
-                                                  className={`p-1.5 rounded border text-xs ${
-                                                    activeCellRef && f.cellStyles?.[activeCellRef]?.italic ? "bg-blue-600 text-white" : "bg-white"
-                                                  }`}
+                                                  className={`p-1.5 rounded border text-xs ${activeCellRef && f.cellStyles?.[activeCellRef]?.italic ? "bg-blue-600 text-white" : "bg-white"
+                                                    }`}
                                                 >
                                                   <Italic size={13} />
                                                 </button>
@@ -1716,9 +1708,8 @@ const ObservationTemplates = () => {
                                                     e.stopPropagation();
                                                     handleToggleCellFormat(f.id, "center");
                                                   }}
-                                                  className={`p-1.5 rounded border text-xs ${
-                                                    activeCellRef && f.cellStyles?.[activeCellRef]?.center ? "bg-blue-600 text-white" : "bg-white"
-                                                  }`}
+                                                  className={`p-1.5 rounded border text-xs ${activeCellRef && f.cellStyles?.[activeCellRef]?.center ? "bg-blue-600 text-white" : "bg-white"
+                                                    }`}
                                                 >
                                                   <AlignCenter size={13} />
                                                 </button>
@@ -1830,9 +1821,8 @@ const ObservationTemplates = () => {
                                                               onMouseEnter={() => {
                                                                 if (isSelectingRange) setSelectedCellEnd(cellRef);
                                                               }}
-                                                              className={`p-1 border-r border-slate-200 relative ${
-                                                                isFocused ? "ring-[#2563EB] bg-blue-100/80 font-bold" : isSelected ? "bg-blue-50/80" : ""
-                                                              }`}
+                                                              className={`p-1 border-r border-slate-200 relative ${isFocused ? "ring-[#2563EB] bg-blue-100/80 font-bold" : isSelected ? "bg-blue-50/80" : ""
+                                                                }`}
                                                             >
                                                               <textarea
                                                                 rows={typeof displayVal === "string" && displayVal.includes("\n") ? 2 : 1}
@@ -1842,9 +1832,8 @@ const ObservationTemplates = () => {
                                                                   setActiveCellRef(cellRef);
                                                                   if (!selectedCellStart) setSelectedCellStart(cellRef);
                                                                 }}
-                                                                className={`w-full bg-transparent px-1.5 py-1 text-xs focus:outline-none resize-none overflow-hidden whitespace-pre-wrap leading-tight ${
-                                                                  isBold ? "font-extrabold text-slate-900" : "text-slate-800"
-                                                                } ${isItalic ? "italic" : ""} ${isCenter ? "text-center" : ""}`}
+                                                                className={`w-full bg-transparent px-1.5 py-1 text-xs focus:outline-none resize-none overflow-hidden whitespace-pre-wrap leading-tight ${isBold ? "font-extrabold text-slate-900" : "text-slate-800"
+                                                                  } ${isItalic ? "italic" : ""} ${isCenter ? "text-center" : ""}`}
                                                               />
                                                             </td>
                                                           );
@@ -1937,8 +1926,8 @@ const ObservationTemplates = () => {
 
                           const tableWidthClass =
                             f.tableWidth === "33%" ? "w-full max-w-md" :
-                            f.tableWidth === "50%" ? "w-full max-w-xl" :
-                            f.tableWidth === "75%" ? "w-full max-w-3xl" : "w-full";
+                              f.tableWidth === "50%" ? "w-full max-w-xl" :
+                                f.tableWidth === "75%" ? "w-full max-w-3xl" : "w-full";
 
                           return (
                             <div key={f.id} className={isTable ? "col-span-full" : ""}>
@@ -1994,9 +1983,8 @@ const ObservationTemplates = () => {
                                                     value={evalVal}
                                                     placeholder=""
                                                     readOnly
-                                                    className={`w-full bg-transparent px-1.5 py-1 text-xs focus:outline-none resize-none overflow-hidden whitespace-pre-wrap leading-tight ${
-                                                      isBold ? "font-extrabold text-slate-900" : "text-slate-800"
-                                                    } ${isItalic ? "italic" : ""} ${isCenter ? "text-center" : ""}`}
+                                                    className={`w-full bg-transparent px-1.5 py-1 text-xs focus:outline-none resize-none overflow-hidden whitespace-pre-wrap leading-tight ${isBold ? "font-extrabold text-slate-900" : "text-slate-800"
+                                                      } ${isItalic ? "italic" : ""} ${isCenter ? "text-center" : ""}`}
                                                   />
                                                 </td>
                                               );

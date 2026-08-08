@@ -5,6 +5,7 @@ from flask import Blueprint, request, jsonify, g
 from sqlalchemy import text
 from app.extensions import db
 from app.utils.auth_decorator import token_required
+from app.utils.permissions import permission_required
 
 scope_bp = Blueprint("scope", __name__)
 
@@ -13,6 +14,7 @@ def _utc_now():
 
 @scope_bp.route("/groups", methods=["GET"])
 @token_required
+@permission_required("scope.view")
 def get_scope_groups():
     try:
         lab_id = g.jwt_payload.get("lab_id")
@@ -58,6 +60,7 @@ def get_scope_groups():
 
 @scope_bp.route("/materials", methods=["GET"])
 @token_required
+@permission_required("scope.view")
 def get_scope_materials():
     try:
         lab_id = g.jwt_payload.get("lab_id")
@@ -106,6 +109,7 @@ def get_scope_materials():
 
 @scope_bp.route("/tests", methods=["GET"])
 @token_required
+@permission_required("scope.view")
 def get_scope_tests():
     try:
         lab_id = g.jwt_payload.get("lab_id")
@@ -175,6 +179,7 @@ def get_scope_tests():
 
 @scope_bp.route("/hierarchy", methods=["GET"])
 @token_required
+@permission_required("scope.view")
 def get_scope_hierarchy():
     try:
         lab_id = g.jwt_payload.get("lab_id")
@@ -277,6 +282,7 @@ def get_scope_hierarchy():
 
 @scope_bp.route("/groups", methods=["POST"])
 @token_required
+@permission_required("scope.manage")
 def create_scope_group():
     try:
         lab_id = g.jwt_payload.get("lab_id")
@@ -364,6 +370,7 @@ def create_scope_group():
 
 @scope_bp.route("/materials", methods=["POST"])
 @token_required
+@permission_required("scope.manage")
 def create_scope_material():
     try:
         lab_id = g.jwt_payload.get("lab_id")
@@ -457,6 +464,7 @@ def create_scope_material():
 
 @scope_bp.route("/tests", methods=["POST"])
 @token_required
+@permission_required("scope.manage")
 def create_scope_test():
     try:
         lab_id = g.jwt_payload.get("lab_id")

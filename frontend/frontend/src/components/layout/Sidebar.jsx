@@ -414,13 +414,24 @@ const Sidebar = ({ isOpen, isCollapsed, onClose, onToggleCollapse }) => {
           </nav>
         </div>
 
-        {/* Footer */}
-        <div className="border-t border-white/8 px-4 py-4">
-          <div className={isCollapsed ? "flex justify-center" : ""}>
-            <div className="flex items-center gap-2.5 text-white/55">
-              <span className="h-2 w-2 rounded-full bg-[#16A34A]" />
-              {!isCollapsed && <span className="text-xs font-medium">Secure session active</span>}
+        {/* Footer - User Account Details */}
+        <div className="border-t border-white/8 px-4 py-3.5">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10 text-white font-bold text-xs border border-white/10">
+              {(user?.first_name?.[0] || user?.name?.[0] || "U").toUpperCase()}
+              {(user?.last_name?.[0] || "").toUpperCase()}
             </div>
+
+            {!isCollapsed && (
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-bold text-white truncate">
+                  {user?.first_name || user?.name || "User"} {user?.last_name || ""}
+                </p>
+                <p className="text-[11px] font-medium text-white/60 truncate capitalize mt-0.5">
+                  {user?.role_name || user?.role || "Staff"}
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </motion.aside>

@@ -3,7 +3,7 @@
  */
 
 export const normalizeRole = (roleName) => {
-  if (!roleName) return "engineer";
+  if (!roleName) return "none";
   
   const r = String(roleName).trim().toLowerCase().replace(/_/g, "").replace(/-/g, "").replace(/ /g, "");
   
@@ -18,12 +18,13 @@ export const normalizeRole = (roleName) => {
   } else if (["helper", "labor", "labour", "worker"].includes(r)) {
     return "helper";
   } else {
-    return "engineer";
+    return "none";
   }
 };
 
 export const ROLE_PERMISSIONS = {
   superadmin: ["*"],
+  none: [],
   
   admin: [
     "dashboard.view",

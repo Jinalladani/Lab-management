@@ -5,7 +5,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus, Eye, Pencil, Trash2, RefreshCw, Download, Search,
   ChevronDown, Edit3, FileText, FlaskConical, CheckSquare, Table2,
-  FileSpreadsheet, CheckCircle2, AlertCircle, Clock, MoreVertical, RotateCcw
+  FileSpreadsheet, CheckCircle2, AlertCircle, Clock, MoreVertical, RotateCcw,
+  ArrowUp, ArrowDown, ArrowUpDown
 } from "lucide-react";
 import { Toaster, toast } from "sonner";
 import { MainLayout } from "../../components/layout";
@@ -37,7 +38,7 @@ const getStatusBadge = (status) => {
     draft: { text: "Draft", bg: "bg-slate-100 text-slate-700 border-slate-200", dot: "bg-slate-500" },
     submitted: { text: "Submitted", bg: "bg-emerald-50 text-emerald-700 border-emerald-200", dot: "bg-emerald-500" },
     approved: { text: "QA Approved", bg: "bg-blue-50 text-blue-700 border-blue-200", dot: "bg-blue-500" },
-    qa_approved: { text: "QA Approved", bg: "bg-blue-50 text-blue-700 border-blue-200", dot: "bg-blue-500" },
+    qa_approved: { text: "QA Approved", bg: "bg-[#EFF6FF] text-[#1D4ED8] border-[#BFDBFE]", dot: "bg-[#2563EB]" },
   };
   const config = map[norm] || { text: status, bg: "bg-amber-50 text-amber-700 border-amber-200", dot: "bg-amber-500" };
   return (
@@ -48,7 +49,7 @@ const getStatusBadge = (status) => {
   );
 };
 
-// Reusable Portal Action Menu to match ProjectsList.jsx exactly
+// Portal-based scroll/resize safe action menu to match ProjectsList.jsx exactly
 const PortalActionMenu = ({ anchorEl, open, onClose, actions }) => {
   const [style, setStyle] = useState(null);
 
@@ -61,7 +62,7 @@ const PortalActionMenu = ({ anchorEl, open, onClose, actions }) => {
       const viewportHeight = window.innerHeight;
 
       const estimatedHeight = actions.length * 36 + 12;
-      const dropdownWidth = 180;
+      const dropdownWidth = 160;
       const gap = 6;
 
       const spaceBelow = viewportHeight - rect.bottom;
@@ -97,21 +98,12 @@ const PortalActionMenu = ({ anchorEl, open, onClose, actions }) => {
         onClose();
       }
     };
-
-    const handleKeyDown = (event) => {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    };
-
     document.addEventListener("mousedown", handleClickOutside);
-    document.addEventListener("keydown", handleKeyDown);
 
     return () => {
       window.removeEventListener("resize", updatePosition);
       window.removeEventListener("scroll", updatePosition, true);
       document.removeEventListener("mousedown", handleClickOutside);
-      document.removeEventListener("keydown", handleKeyDown);
     };
   }, [open, anchorEl, onClose, actions]);
 
@@ -131,8 +123,9 @@ const PortalActionMenu = ({ anchorEl, open, onClose, actions }) => {
               onClose();
               act.onClick();
             }}
-            className={`w-full px-4 py-2 text-xs font-semibold flex items-center gap-2 hover:bg-[#FAF9FF] transition-colors ${act.danger ? "text-red-600 hover:text-red-700 hover:bg-red-50" : "text-[#475569] hover:text-[#243744]"
-              }`}
+            className={`w-full px-4 py-2 text-xs font-semibold flex items-center gap-2 hover:bg-[#FAF9FF] transition-colors ${
+              act.danger ? "text-red-600 hover:text-red-700 hover:bg-red-50" : "text-[#475569] hover:text-[#243744]"
+            }`}
           >
             {Icon && <Icon size={14} />}
             {act.label}
@@ -144,69 +137,66 @@ const PortalActionMenu = ({ anchorEl, open, onClose, actions }) => {
   );
 };
 
-export default function ObservationEntry() {
-  const location = useLocation();
+const ObservationEntry = () => {
   const navigate = useNavigate();
+  const location = useLocation();
 
-  const searchParams = new URLSearchParams(location.search);
-  const scopeTestIdParam = searchParams.get("scope_test_id");
-  const sampleIdParam = searchParams.get("sample_id");
-  const templateIdParam = searchParams.get("template_id");
-  const obsIdParam = searchParams.get("observation_id");
-
-  const isDirectFiller = Boolean(scopeTestIdParam || sampleIdParam || templateIdParam || obsIdParam);
-
-  const [selectedObsId, setSelectedObsId] = useState(obsIdParam || null);
-  const [filledSheets, setFilledSheets] = useState([]);
+  const [sheets, setSheets] = useState([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search, 300);
   const [statusFilter, setStatusFilter] = useState("all");
+
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  // Sorting state (Default: sample_code ascending)
+  const [sortConfig, setSortConfig] = useState({ key: "sample_code", direction: "asc" });
+
   const [activeDropdownId, setActiveDropdownId] = useState(null);
   const [activeAnchorEl, setActiveAnchorEl] = useState(null);
 
-  // Fetch real saved observation records from PostgreSQL DB
+  // Modal / Drawer state for Sheet Filler
+  const [fillerModal, setFillerModal] = useState({
+    open: false,
+    mode: "fill", // "fill" | "view" | "edit"
+    sheetData: null,
+  });
+
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await getSampleObservations();
-      const records = res.data?.data || [];
+      const queryParams = new URLSearchParams(location.search);
+      const projectId = queryParams.get("project_id");
 
-      if (records.length > 0) {
-        setFilledSheets(records);
-      } else {
-        // Fallback to sample entries if no saved observations exist yet
-        try {
-          const sampleRes = await getSampleEntries();
-          const samples = sampleRes.data?.data || [];
-          const demoList = samples.map((s, idx) => ({
-            observation_id: `demo_${s.sample_id || idx}`,
-            sample_id: s.sample_id,
-            sample_no: s.sample_no || `SAMPLE-2026-00${idx + 1}`,
-            test_name: s.test_name || "Soil & Geotechnical Test",
-            test_method: s.test_method || "IS Standard Code",
-            operator_name: s.created_by_name || "Lab Technician",
-            status: idx % 2 === 0 ? "Submitted" : "Approved",
-            created_at: s.entry_date || new Date().toISOString(),
-          }));
-          setFilledSheets(demoList);
-        } catch (e) {
-          setFilledSheets([]);
-        }
-      }
+      const response = await getSampleObservations(projectId ? { project_id: projectId } : {});
+      const raw = response.data?.data || response.data || [];
+      const list = Array.isArray(raw) ? raw : [];
+
+      setSheets(list);
     } catch (err) {
-      console.error("Failed to fetch filled observations list:", err);
-      toast.error("Failed to load observation records");
+      console.error("Failed to load observation sheets:", err);
+      toast.error("Failed to fetch observation records");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [location.search]);
 
   useEffect(() => {
-    if (!isDirectFiller) {
-      fetchData();
-    }
-  }, [isDirectFiller, fetchData]);
+    fetchData();
+  }, [fetchData]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearch, statusFilter, sortConfig]);
+
+  const handleSortChange = (key) => {
+    setSortConfig((prev) => ({
+      key,
+      direction: prev.key === key && prev.direction === "asc" ? "desc" : "asc",
+    }));
+  };
 
   const handleToggleDropdown = (id, event) => {
     if (activeDropdownId === id) {
@@ -218,115 +208,79 @@ export default function ObservationEntry() {
     }
   };
 
-  // Delete saved observation entry from DB
-  const handleDeleteObservation = async (obsObj) => {
-    if (!window.confirm(`Are you sure you want to delete observation record for ${obsObj.sample_no || "this sample"}?`)) {
-      return;
-    }
+  const handleDeleteSheet = async (observationId) => {
+    if (!window.confirm("Are you sure you want to delete this observation sheet record?")) return;
     try {
-      const obsId = obsObj.observation_id;
-      if (String(obsId).startsWith("demo_")) {
-        setFilledSheets((prev) => prev.filter((item) => item.observation_id !== obsId));
-        toast.success("Observation record removed");
-      } else {
-        await deleteSampleObservation(obsId);
-        setFilledSheets((prev) => prev.filter((item) => item.observation_id !== obsId));
-        toast.success("Observation record deleted successfully");
-      }
-    } catch (e) {
-      console.error("Delete observation error:", e);
-      toast.error("Failed to delete observation record");
+      await deleteSampleObservation(observationId);
+      toast.success("Observation record deleted successfully");
+      fetchData();
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to delete record");
     }
   };
 
-  // Filtered observation records to match ProjectsList filtering
   const filteredSheets = useMemo(() => {
-    let list = [...filledSheets];
+    const q = debouncedSearch.trim().toLowerCase();
+    const filtered = sheets.filter((s) => {
+      const matchesSearch =
+        !q ||
+        s.sample_code?.toLowerCase().includes(q) ||
+        s.receipt_no?.toLowerCase().includes(q) ||
+        s.location_name?.toLowerCase().includes(q) ||
+        s.test_name?.toLowerCase().includes(q) ||
+        s.technician_name?.toLowerCase().includes(q);
 
-    if (debouncedSearch.trim()) {
-      const q = debouncedSearch.toLowerCase().trim();
-      list = list.filter(
-        (s) =>
-          s.sample_no?.toLowerCase().includes(q) ||
-          s.test_name?.toLowerCase().includes(q) ||
-          s.test_method?.toLowerCase().includes(q) ||
-          s.operator_name?.toLowerCase().includes(q)
-      );
-    }
+      const normStatus = (s.status || "draft").toLowerCase();
+      const matchesStatus = statusFilter === "all" || normStatus === statusFilter;
 
-    if (statusFilter !== "all") {
-      list = list.filter((s) => (s.status || "draft").toLowerCase().replace(" ", "_") === statusFilter);
-    }
+      return matchesSearch && matchesStatus;
+    });
 
-    return list;
-  }, [filledSheets, debouncedSearch, statusFilter]);
+    return filtered.sort((a, b) => {
+      const key = sortConfig.key || "sample_code";
+      let valA = a[key] ?? "";
+      let valB = b[key] ?? "";
 
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+      if (typeof valA === "string") valA = valA.toLowerCase();
+      if (typeof valB === "string") valB = valB.toLowerCase();
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [debouncedSearch, statusFilter]);
+      if (valA < valB) return sortConfig.direction === "asc" ? -1 : 1;
+      if (valA > valB) return sortConfig.direction === "asc" ? 1 : -1;
+      return 0;
+    });
+  }, [sheets, debouncedSearch, statusFilter, sortConfig]);
 
   const paginatedSheets = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
     return filteredSheets.slice(start, start + pageSize);
   }, [filteredSheets, currentPage, pageSize]);
 
-  // If opened directly or a sheet record is selected for viewing/editing
-  if (isDirectFiller || selectedObsId) {
-    return (
-      <ObservationSheetFiller
-        observationId={selectedObsId}
-        templateId={templateIdParam}
-        onBack={() => {
-          if (selectedObsId) {
-            setSelectedObsId(null);
-            fetchData();
-          } else {
-            navigate("/test-assignments");
-          }
-        }}
-      />
-    );
-  }
-
-  // MAIN OBSERVATION TAB: EXACT SAME UI AS PROJECTS LIST
   return (
-    <MainLayout
-      headerTitle="Observation List"
-      headerSubtitle="User / Lab Technician Test Readings Entry & Observations Registry"
-    >
+    <MainLayout headerTitle="Observation Sheets" headerSubtitle="Record and review test observation data for samples">
       <Toaster position="top-right" richColors />
-      <div className="flex flex-col bg-[#F8FAFC] min-h-[calc(100vh-4rem)] p-4 sm:p-6 space-y-5">
+      <div className="mx-auto w-full max-w-[1800px] px-4 py-5 sm:px-5 lg:px-6 space-y-6">
 
-        {/* Top Search & Action Bar - Matching ProjectsList.jsx exactly */}
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="relative flex-1 max-w-md">
-            <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#8A97A4]" />
+        {/* Toolbar - Matching ProjectsList.jsx style */}
+        <div className="flex flex-col xl:flex-row gap-4 items-stretch xl:items-center justify-between">
+          
+          {/* Search Box */}
+          <div className="flex-1 max-w-xl flex h-10 items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3 focus-within:border-[#243744] focus-within:ring-2 focus-within:ring-[#243744]/10 transition-all">
+            <Search size={16} className="text-[#94A3B8] shrink-0" />
             <input
               type="text"
-              placeholder="Search sample no, test, method..."
+              placeholder="Search sample code, receipt no, test, technician..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full h-10 pl-10 pr-4 text-xs font-semibold text-[#1E293B] border border-[#E2E8F0] bg-white rounded-xl outline-none focus:border-[#243744] focus:ring-2 focus:ring-[#243744]/10 transition-all placeholder:text-[#8A97A4]"
+              className="w-full bg-transparent text-sm text-[#0F172A] placeholder:text-[#94A3B8] outline-none"
             />
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-
-            {/* Status select */}
+          {/* Action Row */}
+          <div className="flex flex-wrap items-center gap-3">
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="h-10 px-3.5 py-2 text-xs font-semibold text-[#475569] border border-[#E2E8F0] bg-white rounded-xl outline-none focus:border-[#243744] focus:ring-2 focus:ring-[#243744]/10 transition-all shrink-0 min-w-[130px] appearance-none"
-              style={{
-                backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%238A97A4' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
-                backgroundPosition: "right 10px center",
-                backgroundRepeat: "no-repeat",
-                backgroundSize: "16px",
-                paddingRight: "30px"
-              }}
+              className="h-10 px-3.5 py-2 text-xs font-semibold text-[#475569] border border-[#E2E8F0] bg-white rounded-xl outline-none focus:border-[#243744] focus:ring-2 focus:ring-[#243744]/10 transition-all shrink-0 min-w-[130px] appearance-none cursor-pointer"
               aria-label="Filter observations by status"
             >
               {STATUS_OPTIONS.map((opt) => (
@@ -336,7 +290,7 @@ export default function ObservationEntry() {
 
             <button
               onClick={fetchData}
-              className="flex h-10 items-center justify-center gap-1.5 rounded-xl border border-[#E2E8F0] bg-white hover:bg-[#F8FAFC] px-4 text-xs font-bold text-[#475569] transition-colors"
+              className="flex h-10 items-center justify-center gap-1.5 rounded-xl border border-[#E2E8F0] bg-white hover:bg-[#F8FAFC] px-4 text-xs font-bold text-[#475569] transition-colors cursor-pointer"
             >
               <RefreshCw size={14} className="text-[#8A97A4]" />
               Refresh
@@ -344,7 +298,7 @@ export default function ObservationEntry() {
 
             <button
               onClick={() => navigate("/test-assignments")}
-              className="flex h-10 items-center justify-center gap-1.5 rounded-xl bg-[#243744] hover:bg-[#1A2733] px-4 text-xs font-bold text-white shadow-sm transition-colors"
+              className="flex h-10 items-center justify-center gap-1.5 rounded-xl bg-[#243744] hover:bg-[#1A2733] px-4 text-xs font-bold text-white shadow-sm transition-colors cursor-pointer"
             >
               <Plus size={14} />
               Fill New Sheet
@@ -381,7 +335,7 @@ export default function ObservationEntry() {
           </div>
         )}
 
-        {/* Desktop Table View - Matching ProjectsList.jsx exactly */}
+        {/* Desktop Table View */}
         <div className="hidden lg:block bg-white rounded-2xl border border-[#E2E8F0] shadow-sm overflow-hidden">
           {loading ? (
             <TableSkeleton rows={5} cols={8} />
@@ -406,61 +360,135 @@ export default function ObservationEntry() {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="border-b border-[#E2E8F0] bg-[#FAFBFD] text-[10px] font-bold text-[#64748B] uppercase tracking-wider">
-                    <th className="px-5 py-3.5 whitespace-nowrap">Sample Code</th>
-                    <th className="px-5 py-3.5 whitespace-nowrap">Receipt No.</th>
-                    <th className="px-5 py-3.5 whitespace-nowrap">Location</th>
-                    <th className="px-5 py-3.5 whitespace-nowrap">Borelog</th>
-                    <th className="px-5 py-3.5 whitespace-nowrap">Test Name</th>
-                    <th className="px-5 py-3.5 whitespace-nowrap">Status</th>
-                    <th className="px-5 py-3.5 whitespace-nowrap">Technician</th>
-                    <th className="px-5 py-3.5 whitespace-nowrap">Testing Date</th>
+                  <tr className="border-b border-[#E2E8F0] bg-[#FAFBFD] text-[10px] font-bold text-[#64748B] uppercase tracking-wider select-none">
+                    <th className="px-5 py-3.5 whitespace-nowrap cursor-pointer hover:bg-slate-100/80 transition-colors" onClick={() => handleSortChange("sample_code")}>
+                      <div className="flex items-center gap-1.5">
+                        <span>Sample Code</span>
+                        {sortConfig.key === "sample_code" ? (
+                          sortConfig.direction === "asc" ? <ArrowUp size={13} className="text-[#243744]" /> : <ArrowDown size={13} className="text-[#243744]" />
+                        ) : (
+                          <ArrowUpDown size={12} className="text-slate-400 opacity-60" />
+                        )}
+                      </div>
+                    </th>
+                    <th className="px-5 py-3.5 whitespace-nowrap cursor-pointer hover:bg-slate-100/80 transition-colors" onClick={() => handleSortChange("receipt_no")}>
+                      <div className="flex items-center gap-1.5">
+                        <span>Receipt No.</span>
+                        {sortConfig.key === "receipt_no" ? (
+                          sortConfig.direction === "asc" ? <ArrowUp size={13} className="text-[#243744]" /> : <ArrowDown size={13} className="text-[#243744]" />
+                        ) : (
+                          <ArrowUpDown size={12} className="text-slate-400 opacity-60" />
+                        )}
+                      </div>
+                    </th>
+                    <th className="px-5 py-3.5 whitespace-nowrap cursor-pointer hover:bg-slate-100/80 transition-colors" onClick={() => handleSortChange("location_name")}>
+                      <div className="flex items-center gap-1.5">
+                        <span>Location</span>
+                        {sortConfig.key === "location_name" ? (
+                          sortConfig.direction === "asc" ? <ArrowUp size={13} className="text-[#243744]" /> : <ArrowDown size={13} className="text-[#243744]" />
+                        ) : (
+                          <ArrowUpDown size={12} className="text-slate-400 opacity-60" />
+                        )}
+                      </div>
+                    </th>
+                    <th className="px-5 py-3.5 whitespace-nowrap cursor-pointer hover:bg-slate-100/80 transition-colors" onClick={() => handleSortChange("borelog_no")}>
+                      <div className="flex items-center gap-1.5">
+                        <span>Borelog</span>
+                        {sortConfig.key === "borelog_no" ? (
+                          sortConfig.direction === "asc" ? <ArrowUp size={13} className="text-[#243744]" /> : <ArrowDown size={13} className="text-[#243744]" />
+                        ) : (
+                          <ArrowUpDown size={12} className="text-slate-400 opacity-60" />
+                        )}
+                      </div>
+                    </th>
+                    <th className="px-5 py-3.5 whitespace-nowrap cursor-pointer hover:bg-slate-100/80 transition-colors" onClick={() => handleSortChange("test_name")}>
+                      <div className="flex items-center gap-1.5">
+                        <span>Test Name</span>
+                        {sortConfig.key === "test_name" ? (
+                          sortConfig.direction === "asc" ? <ArrowUp size={13} className="text-[#243744]" /> : <ArrowDown size={13} className="text-[#243744]" />
+                        ) : (
+                          <ArrowUpDown size={12} className="text-slate-400 opacity-60" />
+                        )}
+                      </div>
+                    </th>
+                    <th className="px-5 py-3.5 whitespace-nowrap cursor-pointer hover:bg-slate-100/80 transition-colors" onClick={() => handleSortChange("status")}>
+                      <div className="flex items-center gap-1.5">
+                        <span>Status</span>
+                        {sortConfig.key === "status" ? (
+                          sortConfig.direction === "asc" ? <ArrowUp size={13} className="text-[#243744]" /> : <ArrowDown size={13} className="text-[#243744]" />
+                        ) : (
+                          <ArrowUpDown size={12} className="text-slate-400 opacity-60" />
+                        )}
+                      </div>
+                    </th>
+                    <th className="px-5 py-3.5 whitespace-nowrap cursor-pointer hover:bg-slate-100/80 transition-colors" onClick={() => handleSortChange("technician_name")}>
+                      <div className="flex items-center gap-1.5">
+                        <span>Technician</span>
+                        {sortConfig.key === "technician_name" ? (
+                          sortConfig.direction === "asc" ? <ArrowUp size={13} className="text-[#243744]" /> : <ArrowDown size={13} className="text-[#243744]" />
+                        ) : (
+                          <ArrowUpDown size={12} className="text-slate-400 opacity-60" />
+                        )}
+                      </div>
+                    </th>
+                    <th className="px-5 py-3.5 whitespace-nowrap cursor-pointer hover:bg-slate-100/80 transition-colors" onClick={() => handleSortChange("testing_date")}>
+                      <div className="flex items-center gap-1.5">
+                        <span>Testing Date</span>
+                        {sortConfig.key === "testing_date" ? (
+                          sortConfig.direction === "asc" ? <ArrowUp size={13} className="text-[#243744]" /> : <ArrowDown size={13} className="text-[#243744]" />
+                        ) : (
+                          <ArrowUpDown size={12} className="text-slate-400 opacity-60" />
+                        )}
+                      </div>
+                    </th>
                     <th className="px-5 py-3.5 text-right whitespace-nowrap w-[90px]">Actions</th>
                   </tr>
                 </thead>
-                <motion.tbody variants={stagger.container} initial="hidden" animate="visible" className="divide-y divide-[#F1F5F9]">
-                  {paginatedSheets.map((sheet) => {
-                    const obsId = sheet.observation_id || sheet.id;
-                    const createdDate = sheet.created_at ? sheet.created_at.split("T")[0] : new Date().toISOString().split("T")[0];
-                    const testTitle = sheet.actual_test_name || sheet.test_name || "Grain Size Analysis";
+                <motion.tbody variants={stagger.container} initial="hidden" animate="visible" className="divide-y divide-[#F1F5F9] bg-white">
+                  {paginatedSheets.map((sheet) => (
+                    <motion.tr key={sheet.observation_id || sheet.id} variants={stagger.item} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="px-5 py-4 font-bold font-mono text-[#243744] whitespace-nowrap">{sheet.sample_code || "—"}</td>
+                      <td className="px-5 py-4 font-semibold text-gray-700 whitespace-nowrap">{sheet.receipt_no || "—"}</td>
+                      <td className="px-5 py-4 font-medium text-gray-800 whitespace-nowrap">{sheet.location_name || "—"}</td>
+                      <td className="px-5 py-4 font-mono text-gray-700 whitespace-nowrap">{sheet.borelog_no || "—"}</td>
+                      <td className="px-5 py-4 font-bold text-[#1E293B] whitespace-nowrap">{sheet.test_name || sheet.scope_test_name || "—"}</td>
+                      <td className="px-5 py-4 whitespace-nowrap">{getStatusBadge(sheet.status)}</td>
+                      <td className="px-5 py-4 font-semibold text-gray-700 whitespace-nowrap">{sheet.technician_name || sheet.created_by_name || "—"}</td>
+                      <td className="px-5 py-4 font-medium text-gray-600 whitespace-nowrap">{sheet.testing_date || sheet.created_at || "—"}</td>
+                      <td className="px-5 py-4 text-right whitespace-nowrap">
+                        <button
+                          onClick={(e) => handleToggleDropdown(sheet.observation_id || sheet.id, e)}
+                          className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500 hover:text-slate-900 transition-colors cursor-pointer"
+                        >
+                          <MoreVertical size={16} />
+                        </button>
 
-                    return (
-                      <motion.tr key={obsId} variants={stagger.item} className="hover:bg-[#FAF9FF] transition-colors">
-                        <td className="px-5 py-4 font-bold font-mono text-[#243744] whitespace-nowrap">
-                          <span className="bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
-                            {sheet.sample_code || sheet.sample_no || `SAMPLE-${sheet.sample_id}`}
-                          </span>
-                        </td>
-                        <td className="px-5 py-4 font-semibold text-slate-600 whitespace-nowrap">{sheet.receipt_no || "—"}</td>
-                        <td className="px-5 py-4 font-medium text-slate-800 whitespace-nowrap">{sheet.location_name || "—"}</td>
-                        <td className="px-5 py-4 font-mono text-slate-700 whitespace-nowrap">{sheet.borelog_no || "—"}</td>
-                        <td className="px-5 py-4 font-bold text-[#1E293B] max-w-[220px] truncate" title={testTitle}>
-                          {testTitle}
-                        </td>
-                        <td className="px-5 py-4 whitespace-nowrap">{getStatusBadge(sheet.status)}</td>
-                        <td className="px-5 py-4 font-semibold text-[#475569] whitespace-nowrap">{sheet.operator_name || "Lab Technician"}</td>
-                        <td className="px-5 py-4 font-mono text-[#64748B] whitespace-nowrap">{createdDate}</td>
-                        <td className="px-5 py-4 text-right whitespace-nowrap">
-                          <button
-                            onClick={(e) => handleToggleDropdown(obsId, e)}
-                            className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500 hover:text-slate-900 transition-colors"
-                          >
-                            <MoreVertical size={16} />
-                          </button>
-
-                          <PortalActionMenu
-                            anchorEl={activeDropdownId === obsId ? activeAnchorEl : null}
-                            open={activeDropdownId === obsId}
-                            onClose={() => { setActiveDropdownId(null); setActiveAnchorEl(null); }}
-                            actions={[
-                              { label: "View / Edit Sheet", icon: Edit3, onClick: () => setSelectedObsId(obsId) },
-                              { label: "Delete Record", icon: Trash2, danger: true, onClick: () => handleDeleteObservation(sheet) }
-                            ]}
-                          />
-                        </td>
-                      </motion.tr>
-                    );
-                  })}
+                        <PortalActionMenu
+                          anchorEl={activeDropdownId === (sheet.observation_id || sheet.id) ? activeAnchorEl : null}
+                          open={activeDropdownId === (sheet.observation_id || sheet.id)}
+                          onClose={() => { setActiveDropdownId(null); setActiveAnchorEl(null); }}
+                          actions={[
+                            {
+                              label: "View Sheet Data",
+                              icon: Eye,
+                              onClick: () => setFillerModal({ open: true, mode: "view", sheetData: sheet })
+                            },
+                            {
+                              label: "Edit Observation",
+                              icon: Pencil,
+                              onClick: () => setFillerModal({ open: true, mode: "edit", sheetData: sheet })
+                            },
+                            {
+                              label: "Delete Record",
+                              icon: Trash2,
+                              danger: true,
+                              onClick: () => handleDeleteSheet(sheet.observation_id || sheet.id)
+                            }
+                          ]}
+                        />
+                      </td>
+                    </motion.tr>
+                  ))}
                 </motion.tbody>
               </table>
             </div>
@@ -477,85 +505,66 @@ export default function ObservationEntry() {
           />
         </div>
 
-        {/* Mobile Cards View - Matching ProjectsList.jsx */}
+        {/* Mobile View */}
         <div className="lg:hidden">
           {loading ? (
             <div className="space-y-3">
-              {[0, 1, 2].map((i) => <div key={i} className="lab-skeleton h-44" />)}
+              {[0, 1, 2].map((i) => <div key={i} className="h-40 bg-slate-100 rounded-2xl animate-pulse" />)}
             </div>
           ) : filteredSheets.length === 0 ? (
-            <div className="p-8 text-center bg-white border border-[#E2E8F0] rounded-2xl">
+            <div className="p-8 text-center bg-white border border-slate-200 rounded-2xl shadow-sm">
               <FlaskConical size={32} className="mx-auto text-[#94A3B8] mb-2" />
               <h3 className="text-sm font-bold text-[#1E293B]">No observation records found</h3>
             </div>
           ) : (
-            <motion.div className="grid grid-cols-1 sm:grid-cols-2 gap-4" variants={stagger.container} initial="hidden" animate="visible">
-              {paginatedSheets.map((sheet) => {
-                const obsId = sheet.observation_id || sheet.id;
-                const createdDate = sheet.created_at ? sheet.created_at.split("T")[0] : new Date().toISOString().split("T")[0];
-                const testTitle = sheet.actual_test_name || sheet.test_name || "Grain Size Analysis";
-
-                return (
-                  <motion.div
-                    key={obsId}
-                    className="bg-white border border-[#E2E8F0] rounded-2xl shadow-sm overflow-hidden p-4 flex flex-col justify-between space-y-3"
-                    variants={stagger.item}
-                  >
-                    <div className="flex justify-between items-start gap-2">
-                      <div className="min-w-0">
-                        <span className="text-[11px] font-bold font-mono text-[#243744] bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-lg">
-                          {sheet.sample_code || sheet.sample_no || `SAMPLE-${sheet.sample_id}`}
-                        </span>
-                        <h3 className="font-bold text-sm text-[#1E293B] mt-2 truncate">
-                          {testTitle}
-                        </h3>
-                      </div>
-                      {getStatusBadge(sheet.status)}
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2 text-xs pt-2 border-t border-[#F1F5F9]">
-                      <div>
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-[#8A97A4] mb-0.5">Receipt No.</p>
-                        <p className="font-semibold text-[#475569] truncate">{sheet.receipt_no || "—"}</p>
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-[#8A97A4] mb-0.5">Location / Bore</p>
-                        <p className="font-semibold text-[#475569] truncate">{sheet.location_name || "—"} {sheet.borelog_no ? `(${sheet.borelog_no})` : ""}</p>
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-[#8A97A4] mb-0.5">Technician</p>
-                        <p className="font-semibold text-[#475569] truncate">{sheet.operator_name || "Lab Technician"}</p>
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-[#8A97A4] mb-0.5">Testing Date</p>
-                        <p className="font-mono font-bold text-[#1E293B]">{createdDate}</p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#F1F5F9]">
-                      <button
-                        onClick={() => setSelectedObsId(obsId)}
-                        className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-[#243744] px-4 py-2 text-xs font-bold text-white shadow-2xs hover:bg-[#1A2733] transition-colors"
-                      >
-                        <Edit3 size={14} />
-                        View / Edit Sheet
-                      </button>
-                      <button
-                        onClick={() => handleDeleteObservation(sheet)}
-                        className="p-2 text-slate-400 hover:text-rose-600 rounded-xl hover:bg-rose-50 border border-slate-200 transition-colors"
-                        title="Delete Record"
-                      >
-                        <Trash2 size={15} />
-                      </button>
-                    </div>
-                  </motion.div>
-                );
-              })}
+            <motion.div className="space-y-4" variants={stagger.container} initial="hidden" animate="visible">
+              {paginatedSheets.map((sheet) => (
+                <motion.div
+                  key={sheet.observation_id || sheet.id}
+                  className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-2 relative"
+                  variants={stagger.item}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold font-mono text-[#243744] bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-lg">
+                      {sheet.sample_code || "—"}
+                    </span>
+                    {getStatusBadge(sheet.status)}
+                  </div>
+                  <div className="text-xs space-y-1">
+                    <h4 className="font-bold text-slate-800">{sheet.test_name || "—"}</h4>
+                    <p className="text-slate-500">Receipt: {sheet.receipt_no || "—"} | Location: {sheet.location_name || "—"}</p>
+                  </div>
+                  <div className="flex items-center justify-between text-xs pt-2 border-t border-slate-100">
+                    <span className="text-slate-600 font-medium">Tech: {sheet.technician_name || "—"}</span>
+                    <button
+                      onClick={() => setFillerModal({ open: true, mode: "view", sheetData: sheet })}
+                      className="p-1.5 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                    >
+                      <Eye size={16} />
+                    </button>
+                  </div>
+                </motion.div>
+              ))}
             </motion.div>
           )}
         </div>
+
+        {/* Observation Sheet Filler Modal */}
+        {fillerModal.open && (
+          <ObservationSheetFiller
+            mode={fillerModal.mode}
+            sheetData={fillerModal.sheetData}
+            onClose={() => setFillerModal({ open: false, mode: "fill", sheetData: null })}
+            onSuccess={() => {
+              setFillerModal({ open: false, mode: "fill", sheetData: null });
+              fetchData();
+            }}
+          />
+        )}
 
       </div>
     </MainLayout>
   );
 };
+
+export default ObservationEntry;

@@ -4,7 +4,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Search, RefreshCw, Trash2, Briefcase, Sparkles, Play,
   FileSpreadsheet, Clock, AlertTriangle, CheckCircle2, Layers,
-  UserCheck, Filter, ChevronRight, X, MoreVertical, RotateCcw
+  UserCheck, Filter, ChevronRight, X, MoreVertical, RotateCcw,
+  ArrowUp, ArrowDown, ArrowUpDown
 } from "lucide-react";
 import { MainLayout } from "../../components/layout";
 import { getProjects } from "../../api/projects";
@@ -65,6 +66,39 @@ const getStatusBadge = (status) => {
   );
 };
 
+// Exact KPI Card matching Home.jsx & LabManagement.jsx (Without Utilization Rate)
+const KpiCard = ({ title, value = 0, subtitle, icon: Icon, tone = "navy" }) => {
+  const toneStyles = {
+    navy: { border: "border-slate-200/80", bg: "bg-white", iconBg: "bg-[#243744]/10 text-[#243744]" },
+    emerald: { border: "border-emerald-200/80", bg: "bg-white", iconBg: "bg-emerald-50 text-emerald-600" },
+    blue: { border: "border-blue-200/80", bg: "bg-white", iconBg: "bg-blue-50 text-blue-600" },
+    amber: { border: "border-amber-200/80", bg: "bg-white", iconBg: "bg-amber-50 text-amber-600" },
+    purple: { border: "border-purple-200/80", bg: "bg-white", iconBg: "bg-purple-50 text-purple-600" }
+  };
+
+  const style = toneStyles[tone] || toneStyles.navy;
+
+  return (
+    <motion.article
+      whileHover={{ y: -3, boxShadow: "0 14px 30px rgba(0,0,0,0.06)" }}
+      className={`relative overflow-hidden rounded-2xl border ${style.border} ${style.bg} p-5 shadow-sm transition-all duration-200`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400">{title}</p>
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className="text-3xl font-black tracking-tight text-[#243744]">{typeof value === 'number' ? value.toLocaleString() : value}</span>
+          </div>
+          <p className="mt-1 text-xs font-semibold text-slate-500">{subtitle}</p>
+        </div>
+        <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${style.iconBg} shadow-inner`}>
+          <Icon size={22} strokeWidth={2.2} />
+        </div>
+      </div>
+    </motion.article>
+  );
+};
+
 const TestAssignmentsList = () => {
   const navigate = useNavigate();
 
@@ -95,6 +129,11 @@ const TestAssignmentsList = () => {
   const [technicianFilter, setTechnicianFilter] = useState("all");
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search, 300);
+
+  // Pagination & Sorting states matching LabManagement.jsx
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [sortConfig, setSortConfig] = useState({ key: "sample_code", direction: "asc" });
 
   // Modal State
   const [bulkModalOpen, setBulkModalOpen] = useState(false);
@@ -156,18 +195,37 @@ const TestAssignmentsList = () => {
     fetchAssignments();
   }, [fetchAssignments]);
 
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
-
   useEffect(() => {
     setCurrentPage(1);
-  }, [projectFilter, statusFilter, technicianFilter, debouncedSearch]);
+  }, [projectFilter, statusFilter, technicianFilter, debouncedSearch, sortConfig]);
+
+  const handleSortChange = (key) => {
+    setSortConfig((prev) => ({
+      key,
+      direction: prev.key === key && prev.direction === "asc" ? "desc" : "asc",
+    }));
+  };
+
+  const sortedAssignments = useMemo(() => {
+    const list = Array.isArray(assignments) ? [...assignments] : [];
+    return list.sort((a, b) => {
+      const key = sortConfig.key || "sample_code";
+      let valA = a[key] ?? "";
+      let valB = b[key] ?? "";
+
+      if (typeof valA === "string") valA = valA.toLowerCase();
+      if (typeof valB === "string") valB = valB.toLowerCase();
+
+      if (valA < valB) return sortConfig.direction === "asc" ? -1 : 1;
+      if (valA > valB) return sortConfig.direction === "asc" ? 1 : -1;
+      return 0;
+    });
+  }, [assignments, sortConfig]);
 
   const paginatedAssignments = useMemo(() => {
-    const list = Array.isArray(assignments) ? assignments : [];
     const start = (currentPage - 1) * pageSize;
-    return list.slice(start, start + pageSize);
-  }, [assignments, currentPage, pageSize]);
+    return sortedAssignments.slice(start, start + pageSize);
+  }, [sortedAssignments, currentPage, pageSize]);
 
   const handleOpenObservationSheet = async (assignment) => {
     try {
@@ -199,128 +257,110 @@ const TestAssignmentsList = () => {
       <Toaster position="top-right" richColors />
       <div className="mx-auto w-full max-w-[1800px] px-4 py-5 sm:px-5 lg:px-6 space-y-6">
 
-        {/* Dashboard Metric KPI Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4">
-          <motion.div whileHover={{ y: -2 }} className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-3">
-            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 shrink-0">
-              <Layers size={18} />
-            </div>
-            <div className="min-w-0">
-              <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider block truncate">Total Scheduled</span>
-              <span className="text-xl sm:text-2xl font-black text-[#243744]">{summary.total_assigned || 0}</span>
-            </div>
-          </motion.div>
-
-          <motion.div whileHover={{ y: -2 }} className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-3">
-            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-600 shrink-0">
-              <Clock size={18} />
-            </div>
-            <div className="min-w-0">
-              <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider block truncate">In Progress</span>
-              <span className="text-xl sm:text-2xl font-black text-blue-600">{summary.in_progress || 0}</span>
-            </div>
-          </motion.div>
-
-          <motion.div whileHover={{ y: -2 }} className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-3">
-            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600 shrink-0">
-              <AlertTriangle size={18} />
-            </div>
-            <div className="min-w-0">
-              <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider block truncate">Due Today</span>
-              <span className="text-xl sm:text-2xl font-black text-amber-600">{summary.due_today || 0}</span>
-            </div>
-          </motion.div>
-
-          <motion.div whileHover={{ y: -2 }} className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-3">
-            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-red-50 border border-red-200 flex items-center justify-center text-red-600 shrink-0">
-              <AlertTriangle size={18} />
-            </div>
-            <div className="min-w-0">
-              <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider block truncate">Overdue</span>
-              <span className="text-xl sm:text-2xl font-black text-red-600">{summary.overdue || 0}</span>
-            </div>
-          </motion.div>
-
-          <motion.div whileHover={{ y: -2 }} className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-3 col-span-2 sm:col-span-1">
-            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shrink-0">
-              <CheckCircle2 size={18} />
-            </div>
-            <div className="min-w-0">
-              <span className="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider block truncate">Completed</span>
-              <span className="text-xl sm:text-2xl font-black text-emerald-600">{summary.completed || 0}</span>
-            </div>
-          </motion.div>
+        {/* ── 1. Exact 4 Hero KPI Cards matching LabManagement & Home.jsx ── */}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <KpiCard
+            title="Total Scheduled"
+            value={summary.total_assigned || assignments.length}
+            subtitle="Assigned Test Workflows"
+            icon={Layers}
+            tone="navy"
+          />
+          <KpiCard
+            title="In Progress"
+            value={summary.in_progress || 0}
+            subtitle="Active Specimen Testing"
+            icon={Clock}
+            tone="blue"
+          />
+          <KpiCard
+            title="Due Today"
+            value={summary.due_today || 0}
+            subtitle="Pending Today"
+            icon={AlertTriangle}
+            tone="amber"
+          />
+          <KpiCard
+            title="Completed Tests"
+            value={summary.completed || 0}
+            subtitle="Testing Completed"
+            icon={CheckCircle2}
+            tone="emerald"
+          />
         </div>
 
-        {/* Filters & Control Bar */}
-        <div className="flex flex-col lg:flex-row gap-4 items-stretch lg:items-center justify-between bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+        {/* ── 2. Toolbar & Controls matching LabManagement ── */}
+        <div className="bg-white rounded-2xl border border-[#E2E8F0] p-4 shadow-sm space-y-3">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-3 flex-1">
+              {/* Search Box */}
+              <div className="relative flex-1 min-w-[240px]">
+                <Search className="absolute left-3.5 top-2.5 text-slate-400" size={16} />
+                <input
+                  type="text"
+                  placeholder="Search sample code, test, location, technician..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 text-xs font-semibold border border-[#E2E8F0] rounded-xl outline-none focus:border-[#243744] focus:ring-2 focus:ring-[#243744]/10 transition-colors"
+                />
+              </div>
 
-          {/* Quick Search */}
-          <div className="flex-1 max-w-lg flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50/50 px-3 focus-within:bg-white focus-within:border-[#243744] focus-within:ring-2 focus-within:ring-[#243744]/10 transition-all">
-            <Search size={16} className="text-slate-400 shrink-0" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search sample code, test, location, technician..."
-              className="w-full bg-transparent text-xs font-medium text-slate-800 placeholder:text-slate-400 outline-none"
-            />
-            {search && (
-              <button onClick={() => setSearch("")} className="text-slate-400 hover:text-slate-600">
-                <X size={14} />
+              {/* Project Filter */}
+              <select
+                value={projectFilter}
+                onChange={(e) => setProjectFilter(e.target.value)}
+                className="py-2 px-3 text-xs font-semibold border border-[#E2E8F0] bg-white rounded-xl outline-none focus:border-[#243744] transition-colors cursor-pointer max-w-[200px] truncate"
+              >
+                <option value="all">All Projects</option>
+                {(Array.isArray(projects) ? projects : []).map((p) => (
+                  <option key={p.project_id} value={p.project_id}>{p.project_code} — {p.project_name}</option>
+                ))}
+              </select>
+
+              {/* Technician Filter */}
+              <select
+                value={technicianFilter}
+                onChange={(e) => setTechnicianFilter(e.target.value)}
+                className="py-2 px-3 text-xs font-semibold border border-[#E2E8F0] bg-white rounded-xl outline-none focus:border-[#243744] transition-colors cursor-pointer max-w-[180px] truncate"
+              >
+                <option value="all">All Technicians</option>
+                {(Array.isArray(technicians) ? technicians : []).map((u) => (
+                  <option key={u.user_id} value={u.user_id}>{u.full_name || u.name}</option>
+                ))}
+              </select>
+
+              {/* Status Filter */}
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="py-2 px-3 text-xs font-semibold border border-[#E2E8F0] bg-white rounded-xl outline-none focus:border-[#243744] transition-colors cursor-pointer"
+              >
+                <option value="all">All Statuses</option>
+                <option value="Assigned">Assigned</option>
+                <option value="In Progress">In Progress</option>
+                <option value="Completed">Completed</option>
+              </select>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex items-center gap-3">
+              <button
+                onClick={fetchAssignments}
+                title="Refresh Test List"
+                className="flex h-10 items-center justify-center gap-1.5 rounded-xl border border-[#E2E8F0] bg-white hover:bg-[#F8FAFC] px-4 text-xs font-bold text-[#475569] transition-colors cursor-pointer"
+              >
+                <RefreshCw size={14} className="text-[#8A97A4]" />
+                Refresh
               </button>
-            )}
-          </div>
 
-          {/* Quick Filters */}
-          <div className="flex flex-wrap items-center gap-2.5">
-            <select
-              value={projectFilter}
-              onChange={(e) => setProjectFilter(e.target.value)}
-              className="h-10 px-3 py-2 text-xs font-semibold text-slate-700 border border-slate-200 bg-white rounded-xl outline-none focus:border-[#243744] shadow-sm"
-            >
-              <option value="all">All Projects</option>
-              {(Array.isArray(projects) ? projects : []).map((p) => (
-                <option key={p.project_id} value={p.project_id}>{p.project_code} — {p.project_name}</option>
-              ))}
-            </select>
-
-            <select
-              value={technicianFilter}
-              onChange={(e) => setTechnicianFilter(e.target.value)}
-              className="h-10 px-3 py-2 text-xs font-semibold text-slate-700 border border-slate-200 bg-white rounded-xl outline-none focus:border-[#243744] shadow-sm"
-            >
-              <option value="all">All Technicians</option>
-              {(Array.isArray(technicians) ? technicians : []).map((u) => (
-                <option key={u.user_id} value={u.user_id}>{u.full_name || u.name}</option>
-              ))}
-            </select>
-
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="h-10 px-3 py-2 text-xs font-semibold text-slate-700 border border-slate-200 bg-white rounded-xl outline-none focus:border-[#243744] shadow-sm"
-            >
-              <option value="all">All Statuses</option>
-              <option value="Assigned">Assigned</option>
-              <option value="In Progress">In Progress</option>
-              <option value="Completed">Completed</option>
-            </select>
-
-            <button
-              onClick={fetchAssignments}
-              title="Refresh Test List"
-              className="flex h-10 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 px-3.5 text-xs font-bold text-slate-700 transition-colors shadow-sm"
-            >
-              <RefreshCw size={14} className="text-slate-500" />
-            </button>
-
-            <button
-              onClick={() => setBulkModalOpen(true)}
-              className="flex h-10 items-center justify-center gap-2 rounded-xl bg-[#243744] hover:bg-[#1a2832] px-4 text-xs font-bold text-white shadow-md transition-colors"
-            >
-              <Sparkles size={15} className="text-emerald-400" />
-              Assign Test Work
-            </button>
+              <button
+                onClick={() => setBulkModalOpen(true)}
+                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-[#243744] hover:bg-[#1A2733] text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer whitespace-nowrap"
+              >
+                <Sparkles size={16} className="text-emerald-400" />
+                <span>Assign Test Work</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -367,16 +407,16 @@ const TestAssignmentsList = () => {
           </div>
         )}
 
-        {/* Work Items View: Desktop Table & Mobile/Tablet Card View */}
-        <div className="hidden lg:block bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        {/* ── 3. Desktop Table View matching LabManagement ── */}
+        <div className="hidden lg:block bg-white rounded-2xl border border-[#E2E8F0] shadow-sm overflow-hidden">
           {loading ? (
             <TableSkeleton rows={6} cols={10} />
-          ) : assignments.length === 0 ? (
+          ) : sortedAssignments.length === 0 ? (
             <div className="p-16 text-center">
               <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3 text-slate-400">
                 <Briefcase size={28} />
               </div>
-              <h3 className="text-sm font-bold text-slate-800">No test assignments found</h3>
+              <h3 className="text-base font-bold text-slate-800">No test assignments found</h3>
               <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
                 No active tests matched your filters. Click "Assign Test Work" to schedule test assignments for physical specimens.
               </p>
@@ -389,7 +429,7 @@ const TestAssignmentsList = () => {
                     setStatusFilter("all");
                     setTechnicianFilter("all");
                   }}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl transition-colors shadow-2xs cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl transition-colors shadow-xs cursor-pointer"
                 >
                   <RotateCcw size={14} />
                   Reset Filters
@@ -398,7 +438,7 @@ const TestAssignmentsList = () => {
                 <button
                   type="button"
                   onClick={() => setBulkModalOpen(true)}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-[#243744] text-white text-xs font-bold rounded-xl hover:bg-[#1a2832] transition-colors shadow-sm"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-[#243744] text-white text-xs font-bold rounded-xl hover:bg-[#1a2832] transition-colors shadow-sm cursor-pointer"
                 >
                   <Sparkles size={14} className="text-emerald-400" />
                   Assign Test Work
@@ -409,22 +449,103 @@ const TestAssignmentsList = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50 text-[10px] font-bold text-slate-600 uppercase tracking-wider">
-                    <th className="px-5 py-3.5 whitespace-nowrap">Sample Code</th>
-                    <th className="px-5 py-3.5 whitespace-nowrap">Receipt No.</th>
-                    <th className="px-5 py-3.5 whitespace-nowrap">Location</th>
-                    <th className="px-5 py-3.5 whitespace-nowrap">Borehole</th>
-                    <th className="px-5 py-3.5 max-w-[180px] whitespace-nowrap">Test Name</th>
-                    <th className="px-5 py-3.5 whitespace-nowrap">Technician</th>
-                    <th className="px-5 py-3.5 whitespace-nowrap">Target Date</th>
-                    <th className="px-5 py-3.5 whitespace-nowrap">Priority</th>
-                    <th className="px-5 py-3.5 whitespace-nowrap">Status</th>
+                  <tr className="border-b border-[#E2E8F0] bg-[#FAFBFD] text-[10px] font-bold text-[#64748B] uppercase tracking-wider select-none">
+                    <th className="px-5 py-3.5 whitespace-nowrap cursor-pointer hover:bg-slate-100/80 transition-colors" onClick={() => handleSortChange("sample_code")}>
+                      <div className="flex items-center gap-1.5">
+                        <span>Sample Code</span>
+                        {sortConfig.key === "sample_code" ? (
+                          sortConfig.direction === "asc" ? <ArrowUp size={13} className="text-[#243744]" /> : <ArrowDown size={13} className="text-[#243744]" />
+                        ) : (
+                          <ArrowUpDown size={12} className="text-slate-400 opacity-60" />
+                        )}
+                      </div>
+                    </th>
+                    <th className="px-5 py-3.5 whitespace-nowrap cursor-pointer hover:bg-slate-100/80 transition-colors" onClick={() => handleSortChange("receipt_no")}>
+                      <div className="flex items-center gap-1.5">
+                        <span>Receipt No.</span>
+                        {sortConfig.key === "receipt_no" ? (
+                          sortConfig.direction === "asc" ? <ArrowUp size={13} className="text-[#243744]" /> : <ArrowDown size={13} className="text-[#243744]" />
+                        ) : (
+                          <ArrowUpDown size={12} className="text-slate-400 opacity-60" />
+                        )}
+                      </div>
+                    </th>
+                    <th className="px-5 py-3.5 whitespace-nowrap cursor-pointer hover:bg-slate-100/80 transition-colors" onClick={() => handleSortChange("location_name")}>
+                      <div className="flex items-center gap-1.5">
+                        <span>Location</span>
+                        {sortConfig.key === "location_name" ? (
+                          sortConfig.direction === "asc" ? <ArrowUp size={13} className="text-[#243744]" /> : <ArrowDown size={13} className="text-[#243744]" />
+                        ) : (
+                          <ArrowUpDown size={12} className="text-slate-400 opacity-60" />
+                        )}
+                      </div>
+                    </th>
+                    <th className="px-5 py-3.5 whitespace-nowrap cursor-pointer hover:bg-slate-100/80 transition-colors" onClick={() => handleSortChange("borelog_no")}>
+                      <div className="flex items-center gap-1.5">
+                        <span>Borehole</span>
+                        {sortConfig.key === "borelog_no" ? (
+                          sortConfig.direction === "asc" ? <ArrowUp size={13} className="text-[#243744]" /> : <ArrowDown size={13} className="text-[#243744]" />
+                        ) : (
+                          <ArrowUpDown size={12} className="text-slate-400 opacity-60" />
+                        )}
+                      </div>
+                    </th>
+                    <th className="px-5 py-3.5 max-w-[180px] whitespace-nowrap cursor-pointer hover:bg-slate-100/80 transition-colors" onClick={() => handleSortChange("test_name")}>
+                      <div className="flex items-center gap-1.5">
+                        <span>Test Name</span>
+                        {sortConfig.key === "test_name" ? (
+                          sortConfig.direction === "asc" ? <ArrowUp size={13} className="text-[#243744]" /> : <ArrowDown size={13} className="text-[#243744]" />
+                        ) : (
+                          <ArrowUpDown size={12} className="text-slate-400 opacity-60" />
+                        )}
+                      </div>
+                    </th>
+                    <th className="px-5 py-3.5 whitespace-nowrap cursor-pointer hover:bg-slate-100/80 transition-colors" onClick={() => handleSortChange("technician_name")}>
+                      <div className="flex items-center gap-1.5">
+                        <span>Technician</span>
+                        {sortConfig.key === "technician_name" ? (
+                          sortConfig.direction === "asc" ? <ArrowUp size={13} className="text-[#243744]" /> : <ArrowDown size={13} className="text-[#243744]" />
+                        ) : (
+                          <ArrowUpDown size={12} className="text-slate-400 opacity-60" />
+                        )}
+                      </div>
+                    </th>
+                    <th className="px-5 py-3.5 whitespace-nowrap cursor-pointer hover:bg-slate-100/80 transition-colors" onClick={() => handleSortChange("target_date")}>
+                      <div className="flex items-center gap-1.5">
+                        <span>Target Date</span>
+                        {sortConfig.key === "target_date" ? (
+                          sortConfig.direction === "asc" ? <ArrowUp size={13} className="text-[#243744]" /> : <ArrowDown size={13} className="text-[#243744]" />
+                        ) : (
+                          <ArrowUpDown size={12} className="text-slate-400 opacity-60" />
+                        )}
+                      </div>
+                    </th>
+                    <th className="px-5 py-3.5 whitespace-nowrap cursor-pointer hover:bg-slate-100/80 transition-colors" onClick={() => handleSortChange("priority")}>
+                      <div className="flex items-center gap-1.5">
+                        <span>Priority</span>
+                        {sortConfig.key === "priority" ? (
+                          sortConfig.direction === "asc" ? <ArrowUp size={13} className="text-[#243744]" /> : <ArrowDown size={13} className="text-[#243744]" />
+                        ) : (
+                          <ArrowUpDown size={12} className="text-slate-400 opacity-60" />
+                        )}
+                      </div>
+                    </th>
+                    <th className="px-5 py-3.5 whitespace-nowrap cursor-pointer hover:bg-slate-100/80 transition-colors" onClick={() => handleSortChange("status")}>
+                      <div className="flex items-center gap-1.5">
+                        <span>Status</span>
+                        {sortConfig.key === "status" ? (
+                          sortConfig.direction === "asc" ? <ArrowUp size={13} className="text-[#243744]" /> : <ArrowDown size={13} className="text-[#243744]" />
+                        ) : (
+                          <ArrowUpDown size={12} className="text-slate-400 opacity-60" />
+                        )}
+                      </div>
+                    </th>
                     <th className="px-5 py-3.5 text-right whitespace-nowrap w-[90px]">Actions</th>
                   </tr>
                 </thead>
-                <motion.tbody variants={stagger.container} initial="hidden" animate="visible" className="divide-y divide-slate-100 bg-white">
+                <motion.tbody variants={stagger.container} initial="hidden" animate="visible" className="divide-y divide-[#F1F5F9] bg-white">
                   {paginatedAssignments.map((item) => (
-                    <motion.tr key={item.assignment_id} variants={stagger.item} className="hover:bg-slate-50/80 transition-colors">
+                    <motion.tr key={item.assignment_id} variants={stagger.item} className="hover:bg-[#FAF9FF] transition-colors">
                       <td className="px-5 py-4 whitespace-nowrap">
                         <span className="font-bold font-mono text-[#243744] bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200 whitespace-nowrap">
                           {item.sample_code}
@@ -444,8 +565,9 @@ const TestAssignmentsList = () => {
                       </td>
                       <td className="px-5 py-4 font-mono text-slate-600 whitespace-nowrap">{item.target_date || "—"}</td>
                       <td className="px-5 py-4 whitespace-nowrap">
-                        <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap ${item.priority === "Urgent" ? "bg-red-100 text-red-800 border border-red-200" : item.priority === "High" ? "bg-amber-100 text-amber-800 border border-amber-200" : "bg-slate-100 text-slate-700 border border-slate-200"
-                          }`}>
+                        <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-semibold whitespace-nowrap ${
+                          item.priority === "Urgent" ? "bg-red-100 text-red-800 border border-red-200" : item.priority === "High" ? "bg-amber-100 text-amber-800 border border-amber-200" : "bg-slate-100 text-slate-700 border border-slate-200"
+                        }`}>
                           {item.priority}
                         </span>
                       </td>
@@ -453,7 +575,7 @@ const TestAssignmentsList = () => {
                       <td className="px-5 py-4 text-right whitespace-nowrap">
                         <button
                           onClick={(e) => handleToggleDropdown(item.assignment_id, e)}
-                          className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-500 hover:text-slate-900 transition-colors"
+                          className="p-1.5 hover:bg-[#F1F5F9] rounded-lg transition-colors text-[#8A97A4] hover:text-[#1A2733] cursor-pointer"
                         >
                           <MoreVertical size={16} />
                         </button>
@@ -464,7 +586,7 @@ const TestAssignmentsList = () => {
                           onClose={() => { setActiveDropdownId(null); setActiveAnchorEl(null); }}
                           actions={[
                             {
-                              label: "Observation Sheet",
+                              label: "Fill Observation Sheet",
                               icon: FileSpreadsheet,
                               onClick: () => handleOpenObservationSheet(item)
                             },
@@ -484,9 +606,9 @@ const TestAssignmentsList = () => {
             </div>
           )}
 
-          {/* Table Pagination */}
+          {/* ── 4. Table Pagination matching LabManagement ── */}
           <TablePagination
-            totalItems={(assignments || []).length}
+            totalItems={sortedAssignments.length}
             pageSize={pageSize}
             currentPage={currentPage}
             onPageChange={setCurrentPage}
@@ -495,78 +617,55 @@ const TestAssignmentsList = () => {
           />
         </div>
 
-        {/* Mobile & Tablet Card View */}
+        {/* Mobile / Tablet Card View */}
         <div className="lg:hidden">
           {loading ? (
             <div className="space-y-3">
-              {[0, 1, 2].map((i) => <div key={i} className="h-44 bg-slate-100 rounded-2xl animate-pulse" />)}
+              {[0, 1, 2].map((i) => <div key={i} className="h-40 bg-slate-100 rounded-2xl animate-pulse" />)}
             </div>
-          ) : assignments.length === 0 ? (
+          ) : sortedAssignments.length === 0 ? (
             <div className="p-8 text-center bg-white border border-slate-200 rounded-2xl shadow-sm">
-              <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-2 text-slate-400">
-                <Briefcase size={22} />
-              </div>
+              <Briefcase size={32} className="mx-auto text-slate-400 mb-2" />
               <h3 className="text-sm font-bold text-slate-800">No test assignments found</h3>
             </div>
           ) : (
-            <motion.div className="grid grid-cols-1 sm:grid-cols-2 gap-4" variants={stagger.container} initial="hidden" animate="visible">
-              {(Array.isArray(assignments) ? assignments : []).map((item) => (
+            <motion.div className="space-y-4" variants={stagger.container} initial="hidden" animate="visible">
+              {paginatedAssignments.map((item) => (
                 <motion.div
                   key={item.assignment_id}
+                  className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-3 relative"
                   variants={stagger.item}
-                  className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-col justify-between space-y-3 relative hover:shadow-md transition-shadow"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <span className="text-[11px] font-bold font-mono text-[#243744] bg-slate-100 border border-slate-200 px-2 py-0.5 rounded-lg">
                         {item.sample_code}
                       </span>
-                      <h4 className="font-bold text-sm text-slate-900 mt-2 line-clamp-1">{item.test_name}</h4>
+                      <h4 className="font-bold text-sm text-slate-900 mt-2">{item.test_name}</h4>
                       <p className="text-xs text-slate-500 font-semibold">{item.receipt_no}</p>
                     </div>
+                    {getStatusBadge(item.status)}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-xs py-2 border-y border-slate-100">
                     <div>
-                      {getStatusBadge(item.status)}
+                      <span className="text-slate-400 block text-[10px] uppercase font-bold">Technician</span>
+                      <span className="font-semibold text-slate-700 truncate block">{item.technician_name || "Unassigned"}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block text-[10px] uppercase font-bold">Target Date</span>
+                      <span className="font-semibold text-slate-700">{item.target_date || "—"}</span>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2 text-xs pt-2 border-t border-slate-100">
-                    <div>
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Technician</p>
-                      <p className="font-semibold text-slate-700 truncate">{item.technician_name || "Unassigned"}</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Target Date</p>
-                      <p className="font-mono font-semibold text-slate-700">{item.target_date || "—"}</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Location / Bore</p>
-                      <p className="font-semibold text-slate-700 truncate">
-                        {item.location_name || "—"} {item.borelog_no ? `(${item.borelog_no})` : ""}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Priority</p>
-                      <span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold ${item.priority === "Urgent" ? "bg-red-100 text-red-800" : item.priority === "High" ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-700"
-                        }`}>
-                        {item.priority}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="pt-2 border-t border-slate-100 flex items-center gap-2">
+                  <div className="flex items-center justify-between pt-1">
+                    <span className="text-[11px] font-semibold text-slate-500">Priority: {item.priority}</span>
                     <button
                       onClick={() => handleOpenObservationSheet(item)}
-                      className="flex-1 py-2 px-3 bg-[#243744] hover:bg-[#1a2832] text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-colors shadow-sm"
+                      className="px-3 py-1.5 bg-[#243744] text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-sm cursor-pointer"
                     >
-                      <FileSpreadsheet size={14} className="text-emerald-400" />
-                      Observation Sheet
-                    </button>
-                    <button
-                      onClick={() => handleCancelAssignment(item.assignment_id)}
-                      className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 border border-slate-200 rounded-xl transition-colors"
-                      title="Cancel Assignment"
-                    >
-                      <Trash2 size={15} />
+                      <FileSpreadsheet size={14} />
+                      Fill Sheet
                     </button>
                   </div>
                 </motion.div>
@@ -575,14 +674,17 @@ const TestAssignmentsList = () => {
           )}
         </div>
 
-      </div>
+        {/* Bulk Assignment Modal */}
+        <BulkTestAssignmentModal
+          isOpen={bulkModalOpen}
+          onClose={() => setBulkModalOpen(false)}
+          onSuccess={() => {
+            setBulkModalOpen(false);
+            fetchAssignments();
+          }}
+        />
 
-      <BulkTestAssignmentModal
-        isOpen={bulkModalOpen}
-        initialProjectId={projectFilter !== "all" ? projectFilter : ""}
-        onClose={() => setBulkModalOpen(false)}
-        onSuccess={fetchAssignments}
-      />
+      </div>
     </MainLayout>
   );
 };

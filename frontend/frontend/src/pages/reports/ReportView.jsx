@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { 
-  ArrowLeft, Edit, Download, Printer, CheckCircle, XCircle, 
+import {
+  ArrowLeft, Edit, Download, Printer, CheckCircle, XCircle,
   FileText, Shield, FileSpreadsheet, History, Info, Trash2, Calendar
 } from "lucide-react";
 import { getReportById, approveReport, rejectReport, createRevision } from "../../api/reports";
@@ -116,7 +116,7 @@ const ReportView = () => {
     let maxRow = 1;
     let maxCol = 1;
     const cellKeys = Object.keys(sheetData || {});
-    
+
     cellKeys.forEach(key => {
       const match = key.match(/^([A-Z]+)([0-9]+)$/);
       if (match) {
@@ -178,7 +178,7 @@ const ReportView = () => {
         {/* Action Header bar */}
         <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-6 print:hidden">
           <Button variant="ghost" size="sm" icon={ArrowLeft} onClick={() => navigate("/reports")}>
-            Back to List
+            Back
           </Button>
 
           <div className="flex flex-wrap items-center gap-3">
@@ -188,13 +188,13 @@ const ReportView = () => {
 
             {canApproveReport && report.status !== "Locked" && report.status !== "Approved" && (
               <div className="flex items-center gap-2">
-                <Button 
+                <Button
                   onClick={() => { setApprovalAction("approve"); setShowApprovalDialog(true); }}
                   className="!bg-emerald-600 hover:!bg-emerald-700 !text-white"
                 >
                   Verify / Approve
                 </Button>
-                <Button 
+                <Button
                   onClick={() => { setApprovalAction("reject"); setShowApprovalDialog(true); }}
                   variant="danger"
                 >
@@ -224,7 +224,7 @@ const ReportView = () => {
 
         {/* MAIN PRINT CANVAS WRAPPER */}
         <div className="bg-white rounded-3xl border border-[#E2E8F0] shadow-sm p-6 sm:p-10 lg:p-12 print:border-0 print:shadow-none print:p-0">
-          
+
           {/* NABL standard certificate header */}
           <div className="border-b-2 border-gray-800 pb-6 mb-8">
             <div className="flex justify-between items-start">
@@ -260,13 +260,13 @@ const ReportView = () => {
               <div className="grid grid-cols-2 gap-2 font-semibold">
                 <span className="text-gray-400 uppercase text-[10px]">Report Number:</span>
                 <span className="text-gray-900 font-bold">{report.report_number}</span>
-                
+
                 <span className="text-gray-400 uppercase text-[10px]">Client Name:</span>
                 <span className="text-gray-800">{report.client_name || "—"}</span>
 
                 <span className="text-gray-400 uppercase text-[10px]">Project Name:</span>
                 <span className="text-gray-800">{report.project_name || "—"}</span>
-                
+
                 <span className="text-gray-400 uppercase text-[10px]">Project Code:</span>
                 <span className="text-gray-800">{report.project_code || "—"}</span>
               </div>
@@ -299,11 +299,10 @@ const ReportView = () => {
                 <button
                   key={tr.report_test_result_id}
                   onClick={() => setActiveSheetTab(tr.test_name)}
-                  className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all ${
-                    activeSheetTab === tr.test_name
+                  className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all ${activeSheetTab === tr.test_name
                       ? "bg-[#243744] text-white border-[#243744]"
                       : "bg-white text-gray-600 border-[#E2E8F0] hover:bg-gray-50"
-                  }`}
+                    }`}
                 >
                   {tr.test_name}
                 </button>
@@ -320,7 +319,7 @@ const ReportView = () => {
                   <div className="flex justify-between items-center">
                     <h3 className="text-sm font-bold text-gray-800 flex items-center gap-1.5">
                       <FileSpreadsheet size={15} className="text-[#3F6E8C]" />
-                      Observation Sheet: {tr.test_name}
+                      {tr.test_name}
                     </h3>
                   </div>
 
@@ -394,7 +393,7 @@ const ReportView = () => {
         <AnimatePresence>
           {showApprovalDialog && (
             <div className="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
@@ -408,7 +407,7 @@ const ReportView = () => {
                     Provide optional comments or audit remarks below.
                   </p>
                 </div>
-                
+
                 <div>
                   <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">Remarks</label>
                   <textarea
@@ -424,7 +423,7 @@ const ReportView = () => {
                   <Button variant="secondary" onClick={() => setShowApprovalDialog(false)}>
                     Cancel
                   </Button>
-                  <Button 
+                  <Button
                     onClick={handleWorkflowAction}
                     className={approvalAction === "approve" ? "!bg-emerald-600 hover:!bg-emerald-700 !text-white" : "!bg-rose-600 hover:!bg-rose-700 !text-white"}
                   >
@@ -440,7 +439,7 @@ const ReportView = () => {
         <AnimatePresence>
           {showRevisionDialog && (
             <div className="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
@@ -454,7 +453,7 @@ const ReportView = () => {
                     This will revert the approved report back to 'Draft' and log a new version.
                   </p>
                 </div>
-                
+
                 <div>
                   <label className="block text-xs font-bold text-gray-500 uppercase mb-1.5">Revision Change Log *</label>
                   <textarea

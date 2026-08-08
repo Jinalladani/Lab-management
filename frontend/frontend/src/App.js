@@ -46,6 +46,7 @@ import EditUser from "./pages/users/EditUser";
 import ViewUser from "./pages/users/ViewUser";
 
 import LabManagement from "./pages/superadmin/lab/LabManagement";
+import AddLab from "./pages/superadmin/lab/AddLab";
 import ViewLab from "./pages/superadmin/lab/ViewLab";
 import EditLab from "./pages/superadmin/lab/EditLab";
 import SubscriptionPlans from "./pages/superadmin/subscriptions/SubscriptionPlans";
@@ -436,6 +437,30 @@ function App() {
         element={
           <ProtectedRoute>
             <SuperAdminSettings />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/labs/manage"
+        element={
+          <ProtectedRoute>
+            <LabManagement />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/labs/add"
+        element={
+          <ProtectedRoute>
+            <AddLab />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/superadmin/labs/create"
+        element={
+          <ProtectedRoute>
+            <AddLab />
           </ProtectedRoute>
         }
       />

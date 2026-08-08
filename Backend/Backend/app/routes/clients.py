@@ -1,8 +1,30 @@
+import re
 from datetime import datetime, timezone
 from flask import Blueprint, request, jsonify, g
 from sqlalchemy import text
 from app.extensions import db
 from app.utils.auth_decorator import token_required
+from app.utils.permissions import permission_required
+
+EMAIL_REGEX = re.compile(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
+PHONE_REGEX = re.compile(r"^\+?[0-9\s\-()]{7,20}$")
+
+
+def is_valid_email(email_str: str) -> bool:
+    if not email_str or not isinstance(email_str, str):
+        return False
+    return bool(EMAIL_REGEX.match(email_str.strip()))
+
+
+def is_valid_phone(phone_str: str) -> bool:
+    if not phone_str or not isinstance(phone_str, str):
+        return False
+    stripped = phone_str.strip()
+    if not PHONE_REGEX.match(stripped):
+        return False
+    digits = re.sub(r"\D", "", stripped)
+    return 7 <= len(digits) <= 15
+
 
 clients_bp = Blueprint("clients", __name__)
 
@@ -13,6 +35,7 @@ def _utc_now():
 
 @clients_bp.route("/", methods=["GET"])
 @token_required
+@permission_required("client.view")
 def get_clients():
     try:
         lab_id = g.jwt_payload.get("lab_id")
@@ -79,6 +102,7 @@ def get_clients():
 
 @clients_bp.route("/", methods=["POST"])
 @token_required
+@permission_required("client.manage")
 def create_client():
     try:
         data = request.get_json() or {}
@@ -101,8 +125,11 @@ def create_client():
         if not client_name:
             errors["client_name"] = ["Client name is required"]
 
-        if email and "@" not in email:
-            errors["email"] = ["Enter a valid email"]
+        if email and not is_valid_email(email):
+            errors["email"] = ["Enter a valid email address"]
+
+        if phone and not is_valid_phone(phone):
+            errors["phone"] = ["Enter a valid phone number (7 to 15 digits)"]
 
         if errors:
             return jsonify({
@@ -238,6 +265,7 @@ def create_client():
 
 @clients_bp.route("/<int:client_id>", methods=["GET"])
 @token_required
+@permission_required("client.view")
 def get_client_by_id(client_id):
     try:
         lab_id = g.jwt_payload.get("lab_id")
@@ -290,6 +318,7 @@ def get_client_by_id(client_id):
 
 @clients_bp.route("/<int:client_id>", methods=["PUT"])
 @token_required
+@permission_required("client.manage")
 def update_client(client_id):
     try:
         data = request.get_json() or {}
@@ -312,8 +341,11 @@ def update_client(client_id):
         if not client_name:
             errors["client_name"] = ["Client name is required"]
 
-        if email and "@" not in email:
-            errors["email"] = ["Enter a valid email"]
+        if email and not is_valid_email(email):
+            errors["email"] = ["Enter a valid email address"]
+
+        if phone and not is_valid_phone(phone):
+            errors["phone"] = ["Enter a valid phone number (7 to 15 digits)"]
 
         if errors:
             return jsonify({
@@ -440,6 +472,7 @@ def update_client(client_id):
 
 @clients_bp.route("/<int:client_id>/status", methods=["PATCH"])
 @token_required
+@permission_required("client.manage")
 def update_client_status(client_id):
     try:
         data = request.get_json() or {}

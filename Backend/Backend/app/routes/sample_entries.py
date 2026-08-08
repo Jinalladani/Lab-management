@@ -3,6 +3,7 @@ from flask import Blueprint, request, jsonify, g, send_file
 from sqlalchemy import text
 from app.extensions import db
 from app.utils.auth_decorator import token_required
+from app.utils.permissions import permission_required
 from werkzeug.utils import secure_filename
 import logging
 import os
@@ -21,62 +22,6 @@ RECEIPT_ID_COL = "sample_id"
 VALID_SAMPLE_SOURCES = {'Site', 'Plant', 'Client', 'Third Party'}
 VALID_RECEIVED_CONDITIONS = {'Good', 'Damaged', 'Wet', 'Broken', 'Other'}
 VALID_SAMPLE_PRIORITIES = {'Normal', 'Urgent', 'High Priority'}
-
-
-def _ensure_sample_v3_schema():
-    """Ensure database has required columns and tables for revised receipt & testing sample workflow."""
-    try:
-        db.session.execute(text("""
-            ALTER TABLE public.sample_receipt_register
-                ADD COLUMN IF NOT EXISTS quantity_received INTEGER DEFAULT 1,
-                ADD COLUMN IF NOT EXISTS quantity_allocated INTEGER DEFAULT 0,
-                ADD COLUMN IF NOT EXISTS location_name VARCHAR(255),
-                ADD COLUMN IF NOT EXISTS borelog_no VARCHAR(100),
-                ADD COLUMN IF NOT EXISTS depth_from NUMERIC(10, 2),
-                ADD COLUMN IF NOT EXISTS depth_to NUMERIC(10, 2),
-                ADD COLUMN IF NOT EXISTS depth_unit VARCHAR(20) DEFAULT 'm',
-                ADD COLUMN IF NOT EXISTS material_id BIGINT,
-                ADD COLUMN IF NOT EXISTS sample_type VARCHAR(100),
-                ADD COLUMN IF NOT EXISTS sample_description TEXT,
-                ADD COLUMN IF NOT EXISTS quantity_unit VARCHAR(50),
-                ADD COLUMN IF NOT EXISTS client_reference VARCHAR(200),
-                ADD COLUMN IF NOT EXISTS collected_by VARCHAR(255),
-                ADD COLUMN IF NOT EXISTS collection_mode VARCHAR(100);
-
-            CREATE TABLE IF NOT EXISTS public.testing_samples (
-                testing_sample_id BIGSERIAL PRIMARY KEY,
-                receipt_id BIGINT NOT NULL REFERENCES public.sample_receipt_register(sample_id) ON DELETE CASCADE,
-                project_id BIGINT NOT NULL REFERENCES public.projects(project_id) ON DELETE CASCADE,
-                sample_code VARCHAR(100) NOT NULL,
-                location_name VARCHAR(255),
-                borelog_no VARCHAR(100),
-                depth_from NUMERIC(10, 2),
-                depth_to NUMERIC(10, 2),
-                depth_unit VARCHAR(20) DEFAULT 'm',
-                client_sample_reference VARCHAR(200),
-                sample_description TEXT,
-                material_name VARCHAR(255),
-                status VARCHAR(50) DEFAULT 'Active',
-                created_by BIGINT REFERENCES public.users(user_id) ON DELETE SET NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-
-            ALTER TABLE public.sample_test_assignments
-                ADD COLUMN IF NOT EXISTS testing_sample_id BIGINT REFERENCES public.testing_samples(testing_sample_id) ON DELETE CASCADE,
-                ADD COLUMN IF NOT EXISTS project_scope_test_id BIGINT REFERENCES public.project_scope_tests(project_scope_test_id) ON DELETE CASCADE,
-                ADD COLUMN IF NOT EXISTS assignment_batch_id VARCHAR(100),
-                ADD COLUMN IF NOT EXISTS assigned_by BIGINT REFERENCES public.users(user_id) ON DELETE SET NULL;
-        """))
-        db.session.commit()
-    except Exception as e:
-        db.session.rollback()
-        logger.warning(f"Schema self-healing notice: {str(e)}")
-
-
-@sample_entries_bp.before_request
-def setup_schema():
-    _ensure_sample_v3_schema()
 
 
 def _receipt_lab_filter():
@@ -227,7 +172,8 @@ def _format_testing_sample(row):
 
 @sample_entries_bp.route("/locations", methods=["GET"])
 @token_required
-def get_project_locations():
+@permission_required("sample.view")
+def get_location_options():
     """Get distinct location names registered under a project."""
     try:
         lab_id = g.jwt_payload.get("lab_id")
@@ -254,7 +200,8 @@ def get_project_locations():
 
 @sample_entries_bp.route("/borelogs", methods=["GET"])
 @token_required
-def get_project_borelogs():
+@permission_required("sample.view")
+def get_borelog_options():
     """Get distinct borelog numbers under a project and optional location."""
     try:
         lab_id = g.jwt_payload.get("lab_id")
@@ -289,7 +236,8 @@ def get_project_borelogs():
 
 @sample_entries_bp.route("/next-sample-no", methods=["GET"])
 @token_required
-def get_next_sample_no():
+@permission_required("sample.view")
+def get_next_sample_number():
     try:
         lab_id = g.jwt_payload.get("lab_id")
         return jsonify({
@@ -302,6 +250,7 @@ def get_next_sample_no():
 
 @sample_entries_bp.route("/", methods=["GET"])
 @token_required
+@permission_required("sample.view")
 def get_sample_receipts():
     """Returns sample receipt No.s."""
     try:
@@ -362,6 +311,7 @@ def get_sample_receipts():
 
 @sample_entries_bp.route("/", methods=["POST"])
 @token_required
+@permission_required("sample.receive")
 def create_sample_receipt():
     """Creates ONE sample receipt/lot record (e.g. quantity_received = 50)."""
     try:
@@ -444,7 +394,8 @@ def create_sample_receipt():
 
 @sample_entries_bp.route("/<int:receipt_id>", methods=["GET"])
 @token_required
-def get_sample_receipt_detail(receipt_id):
+@permission_required("sample.view")
+def get_sample_receipt_by_id(receipt_id):
     try:
         lab_id = g.jwt_payload.get("lab_id")
         row = db.session.execute(text(f"""
@@ -483,6 +434,7 @@ def get_sample_receipt_detail(receipt_id):
 
 @sample_entries_bp.route("/all-testing-samples", methods=["GET"])
 @token_required
+@permission_required("sample.view")
 def get_all_testing_samples():
     """Returns testing samples across receipts for the Testing Samples tab."""
     try:
@@ -529,7 +481,8 @@ def get_all_testing_samples():
 
 @sample_entries_bp.route("/<int:receipt_id>/testing-samples/bulk-create", methods=["POST"])
 @token_required
-def bulk_create_testing_samples(receipt_id):
+@permission_required("sample.manage")
+def create_testing_samples_bulk(receipt_id):
     """Allocates N physical testing samples from receipt quantity in a single transaction."""
     try:
         lab_id = g.jwt_payload.get("lab_id")
@@ -620,6 +573,7 @@ def bulk_create_testing_samples(receipt_id):
 
 @sample_entries_bp.route("/<int:receipt_id>", methods=["DELETE"])
 @token_required
+@permission_required("sample.manage")
 def delete_sample_receipt(receipt_id):
     try:
         lab_id = g.jwt_payload.get("lab_id")

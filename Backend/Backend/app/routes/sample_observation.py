@@ -6,22 +6,15 @@ from datetime import datetime
 # pyrefly: ignore [missing-import]
 from sqlalchemy import text
 
-sample_observations_bp = Blueprint('sample_observations', __name__)
+from app.utils.auth_decorator import token_required
+from app.utils.permissions import permission_required
 
-@sample_observations_bp.before_request
-def ensure_sample_observations_table():
-    try:
-        db.session.execute(text("""
-            ALTER TABLE sample_observations DROP CONSTRAINT IF EXISTS fk_sample_obs_sample;
-            ALTER TABLE sample_observations DROP CONSTRAINT IF EXISTS fk_sample_obs_project;
-            ALTER TABLE sample_observations ADD COLUMN IF NOT EXISTS testing_sample_id BIGINT;
-        """))
-        db.session.commit()
-    except Exception:
-        db.session.rollback()
+sample_observations_bp = Blueprint('sample_observations', __name__)
 
 
 @sample_observations_bp.route('', methods=['GET'])
+@token_required
+@permission_required("observation.view")
 def get_all_observations():
     try:
         project_id = request.args.get("project_id", "").strip()
@@ -86,6 +79,8 @@ def get_all_observations():
 
 
 @sample_observations_bp.route('/<int:observation_id>', methods=['GET'])
+@token_required
+@permission_required("observation.view")
 def get_observation(observation_id):
     try:
         obs = SampleObservation.query.get(observation_id)
@@ -106,6 +101,8 @@ def get_observation(observation_id):
 
 
 @sample_observations_bp.route('', methods=['POST'])
+@token_required
+@permission_required("observation.fill")
 def create_observation():
     try:
         data = request.get_json() or {}
@@ -218,6 +215,8 @@ def create_observation():
 
 
 @sample_observations_bp.route('/<int:observation_id>', methods=['PUT'])
+@token_required
+@permission_required("observation.edit")
 def update_observation(observation_id):
     try:
         obs = SampleObservation.query.get(observation_id)
@@ -259,6 +258,8 @@ def update_observation(observation_id):
 
 
 @sample_observations_bp.route('/<int:observation_id>', methods=['DELETE'])
+@token_required
+@permission_required("observation.edit")
 def delete_observation(observation_id):
     try:
         obs = SampleObservation.query.get(observation_id)

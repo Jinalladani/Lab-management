@@ -1,9 +1,29 @@
 import hashlib
 import random
+import re
 import secrets
 import smtplib
 from datetime import datetime, timedelta, timezone
 from email.mime.text import MIMEText
+
+EMAIL_REGEX = re.compile(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
+PHONE_REGEX = re.compile(r"^\+?[0-9\s\-()]{7,20}$")
+
+
+def is_valid_email(email_str: str) -> bool:
+    if not email_str or not isinstance(email_str, str):
+        return False
+    return bool(EMAIL_REGEX.match(email_str.strip()))
+
+
+def is_valid_phone(phone_str: str) -> bool:
+    if not phone_str or not isinstance(phone_str, str):
+        return False
+    stripped = phone_str.strip()
+    if not PHONE_REGEX.match(stripped):
+        return False
+    digits = re.sub(r"\D", "", stripped)
+    return 7 <= len(digits) <= 15
 
 from flask import Blueprint, request, jsonify, current_app
 from sqlalchemy import text
@@ -237,6 +257,11 @@ def signup():
 
         if not email:
             errors["email"] = ["Email is required"]
+        elif not is_valid_email(email):
+            errors["email"] = ["Invalid email address format"]
+
+        if contact_no and not is_valid_phone(contact_no):
+            errors["contact_no"] = ["Invalid contact phone number format (7 to 15 digits)"]
 
         if not password:
             errors["password"] = ["Password is required"]

@@ -7,6 +7,7 @@ import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 import ScienceIcon from "@mui/icons-material/Science";
 import { useNavigate } from "react-router-dom";
 import LoginImage from "../../assets/business-discussion.png";
+import { validateEmail } from "../../utils/validators";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -33,16 +34,10 @@ const Login = () => {
 
   const validateForm = () => {
     const newErrors = {
-      email: "",
+      email: validateEmail(formData.email, { required: true }),
       password: "",
       common: "",
     };
-
-    if (!formData.email.trim()) {
-      newErrors.email = "Email is required";
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      newErrors.email = "Enter a valid email address";
-    }
 
     if (!formData.password.trim()) {
       newErrors.password = "Password is required";

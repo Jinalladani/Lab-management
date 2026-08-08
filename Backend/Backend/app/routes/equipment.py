@@ -1,5 +1,6 @@
 from flask import Blueprint, jsonify, g, request, current_app
 from app.utils.auth_decorator import token_required
+from app.utils.permissions import permission_required
 from sqlalchemy import text
 from app.extensions import db
 from datetime import datetime, date
@@ -36,6 +37,7 @@ def calculate_calibration_status(next_due_val):
 
 @equipment_bp.route("/list", methods=["GET"])
 @token_required
+@permission_required("equipment.view")
 def get_equipment_list():
     try:
         lab_id = g.jwt_payload.get("lab_id")
@@ -158,6 +160,7 @@ def get_equipment_list():
 
 @equipment_bp.route("/create", methods=["POST"])
 @token_required
+@permission_required("equipment.manage")
 def create_equipment():
     try:
         lab_id = g.jwt_payload.get("lab_id")
@@ -285,7 +288,8 @@ def create_equipment():
 
 @equipment_bp.route("/view/<eq_id>", methods=["GET"])
 @token_required
-def view_equipment(eq_id):
+@permission_required("equipment.view")
+def get_equipment_detail(eq_id):
     try:
         lab_id = g.jwt_payload.get("lab_id")
         if not lab_id:
@@ -442,6 +446,7 @@ def view_equipment(eq_id):
 
 @equipment_bp.route("/update/<eq_id>", methods=["PUT"])
 @token_required
+@permission_required("equipment.manage")
 def update_equipment(eq_id):
     try:
         lab_id = g.jwt_payload.get("lab_id")
@@ -556,6 +561,7 @@ def update_equipment(eq_id):
 
 @equipment_bp.route("/delete/<eq_id>", methods=["DELETE"])
 @token_required
+@permission_required("equipment.manage")
 def delete_equipment(eq_id):
     try:
         lab_id = g.jwt_payload.get("lab_id")
@@ -576,7 +582,8 @@ def delete_equipment(eq_id):
 
 @equipment_bp.route("/locations", methods=["GET"])
 @token_required
-def get_locations():
+@permission_required("equipment.view")
+def get_equipment_locations():
     try:
         lab_id = g.jwt_payload.get("lab_id")
         if not lab_id:
@@ -613,7 +620,8 @@ def get_locations():
 
 @equipment_bp.route("/locations/create", methods=["POST"])
 @token_required
-def create_location():
+@permission_required("equipment.manage")
+def create_equipment_location():
     try:
         lab_id = g.jwt_payload.get("lab_id")
         if not lab_id:
@@ -635,7 +643,6 @@ def create_location():
         """)
         res = db.session.execute(insert_query, {
             "lab_id": lab_id,
-            "name": data["name"],
             "laboratory": data.get("laboratory", "General"),
             "building": data.get("building"),
             "floor": data.get("floor"),
@@ -653,6 +660,7 @@ def create_location():
 
 @equipment_bp.route("/<eq_id>/documents", methods=["POST"])
 @token_required
+@permission_required("equipment.manage")
 def upload_equipment_document(eq_id):
     try:
         lab_id = g.jwt_payload.get("lab_id")
@@ -730,6 +738,7 @@ def upload_equipment_document(eq_id):
 
 @equipment_bp.route("/<eq_id>/documents", methods=["GET"])
 @token_required
+@permission_required("equipment.view")
 def get_equipment_documents(eq_id):
     try:
         lab_id = g.jwt_payload.get("lab_id")
@@ -771,6 +780,7 @@ def get_equipment_documents(eq_id):
 
 @equipment_bp.route("/documents/delete/<int:doc_id>", methods=["DELETE"])
 @token_required
+@permission_required("equipment.manage")
 def delete_equipment_document(doc_id):
     try:
         lab_id = g.jwt_payload.get("lab_id")
@@ -813,7 +823,8 @@ def delete_equipment_document(doc_id):
 
 @equipment_bp.route("/mappings", methods=["GET"])
 @token_required
-def get_equipment_mappings():
+@permission_required("equipment.view")
+def get_all_equipment_mappings():
     try:
         lab_id = g.jwt_payload.get("lab_id")
         query = """
@@ -846,7 +857,8 @@ def get_equipment_mappings():
 
 @equipment_bp.route("/mappings/by-test/<int:scope_test_id>", methods=["GET"])
 @token_required
-def get_mappings_by_test(scope_test_id):
+@permission_required("equipment.view")
+def get_equipment_by_test_mapping(scope_test_id):
     try:
         lab_id = g.jwt_payload.get("lab_id")
         query = """
@@ -877,7 +889,8 @@ def get_mappings_by_test(scope_test_id):
 
 @equipment_bp.route("/mappings/create", methods=["POST"])
 @token_required
-def create_mapping():
+@permission_required("equipment.manage")
+def create_equipment_test_mapping():
     try:
         lab_id = g.jwt_payload.get("lab_id")
         data = request.get_json()
@@ -912,7 +925,8 @@ def create_mapping():
 
 @equipment_bp.route("/mappings/delete/<int:mapping_id>", methods=["DELETE"])
 @token_required
-def delete_mapping(mapping_id):
+@permission_required("equipment.manage")
+def delete_equipment_test_mapping(mapping_id):
     try:
         lab_id = g.jwt_payload.get("lab_id")
         query = "DELETE FROM equipment_test_mapping WHERE lab_id = :lab_id AND mapping_id = :mapping_id"
@@ -926,7 +940,8 @@ def delete_mapping(mapping_id):
 
 @equipment_bp.route("/options-for-mapping", methods=["GET"])
 @token_required
-def get_options_for_mapping():
+@permission_required("equipment.view")
+def get_equipment_options_for_mapping():
     try:
         lab_id = g.jwt_payload.get("lab_id")
         # Get tests

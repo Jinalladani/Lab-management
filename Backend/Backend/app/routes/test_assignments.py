@@ -24,26 +24,6 @@ def _get_user_id():
     return g.jwt_payload.get("user_id")
 
 
-def _ensure_test_assignment_v3_schema():
-    try:
-        db.session.execute(text("""
-            ALTER TABLE public.sample_test_assignments
-                ADD COLUMN IF NOT EXISTS testing_sample_id BIGINT REFERENCES public.testing_samples(testing_sample_id) ON DELETE CASCADE,
-                ADD COLUMN IF NOT EXISTS project_scope_test_id BIGINT REFERENCES public.project_scope_tests(project_scope_test_id) ON DELETE CASCADE,
-                ADD COLUMN IF NOT EXISTS assignment_batch_id VARCHAR(100),
-                ADD COLUMN IF NOT EXISTS assigned_by BIGINT REFERENCES public.users(user_id) ON DELETE SET NULL;
-        """))
-        db.session.commit()
-    except Exception as e:
-        db.session.rollback()
-        logger.warning(f"Assignment schema notice: {str(e)}")
-
-
-@test_assignments_bp.before_request
-def setup_schema():
-    _ensure_test_assignment_v3_schema()
-
-
 def _recalculate_receipt_allocation(receipt_id):
     """Calculates quantity_allocated based on unique physical testing_samples count."""
     try:
@@ -66,7 +46,7 @@ def _recalculate_receipt_allocation(receipt_id):
 
 @test_assignments_bp.route("/eligible-receipts", methods=["GET"])
 @token_required
-@permission_required("test.assign")
+@permission_required("test.view")
 def get_eligible_receipts():
     """Get sample receipt lots for a project."""
     try:
@@ -115,6 +95,7 @@ def get_eligible_receipts():
 
 @test_assignments_bp.route("/existing-testing-samples", methods=["GET"])
 @token_required
+@permission_required("test.view")
 def get_existing_testing_samples():
     """Get physical testing samples allocated for a receipt or project."""
     try:
@@ -182,6 +163,7 @@ def get_existing_testing_samples():
 
 @test_assignments_bp.route("/project-scope-tests", methods=["GET"])
 @token_required
+@permission_required("test.view")
 def get_project_scope_tests_for_assignment():
     """Get active tests configured in Project Scope."""
     try:
@@ -212,6 +194,7 @@ def get_project_scope_tests_for_assignment():
 # Backward compatibility
 @test_assignments_bp.route("/available-tests/<int:sample_id>", methods=["GET"])
 @token_required
+@permission_required("test.view")
 def get_available_tests_for_sample(sample_id):
     try:
         lab_id = _get_lab_id()
@@ -247,6 +230,7 @@ def get_available_tests_for_sample(sample_id):
 
 @test_assignments_bp.route("/bulk-create", methods=["POST"])
 @token_required
+@permission_required("test.assign")
 def bulk_create_test_assignments():
     """Creates atomic test assignments, supporting existing testing samples OR allocating new samples from receipt."""
     try:
@@ -452,6 +436,7 @@ def bulk_create_test_assignments():
 
 @test_assignments_bp.route("/", methods=["GET"])
 @token_required
+@permission_required("test.view")
 def get_assignments_list():
     """List atomic test assignments with full physical testing sample & receipt details."""
     try:
@@ -590,6 +575,7 @@ def get_assignments_list():
 
 @test_assignments_bp.route("/by-project/<int:project_id>", methods=["GET"])
 @token_required
+@permission_required("test.view")
 def get_assignments_by_project(project_id):
     request.args = dict(request.args)
     request.args["project_id"] = str(project_id)
@@ -598,6 +584,7 @@ def get_assignments_by_project(project_id):
 
 @test_assignments_bp.route("/by-sample/<int:sample_id>", methods=["GET"])
 @token_required
+@permission_required("test.view")
 def get_assignments_by_sample(sample_id):
     try:
         lab_id = _get_lab_id()
@@ -620,6 +607,7 @@ def get_assignments_by_sample(sample_id):
 
 @test_assignments_bp.route("/dashboard-summary", methods=["GET"])
 @token_required
+@permission_required("test.view")
 def get_dashboard_summary():
     try:
         lab_id = _get_lab_id()
@@ -652,6 +640,7 @@ def get_dashboard_summary():
 
 @test_assignments_bp.route("/<int:assignment_id>/status", methods=["PATCH"])
 @token_required
+@permission_required("test.assign")
 def update_assignment_status(assignment_id):
     try:
         lab_id = _get_lab_id()
@@ -687,6 +676,7 @@ def update_assignment_status(assignment_id):
 
 @test_assignments_bp.route("/<int:assignment_id>", methods=["DELETE"])
 @token_required
+@permission_required("test.assign")
 def delete_assignment(assignment_id):
     try:
         lab_id = _get_lab_id()

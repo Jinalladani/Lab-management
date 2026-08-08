@@ -1,3 +1,4 @@
+import re
 import secrets
 import string
 from flask import Blueprint, jsonify, g, request, current_app
@@ -6,6 +7,26 @@ from app.utils.permissions import permission_required
 from flask_bcrypt import generate_password_hash
 from sqlalchemy import text
 from app.extensions import db
+
+EMAIL_REGEX = re.compile(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
+PHONE_REGEX = re.compile(r"^\+?[0-9\s\-()]{7,20}$")
+
+
+def is_valid_email(email_str: str) -> bool:
+    if not email_str or not isinstance(email_str, str):
+        return False
+    return bool(EMAIL_REGEX.match(email_str.strip()))
+
+
+def is_valid_phone(phone_str: str) -> bool:
+    if not phone_str or not isinstance(phone_str, str):
+        return False
+    stripped = phone_str.strip()
+    if not PHONE_REGEX.match(stripped):
+        return False
+    digits = re.sub(r"\D", "", stripped)
+    return 7 <= len(digits) <= 15
+
 
 users_bp = Blueprint("users", __name__)
 
@@ -107,6 +128,20 @@ def create_user():
                     "success": False,
                     "message": f"Field '{field}' is required"
                 }), 400
+
+        email = str(data.get('email', '')).strip().lower()
+        if not is_valid_email(email):
+            return jsonify({
+                "success": False,
+                "message": "Invalid email address format"
+            }), 400
+
+        phone = data.get('phone')
+        if phone and not is_valid_phone(str(phone)):
+            return jsonify({
+                "success": False,
+                "message": "Invalid phone number format (7 to 15 digits)"
+            }), 400
 
         # Check if email already exists in this lab
         email_check_query = text("""

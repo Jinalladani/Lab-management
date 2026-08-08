@@ -7,7 +7,7 @@ from flask import jsonify, g
 # 1. Role Normalization
 def normalize_role(role_name: str) -> str:
     if not role_name:
-        return "engineer"
+        return "none"
     
     r = str(role_name).strip().lower().replace("_", "").replace("-", "").replace(" ", "")
     
@@ -22,11 +22,12 @@ def normalize_role(role_name: str) -> str:
     elif r in ["helper", "labor", "labour", "worker"]:
         return "helper"
     else:
-        return "engineer"
+        return "none"
 
 # 2. Granular Permissions Mapping per Canonical Role
 ROLE_PERMISSIONS = {
     "superadmin": ["*"],
+    "none": [],
     
     "admin": [
         "dashboard.view",

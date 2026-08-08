@@ -4,7 +4,8 @@ import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus, Eye, Pencil, Trash2, RefreshCw, Download, Search,
-  ChevronDown, Archive, Copy, FileText, FlaskConical, CheckSquare, Table2, MoreVertical, RotateCcw
+  ChevronDown, Archive, Copy, FileText, FlaskConical, CheckSquare, Table2, MoreVertical, RotateCcw,
+  ArrowUp, ArrowDown, ArrowUpDown
 } from "lucide-react";
 import { getProjects, deleteProject, updateProjectStatus } from "../../api/projects";
 import { getSampleEntries } from "../../api/sampleMaster";
@@ -51,7 +52,7 @@ const getStatusBadge = (status) => {
   );
 };
 
-// Reusable Portal Action Menu to prevent parent clip and handle screen boundary directions
+// Portal-based action menu to prevent clipping & overflow
 const PortalActionMenu = ({ anchorEl, open, onClose, actions }) => {
   const [style, setStyle] = useState(null);
 
@@ -63,13 +64,12 @@ const PortalActionMenu = ({ anchorEl, open, onClose, actions }) => {
       const viewportWidth = window.innerWidth;
       const viewportHeight = window.innerHeight;
 
-      // Estimate menu height based on actions count
       const estimatedHeight = actions.length * 36 + 12;
       const dropdownWidth = 180;
       const gap = 6;
 
       const spaceBelow = viewportHeight - rect.bottom;
-
+      
       let top;
       if (spaceBelow >= estimatedHeight + gap) {
         top = rect.bottom + window.scrollY + gap;
@@ -101,21 +101,12 @@ const PortalActionMenu = ({ anchorEl, open, onClose, actions }) => {
         onClose();
       }
     };
-
-    const handleKeyDown = (event) => {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    };
-
     document.addEventListener("mousedown", handleClickOutside);
-    document.addEventListener("keydown", handleKeyDown);
 
     return () => {
       window.removeEventListener("resize", updatePosition);
       window.removeEventListener("scroll", updatePosition, true);
       document.removeEventListener("mousedown", handleClickOutside);
-      document.removeEventListener("keydown", handleKeyDown);
     };
   }, [open, anchorEl, onClose, actions]);
 
@@ -135,8 +126,9 @@ const PortalActionMenu = ({ anchorEl, open, onClose, actions }) => {
               onClose();
               act.onClick();
             }}
-            className={`w-full px-4 py-2 text-xs font-semibold flex items-center gap-2 hover:bg-[#FAF9FF] transition-colors ${act.danger ? "text-red-600 hover:text-red-700 hover:bg-red-50" : "text-[#475569] hover:text-[#243744]"
-              }`}
+            className={`w-full px-4 py-2 text-xs font-semibold flex items-center gap-2 hover:bg-[#FAF9FF] transition-colors ${
+              act.danger ? "text-red-600 hover:text-red-700 hover:bg-red-50" : "text-[#475569] hover:text-[#243744]"
+            }`}
           >
             {Icon && <Icon size={14} />}
             {act.label}
@@ -151,92 +143,98 @@ const PortalActionMenu = ({ anchorEl, open, onClose, actions }) => {
 const ProjectsList = () => {
   const navigate = useNavigate();
   const [projects, setProjects] = useState([]);
-  const [sampleEntries, setSampleEntries] = useState([]);
   const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search, 300);
   const [statusFilter, setStatusFilter] = useState("all");
   const [clientFilter, setClientFilter] = useState("all");
-  const [drawerProject, setDrawerProject] = useState(null);
 
-  const [activeDropdownId, setActiveDropdownId] = useState(null);
-  const [activeAnchorEl, setActiveAnchorEl] = useState(null);
-
-  const fetchData = useCallback(async () => {
-    try {
-      setLoading(true);
-      setErrorMessage("");
-      const [projectsRes, samplesRes, clientsRes] = await Promise.all([
-        getProjects({ search: debouncedSearch }),
-        getSampleEntries(),
-        getClients(),
-      ]);
-      setProjects(projectsRes?.data?.data || []);
-      setSampleEntries(samplesRes?.data?.data || []);
-      setClients(clientsRes?.data?.data || []);
-    } catch (error) {
-      setErrorMessage(error?.response?.data?.message || "Failed to fetch projects");
-    } finally {
-      setLoading(false);
-    }
-  }, [debouncedSearch]);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
+  // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
+  // Sorting state (Default: project_name ascending)
+  const [sortConfig, setSortConfig] = useState({ key: "project_name", direction: "asc" });
+
+  // Drawer & Action states
+  const [drawerProject, setDrawerProject] = useState(null);
+  const [activeDropdownId, setActiveDropdownId] = useState(null);
+  const [activeAnchorEl, setActiveAnchorEl] = useState(null);
+
+  const fetchInitialData = useCallback(async () => {
+    try {
+      setLoading(true);
+      setErrorMessage("");
+
+      const [projRes, clientRes] = await Promise.all([
+        getProjects(),
+        getClients(),
+      ]);
+
+      setProjects(projRes.data?.data || []);
+      setClients(clientRes.data?.data || []);
+    } catch (error) {
+      setErrorMessage(error?.response?.data?.message || "Failed to fetch projects data");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchInitialData();
+  }, [fetchInitialData]);
+
   useEffect(() => {
     setCurrentPage(1);
-  }, [debouncedSearch, statusFilter, clientFilter]);
+  }, [debouncedSearch, statusFilter, clientFilter, sortConfig]);
+
+  const handleSortChange = (key) => {
+    setSortConfig((prev) => ({
+      key,
+      direction: prev.key === key && prev.direction === "asc" ? "desc" : "asc",
+    }));
+  };
 
   const filteredProjects = useMemo(() => {
-    return projects.filter((project) => {
-      if (statusFilter !== "all" && project.status !== statusFilter) return false;
-      if (clientFilter !== "all" && String(project.client_id) !== String(clientFilter)) return false;
-      return true;
+    const q = debouncedSearch.trim().toLowerCase();
+    const filtered = projects.filter((p) => {
+      const matchesSearch =
+        !q ||
+        p.project_name?.toLowerCase().includes(q) ||
+        p.project_code?.toLowerCase().includes(q) ||
+        p.client_name?.toLowerCase().includes(q) ||
+        p.test_assigned_to_name?.toLowerCase().includes(q);
+
+      const matchesStatus = statusFilter === "all" || p.status === statusFilter;
+      const matchesClient = clientFilter === "all" || String(p.client_id) === String(clientFilter);
+
+      return matchesSearch && matchesStatus && matchesClient;
     });
-  }, [projects, statusFilter, clientFilter]);
+
+    return filtered.sort((a, b) => {
+      const key = sortConfig.key || "project_name";
+      let valA = a[key] ?? "";
+      let valB = b[key] ?? "";
+
+      if (typeof valA === "string") valA = valA.toLowerCase();
+      if (typeof valB === "string") valB = valB.toLowerCase();
+
+      if (valA < valB) return sortConfig.direction === "asc" ? -1 : 1;
+      if (valA > valB) return sortConfig.direction === "asc" ? 1 : -1;
+      return 0;
+    });
+  }, [projects, debouncedSearch, statusFilter, clientFilter, sortConfig]);
 
   const paginatedProjects = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
     return filteredProjects.slice(start, start + pageSize);
   }, [filteredProjects, currentPage, pageSize]);
 
-  const handleDeleteProject = async (project) => {
-    if (!window.confirm(`Delete project "${project.project_name}"?`)) return;
-    try {
-      await deleteProject(project.project_id);
-      fetchData();
-    } catch (error) {
-      alert(error?.response?.data?.message || "Failed to delete project");
-    }
-  };
-
-  const handleArchiveProject = async (project) => {
-    try {
-      await updateProjectStatus(project.project_id, { status: "on_hold" });
-      fetchData();
-    } catch (error) {
-      alert(error?.response?.data?.message || "Failed to archive project");
-    }
-  };
-
-  const handleDuplicateProject = (project) => {
-    alert(`Duplicate project workflow for "${project.project_code}" will open soon.`);
-  };
-
-  const handleExport = (type) => {
-    alert(`${type} export will be available in the next release.`);
-  };
-
-  const handleSampleSaved = (createdCount) => {
-    alert(`${createdCount} sample(s) added successfully.`);
-    fetchData();
+  const handleExport = () => {
+    alert("Export feature will be implemented in the next release.");
   };
 
   const handleToggleDropdown = (projectId, event) => {
@@ -249,60 +247,58 @@ const ProjectsList = () => {
     }
   };
 
+  const handleArchiveProject = async (project) => {
+    if (!window.confirm(`Are you sure you want to archive project "${project.project_name}"?`)) return;
+    try {
+      await updateProjectStatus(project.project_id, "cancelled");
+      fetchInitialData();
+    } catch (err) {
+      alert("Failed to archive project");
+    }
+  };
+
+  const handleDuplicateProject = (project) => {
+    navigate("/projects/add", { state: { duplicateFrom: project } });
+  };
+
   return (
-    <MainLayout headerTitle="Projects" headerSubtitle="Modern project dashboard for lab operations">
+    <MainLayout headerTitle="Projects" headerSubtitle="Manage civil testing and laboratory projects">
       <div className="mx-auto w-full max-w-[1800px] px-4 py-5 sm:px-5 lg:px-6">
 
         {/* Toolbar */}
         <div className="mb-6 flex flex-col xl:flex-row gap-4 items-stretch xl:items-center justify-between">
-
+          
           {/* Search Box */}
           <div className="flex-1 max-w-xl flex h-10 items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3 focus-within:border-[#243744] focus-within:ring-2 focus-within:ring-[#243744]/10 transition-all">
             <Search size={16} className="text-[#94A3B8] shrink-0" />
             <input
               type="text"
-              placeholder="Search projects..."
+              placeholder="Search by code, name, client..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full bg-transparent text-sm text-[#0F172A] placeholder:text-[#94A3B8] outline-none"
             />
           </div>
 
-          {/* Filters and Actions */}
+          {/* Action & Filter Row */}
           <div className="flex flex-wrap items-center gap-3">
-
-            {/* Status select */}
+            
+            {/* Status Filter */}
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="h-10 px-3.5 py-2 text-xs font-semibold text-[#475569] border border-[#E2E8F0] bg-white rounded-xl outline-none focus:border-[#243744] focus:ring-2 focus:ring-[#243744]/10 transition-all shrink-0 min-w-[130px] appearance-none"
-              style={{
-                backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%238A97A4' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
-                backgroundPosition: "right 10px center",
-                backgroundRepeat: "no-repeat",
-                backgroundSize: "16px",
-                paddingRight: "30px"
-              }}
-              aria-label="Filter projects by status"
+              className="h-10 px-3.5 py-2 text-xs font-semibold text-[#475569] border border-[#E2E8F0] bg-white rounded-xl outline-none focus:border-[#243744] focus:ring-2 focus:ring-[#243744]/10 transition-all shrink-0 min-w-[130px]"
             >
               {STATUS_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
               ))}
             </select>
 
-            {/* Clients select */}
+            {/* Client Filter */}
             <select
               value={clientFilter}
               onChange={(e) => setClientFilter(e.target.value)}
-              className="h-10 px-3.5 py-2 text-xs font-semibold text-[#475569] border border-[#E2E8F0] bg-white rounded-xl outline-none focus:border-[#243744] focus:ring-2 focus:ring-[#243744]/10 transition-all shrink-0 max-w-[200px] appearance-none"
-              style={{
-                backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%238A97A4' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
-                backgroundPosition: "right 10px center",
-                backgroundRepeat: "no-repeat",
-                backgroundSize: "16px",
-                paddingRight: "30px"
-              }}
-              aria-label="Filter projects by client"
+              className="h-10 px-3.5 py-2 text-xs font-semibold text-[#475569] border border-[#E2E8F0] bg-white rounded-xl outline-none focus:border-[#243744] focus:ring-2 focus:ring-[#243744]/10 transition-all shrink-0 max-w-[160px] truncate"
             >
               <option value="all">All Clients</option>
               {clients.map((c) => (
@@ -311,7 +307,7 @@ const ProjectsList = () => {
             </select>
 
             <button
-              onClick={fetchData}
+              onClick={fetchInitialData}
               className="flex h-10 items-center justify-center gap-1.5 rounded-xl border border-[#E2E8F0] bg-white hover:bg-[#F8FAFC] px-4 text-xs font-bold text-[#475569] transition-colors"
             >
               <RefreshCw size={14} className="text-[#8A97A4]" />
@@ -319,7 +315,7 @@ const ProjectsList = () => {
             </button>
 
             <button
-              onClick={() => handleExport("Excel")}
+              onClick={handleExport}
               className="flex h-10 items-center justify-center gap-1.5 rounded-xl border border-[#E2E8F0] bg-white hover:bg-[#F8FAFC] px-4 text-xs font-bold text-[#475569] transition-colors"
             >
               <Download size={14} className="text-[#8A97A4]" />
@@ -328,15 +324,15 @@ const ProjectsList = () => {
 
             <button
               onClick={() => navigate("/projects/add")}
-              className="flex h-10 items-center justify-center gap-1.5 rounded-xl bg-[#243744] hover:bg-[#1A2733] px-4 text-xs font-bold text-white shadow-sm transition-colors"
+              className="flex h-10 items-center justify-center gap-1.5 rounded-xl bg-[#243744] hover:bg-[#1A2733] px-4 text-xs font-bold text-white shadow-sm transition-colors cursor-pointer"
             >
               <Plus size={14} />
-              New Project
+              Add Project
             </button>
           </div>
         </div>
 
-        {/* Active Filter Chips / Pills */}
+        {/* Active Filters Bar */}
         {(search || statusFilter !== "all" || clientFilter !== "all") && (
           <div className="mb-4 flex flex-wrap items-center gap-2 text-xs">
             <span className="font-semibold text-slate-500 mr-1">Active Filters:</span>
@@ -354,7 +350,7 @@ const ProjectsList = () => {
             )}
             {clientFilter !== "all" && (
               <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 border border-emerald-200 rounded-full font-medium text-emerald-700">
-                Client ID: {clientFilter}
+                Client: {clients.find(c => String(c.client_id) === String(clientFilter))?.client_name || clientFilter}
                 <button type="button" onClick={() => setClientFilter("all")} className="hover:text-red-500 font-bold ml-0.5 cursor-pointer">×</button>
               </span>
             )}
@@ -404,14 +400,77 @@ const ProjectsList = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="border-b border-[#E2E8F0] bg-[#FAFBFD] text-[10px] font-bold text-[#64748B] uppercase tracking-wider">
-                    <th className="px-6 py-3.5">Code</th>
-                    <th className="px-6 py-3.5">Project Name</th>
-                    <th className="px-6 py-3.5">Client</th>
-                    <th className="px-6 py-3.5">Status</th>
-                    <th className="px-6 py-3.5 text-center">Samples</th>
-                    <th className="px-6 py-3.5 text-center">Reports</th>
-                    <th className="px-6 py-3.5">Engineer</th>
+                  <tr className="border-b border-[#E2E8F0] bg-[#FAFBFD] text-[10px] font-bold text-[#64748B] uppercase tracking-wider select-none">
+                    <th className="px-6 py-3.5 cursor-pointer hover:bg-slate-100/80 transition-colors" onClick={() => handleSortChange("project_code")}>
+                      <div className="flex items-center gap-1.5">
+                        <span>Code</span>
+                        {sortConfig.key === "project_code" ? (
+                          sortConfig.direction === "asc" ? <ArrowUp size={13} className="text-[#243744]" /> : <ArrowDown size={13} className="text-[#243744]" />
+                        ) : (
+                          <ArrowUpDown size={12} className="text-slate-400 opacity-60" />
+                        )}
+                      </div>
+                    </th>
+                    <th className="px-6 py-3.5 cursor-pointer hover:bg-slate-100/80 transition-colors" onClick={() => handleSortChange("project_name")}>
+                      <div className="flex items-center gap-1.5">
+                        <span>Project Name</span>
+                        {sortConfig.key === "project_name" ? (
+                          sortConfig.direction === "asc" ? <ArrowUp size={13} className="text-[#243744]" /> : <ArrowDown size={13} className="text-[#243744]" />
+                        ) : (
+                          <ArrowUpDown size={12} className="text-slate-400 opacity-60" />
+                        )}
+                      </div>
+                    </th>
+                    <th className="px-6 py-3.5 cursor-pointer hover:bg-slate-100/80 transition-colors" onClick={() => handleSortChange("client_name")}>
+                      <div className="flex items-center gap-1.5">
+                        <span>Client</span>
+                        {sortConfig.key === "client_name" ? (
+                          sortConfig.direction === "asc" ? <ArrowUp size={13} className="text-[#243744]" /> : <ArrowDown size={13} className="text-[#243744]" />
+                        ) : (
+                          <ArrowUpDown size={12} className="text-slate-400 opacity-60" />
+                        )}
+                      </div>
+                    </th>
+                    <th className="px-6 py-3.5 cursor-pointer hover:bg-slate-100/80 transition-colors" onClick={() => handleSortChange("status")}>
+                      <div className="flex items-center gap-1.5">
+                        <span>Status</span>
+                        {sortConfig.key === "status" ? (
+                          sortConfig.direction === "asc" ? <ArrowUp size={13} className="text-[#243744]" /> : <ArrowDown size={13} className="text-[#243744]" />
+                        ) : (
+                          <ArrowUpDown size={12} className="text-slate-400 opacity-60" />
+                        )}
+                      </div>
+                    </th>
+                    <th className="px-6 py-3.5 text-center cursor-pointer hover:bg-slate-100/80 transition-colors" onClick={() => handleSortChange("total_samples")}>
+                      <div className="flex items-center justify-center gap-1.5">
+                        <span>Samples</span>
+                        {sortConfig.key === "total_samples" ? (
+                          sortConfig.direction === "asc" ? <ArrowUp size={13} className="text-[#243744]" /> : <ArrowDown size={13} className="text-[#243744]" />
+                        ) : (
+                          <ArrowUpDown size={12} className="text-slate-400 opacity-60" />
+                        )}
+                      </div>
+                    </th>
+                    <th className="px-6 py-3.5 text-center cursor-pointer hover:bg-slate-100/80 transition-colors" onClick={() => handleSortChange("total_reports")}>
+                      <div className="flex items-center justify-center gap-1.5">
+                        <span>Reports</span>
+                        {sortConfig.key === "total_reports" ? (
+                          sortConfig.direction === "asc" ? <ArrowUp size={13} className="text-[#243744]" /> : <ArrowDown size={13} className="text-[#243744]" />
+                        ) : (
+                          <ArrowUpDown size={12} className="text-slate-400 opacity-60" />
+                        )}
+                      </div>
+                    </th>
+                    <th className="px-6 py-3.5 cursor-pointer hover:bg-slate-100/80 transition-colors" onClick={() => handleSortChange("test_assigned_to_name")}>
+                      <div className="flex items-center gap-1.5">
+                        <span>Engineer</span>
+                        {sortConfig.key === "test_assigned_to_name" ? (
+                          sortConfig.direction === "asc" ? <ArrowUp size={13} className="text-[#243744]" /> : <ArrowDown size={13} className="text-[#243744]" />
+                        ) : (
+                          <ArrowUpDown size={12} className="text-slate-400 opacity-60" />
+                        )}
+                      </div>
+                    </th>
                     <th className="px-6 py-3.5 text-center w-[90px]">Actions</th>
                   </tr>
                 </thead>
@@ -448,7 +507,6 @@ const ProjectsList = () => {
                             { label: "View Reports", icon: FileText, onClick: () => navigate(`/reports?project_id=${project.project_id}`) },
                             { label: "Duplicate Project", icon: Copy, onClick: () => handleDuplicateProject(project) },
                             { label: "Archive Project", icon: Archive, onClick: () => handleArchiveProject(project) },
-                            { label: "Delete Project", icon: Trash2, danger: true, onClick: () => handleDeleteProject(project) }
                           ]}
                         />
                       </td>
@@ -470,11 +528,11 @@ const ProjectsList = () => {
           />
         </div>
 
-        {/* Mobile Cards View */}
+        {/* Mobile View */}
         <div className="lg:hidden">
           {loading ? (
             <div className="space-y-3">
-              {[0, 1, 2].map((i) => <div key={i} className="lab-skeleton h-44" />)}
+              {[0, 1, 2].map((i) => <div key={i} className="lab-skeleton h-40" />)}
             </div>
           ) : filteredProjects.length === 0 ? (
             <div className="p-8 text-center bg-white border border-[#E2E8F0] rounded-2xl">
@@ -490,49 +548,44 @@ const ProjectsList = () => {
                   variants={stagger.item}
                 >
                   <div className="p-4">
-                    <div className="flex justify-between items-start mb-3 gap-3">
-                      <div className="min-w-0">
-                        <span className="text-[10px] font-black uppercase text-[#243744] bg-[#243744]/5 border border-[#243744]/15 px-2 py-0.5 rounded">
-                          {project.project_code}
-                        </span>
-                        <h3 className="font-bold text-sm text-[#1E293B] mt-1.5 truncate">
-                          {project.project_name}
-                        </h3>
-                        <p className="text-xs text-[#64748B] truncate mt-0.5">{project.client_name || "No Client"}</p>
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <span className="text-[10px] font-bold text-[#64748B] block">{project.project_code}</span>
+                        <h4 className="font-bold text-sm text-[#1E293B]">{project.project_name}</h4>
                       </div>
                       {getStatusBadge(project.status)}
                     </div>
 
-                    <div className="grid grid-cols-3 gap-3 mb-4 text-xs pt-2">
+                    <div className="grid grid-cols-2 gap-2 text-xs py-2 border-y border-[#F1F5F9] my-2">
                       <div>
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-[#8A97A4] mb-0.5">Samples</p>
-                        <p className="font-bold text-[#1E293B]">{project.total_samples ?? 0}</p>
+                        <span className="text-[#94A3B8] block text-[10px] uppercase font-bold">Client</span>
+                        <span className="font-semibold text-[#475569] truncate block">{project.client_name || "—"}</span>
                       </div>
                       <div>
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-[#8A97A4] mb-0.5">Reports</p>
-                        <p className="font-bold text-[#1E293B]">{project.total_reports ?? 0}</p>
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-[#8A97A4] mb-0.5">Engineer</p>
-                        <p className="font-semibold text-[#475569] truncate">{project.test_assigned_to_name || "—"}</p>
+                        <span className="text-[#94A3B8] block text-[10px] uppercase font-bold">Engineer</span>
+                        <span className="font-semibold text-[#475569]">{project.test_assigned_to_name || "—"}</span>
                       </div>
                     </div>
 
-                    <div className="flex gap-2 pt-3 border-t border-[#F1F5F9]">
-                      <button
-                        onClick={() => navigate(`/projects/view/${project.project_id}`)}
-                        className="flex-1 py-2 text-xs font-bold text-[#475569] hover:bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl flex items-center justify-center gap-1.5 transition-colors"
-                      >
-                        <Eye size={14} />
-                        View
-                      </button>
-                      <button
-                        onClick={() => navigate(`/projects/edit/${project.project_id}`)}
-                        className="flex-1 py-2 text-xs font-bold text-[#243744] hover:bg-[#243744]/5 border border-[#243744]/20 rounded-xl flex items-center justify-center gap-1.5 transition-colors"
-                      >
-                        <Pencil size={14} />
-                        Edit
-                      </button>
+                    <div className="flex justify-between items-center pt-1">
+                      <div className="flex gap-4 text-xs font-bold text-[#475569]">
+                        <span>Samples: {project.total_samples ?? 0}</span>
+                        <span>Reports: {project.total_reports ?? 0}</span>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => navigate(`/projects/view/${project.project_id}`)}
+                          className="p-1.5 text-[#475569] hover:bg-[#F1F5F9] rounded-lg transition-colors"
+                        >
+                          <Eye size={16} />
+                        </button>
+                        <button
+                          onClick={() => navigate(`/projects/edit/${project.project_id}`)}
+                          className="p-1.5 text-[#475569] hover:bg-[#F1F5F9] rounded-lg transition-colors"
+                        >
+                          <Pencil size={16} />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </motion.div>
@@ -540,14 +593,21 @@ const ProjectsList = () => {
             </motion.div>
           )}
         </div>
-      </div>
 
-      <AddSampleDrawer
-        open={!!drawerProject}
-        project={drawerProject}
-        onClose={() => setDrawerProject(null)}
-        onSaved={handleSampleSaved}
-      />
+        {/* Add Sample Drawer */}
+        {drawerProject && (
+          <AddSampleDrawer
+            project={drawerProject}
+            isOpen={!!drawerProject}
+            onClose={() => setDrawerProject(null)}
+            onSuccess={() => {
+              setDrawerProject(null);
+              fetchInitialData();
+            }}
+          />
+        )}
+
+      </div>
     </MainLayout>
   );
 };

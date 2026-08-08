@@ -3,6 +3,7 @@ from flask import Blueprint, request, jsonify, g
 from sqlalchemy import text
 from app.extensions import db
 from app.utils.auth_decorator import token_required
+from app.utils.permissions import permission_required
 
 samples_bp = Blueprint("samples", __name__)
 
@@ -24,6 +25,7 @@ def test_samples():
 # Get all samples for a lab (without entries for better performance)
 @samples_bp.route("/", methods=["GET"])
 @token_required
+@permission_required("sample.view")
 def get_samples():
     try:
         lab_id = g.jwt_payload.get("lab_id")
@@ -137,6 +139,7 @@ def get_samples():
 # Get sample entries count (for list view performance)
 @samples_bp.route("/<int:sample_id>/entries-count", methods=["GET"])
 @token_required
+@permission_required("sample.view")
 def get_sample_entries_count(sample_id):
     try:
         lab_id = g.jwt_payload.get("lab_id")
@@ -180,6 +183,7 @@ def get_sample_entries_count(sample_id):
 # Get sample by ID with entries (for edit form)
 @samples_bp.route("/<int:sample_id>", methods=["GET"])
 @token_required
+@permission_required("sample.view")
 def get_sample_by_id(sample_id):
     try:
         lab_id = g.jwt_payload.get("lab_id")
@@ -278,6 +282,7 @@ def get_sample_by_id(sample_id):
 # Create a new sample
 @samples_bp.route("/", methods=["POST"])
 @token_required
+@permission_required("sample.receive")
 def create_sample():
     try:
         lab_id = g.jwt_payload.get("lab_id")
@@ -368,6 +373,7 @@ def create_sample():
 # Update sample with entries
 @samples_bp.route("/<int:sample_id>", methods=["PUT"])
 @token_required
+@permission_required("sample.manage")
 def update_sample(sample_id):
     try:
         lab_id = g.jwt_payload.get("lab_id")
@@ -553,6 +559,7 @@ def update_sample(sample_id):
 # Update individual sample entry
 @samples_bp.route("/entries/<int:entry_id>", methods=["PUT"])
 @token_required
+@permission_required("sample.manage")
 def update_sample_entry(entry_id):
     try:
         lab_id = g.jwt_payload.get("lab_id")
@@ -659,6 +666,7 @@ def update_sample_entry(entry_id):
 # Delete sample entry
 @samples_bp.route("/entries/<int:entry_id>", methods=["DELETE"])
 @token_required
+@permission_required("sample.manage")
 def delete_sample_entry(entry_id):
     try:
         lab_id = g.jwt_payload.get("lab_id")
@@ -699,13 +707,13 @@ def delete_sample_entry(entry_id):
         db.session.rollback()
         return jsonify({
             "success": False,
-            "message": f"Error deleting sample entry: {str(e)}"
         }), 500
 
 
 # Create sample entries (simplified version)
 @samples_bp.route("/<int:sample_id>/entries", methods=["POST"])
 @token_required
+@permission_required("sample.receive")
 def create_sample_entries(sample_id):
     try:
         lab_id = g.jwt_payload.get("lab_id")

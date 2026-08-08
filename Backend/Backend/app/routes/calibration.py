@@ -1,5 +1,8 @@
+# pyrefly: ignore [missing-import]
 from flask import Blueprint, jsonify, g, request, current_app
 from app.utils.auth_decorator import token_required
+from app.utils.permissions import permission_required
+# pyrefly: ignore [missing-import]
 from sqlalchemy import text
 from app.extensions import db
 from datetime import datetime, date
@@ -8,6 +11,7 @@ calibration_bp = Blueprint("calibration", __name__)
 
 @calibration_bp.route("/dashboard", methods=["GET"])
 @token_required
+@permission_required("calibration.view")
 def get_calibration_dashboard():
     try:
         lab_id = g.jwt_payload.get("lab_id")
@@ -113,6 +117,7 @@ def get_calibration_dashboard():
 
 @calibration_bp.route("/list", methods=["GET"])
 @token_required
+@permission_required("calibration.view")
 def get_calibration_list():
     try:
         lab_id = g.jwt_payload.get("lab_id")
@@ -176,6 +181,7 @@ def get_calibration_list():
 
 @calibration_bp.route("/create", methods=["POST"])
 @token_required
+@permission_required("calibration.manage")
 def create_calibration():
     try:
         lab_id = g.jwt_payload.get("lab_id")
@@ -255,6 +261,7 @@ def create_calibration():
 
 @calibration_bp.route("/maintenance/list", methods=["GET"])
 @token_required
+@permission_required("calibration.view")
 def get_maintenance_list():
     try:
         lab_id = g.jwt_payload.get("lab_id")
@@ -320,6 +327,7 @@ def get_maintenance_list():
 
 @calibration_bp.route("/maintenance/create", methods=["POST"])
 @token_required
+@permission_required("calibration.manage")
 def create_maintenance():
     try:
         lab_id = g.jwt_payload.get("lab_id")
@@ -403,7 +411,8 @@ def create_maintenance():
 
 @calibration_bp.route("/vendors", methods=["GET"])
 @token_required
-def get_vendors():
+@permission_required("calibration.view")
+def get_calibration_vendors():
     try:
         lab_id = g.jwt_payload.get("lab_id")
         if not lab_id:
@@ -429,7 +438,8 @@ def get_vendors():
 
 @calibration_bp.route("/vendors/create", methods=["POST"])
 @token_required
-def create_vendor():
+@permission_required("calibration.manage")
+def create_calibration_vendor():
     try:
         lab_id = g.jwt_payload.get("lab_id")
         if not lab_id:
@@ -461,7 +471,8 @@ def create_vendor():
 
 @calibration_bp.route("/vendors/delete/<int:vendor_id>", methods=["DELETE"])
 @token_required
-def delete_vendor(vendor_id):
+@permission_required("calibration.manage")
+def delete_calibration_vendor(vendor_id):
     try:
         lab_id = g.jwt_payload.get("lab_id")
         if not lab_id:

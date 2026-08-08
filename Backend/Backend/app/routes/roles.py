@@ -1,5 +1,6 @@
 from flask import Blueprint, jsonify, request, g
 from app.utils.auth_decorator import token_required
+from app.utils.permissions import permission_required
 from sqlalchemy import text
 from app.extensions import db
 from datetime import datetime
@@ -9,6 +10,7 @@ roles_bp = Blueprint("roles", __name__)
 
 @roles_bp.route("/list", methods=["GET"])
 @token_required
+@permission_required("user.view")
 def get_lab_roles():
     """Get all global roles with user count"""
     try:
@@ -56,6 +58,7 @@ def get_lab_roles():
 
 @roles_bp.route("/<int:role_id>", methods=["GET"])
 @token_required
+@permission_required("user.view")
 def get_role_details(role_id):
     """Get details of a specific role"""
     try:
@@ -97,23 +100,13 @@ def get_role_details(role_id):
         }), 500
 
 
-def _ensure_roles_table_flexible():
-    """Drop legacy CHECK constraint on roles table if present to allow custom roles"""
-    try:
-        db.session.execute(text("ALTER TABLE roles DROP CONSTRAINT IF EXISTS roles_role_name_check;"))
-        db.session.commit()
-    except Exception as e:
-        db.session.rollback()
-        print(f"Notice: Could not drop constraint roles_role_name_check: {str(e)}")
-
-
 @roles_bp.route("", methods=["POST"])
 @roles_bp.route("/add", methods=["POST"])
 @token_required
+@permission_required("user.manage")
 def create_role():
     """Create a new role"""
     try:
-        _ensure_roles_table_flexible()
         data = request.get_json() or {}
         role_name = (data.get("role_name") or "").strip()
         description = (data.get("description") or "").strip()
@@ -176,6 +169,7 @@ def create_role():
 @roles_bp.route("/<int:role_id>", methods=["PUT"])
 @roles_bp.route("/edit/<int:role_id>", methods=["PUT"])
 @token_required
+@permission_required("user.manage")
 def update_role(role_id):
     """Update an existing role"""
     try:
@@ -255,6 +249,7 @@ def update_role(role_id):
 
 @roles_bp.route("/<int:role_id>", methods=["DELETE"])
 @token_required
+@permission_required("user.manage")
 def delete_role(role_id):
     """Delete a role if no users are assigned"""
     try:

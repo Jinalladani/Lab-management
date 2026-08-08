@@ -11,6 +11,7 @@ import { MainLayout } from "../../components/layout";
 import {
   PageHeader, SectionCard, Input, Select, Button,
 } from "../../components/ui";
+import { validateEmail, validatePhone } from "../../utils/validators";
 
 const AddUser = () => {
   const navigate = useNavigate();
@@ -66,8 +67,13 @@ const AddUser = () => {
     const newErrors = {};
     if (!formData.first_name.trim()) newErrors.first_name = "First name is required";
     if (!formData.last_name.trim()) newErrors.last_name = "Last name is required";
-    if (!formData.email.trim()) newErrors.email = "Email is required";
-    else if (!/\S+@\S+\.\S+/.test(formData.email)) newErrors.email = "Email is invalid";
+    
+    const emailErr = validateEmail(formData.email, { required: true });
+    if (emailErr) newErrors.email = emailErr;
+
+    const phoneErr = validatePhone(formData.phone, { required: false });
+    if (phoneErr) newErrors.phone = phoneErr;
+
     if (!formData.role_id) newErrors.role_id = "Role is required";
 
     if (passwordMode === "manual") {
@@ -258,6 +264,7 @@ const AddUser = () => {
                     value={formData.phone}
                     onChange={handleChange}
                     placeholder="Enter phone number"
+                    error={errors.phone}
                     helperText="Optional — used for notifications"
                     icon={Phone}
                   />

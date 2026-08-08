@@ -292,7 +292,7 @@ const Home = () => {
       <div className="mx-auto w-full max-w-[1800px] px-4 py-5 sm:px-5 lg:px-6 space-y-6">
 
         {/* ── 1. Top Header Banner with Active Role Badge ── */}
-        <motion.div
+        {/* <motion.div
           initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
@@ -305,9 +305,6 @@ const Home = () => {
                   <Sparkles size={13} />
                   <span>ACTIVE ROLE WORKSPACE: {roleTitle.toUpperCase()}</span>
                 </div>
-                <span className="text-[11px] font-semibold text-slate-300 bg-white/10 px-2.5 py-0.5 rounded-full border border-white/10">
-                  User ID: #{currentUser?.user_id || 1}
-                </span>
               </div>
 
               <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white">
@@ -334,7 +331,7 @@ const Home = () => {
               </button>
             </div>
           </div>
-        </motion.div>
+        </motion.div> */}
 
         {/* ── 2. ROLE-SPECIFIC DASHBOARD VIEWS ── */}
 

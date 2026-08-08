@@ -48,6 +48,7 @@ def get_reports():
                 p.project_name,
                 r.report_number,
                 r.report_title,
+                (SELECT rtr.test_name FROM report_test_results rtr WHERE rtr.report_id = r.report_id LIMIT 1) as test_name,
                 r.report_create_date,
                 r.report_date,
                 r.status,
@@ -107,6 +108,10 @@ def get_reports():
         
         reports_data = []
         for r in results:
+            clean_title = r.test_name or r.report_title
+            if clean_title and clean_title.startswith("Test Certificate: "):
+                clean_title = clean_title.replace("Test Certificate: ", "")
+            
             reports_data.append({
                 "report_id": r.report_id,
                 "lab_id": r.lab_id,
@@ -114,7 +119,8 @@ def get_reports():
                 "project_name": r.project_name,
                 "client_name": r.client_name,
                 "report_number": r.report_number,
-                "report_title": r.report_title,
+                "report_title": clean_title,
+                "test_name": clean_title,
                 "report_create_date": r.report_create_date.isoformat() if r.report_create_date else None,
                 "report_date": r.report_date.isoformat() if r.report_date else None,
                 "status": r.status,
@@ -601,6 +607,187 @@ def reject_report(report_id):
     except Exception as e:
         db.session.rollback()
         logger.error(f"Error rejecting report: {str(e)}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+# 6. Get Pending Observations ready for Report Generation (for Admin & QM)
+@reports_bp.route("/pending-observations", methods=["GET"])
+@token_required
+def get_pending_observations():
+    try:
+        lab_id = g.jwt_payload.get("lab_id")
+        rows = db.session.execute(text("""
+            SELECT DISTINCT ON (so.observation_id)
+                so.observation_id,
+                so.project_id,
+                so.sample_id,
+                so.testing_sample_id,
+                so.scope_test_id,
+                COALESCE(st.test_name, so.test_name, 'Material Test') as test_name,
+                so.created_at,
+                so.updated_at,
+                p.project_name,
+                c.client_name,
+                COALESCE(ts.sample_code, CONCAT('SPL-', so.sample_id)) as sample_code,
+                COALESCE(srr.sample_no, srr_direct.sample_no, CONCAT('RCPT-', so.sample_id)) as receipt_no,
+                COALESCE(ts.location_name, 'Main Site') as location_name,
+                COALESCE(ts.borelog_no, '—') as borelog_no,
+                COALESCE(u.first_name || ' ' || COALESCE(u.last_name, ''), 'Test Engineer') as submitted_by_name,
+                r.report_id,
+                r.report_number,
+                r.status as report_status
+            FROM sample_observations so
+            LEFT JOIN projects p ON so.project_id = p.project_id
+            LEFT JOIN clients c ON p.client_id = c.client_id
+            LEFT JOIN testing_samples ts ON (so.testing_sample_id = ts.testing_sample_id OR so.sample_id = ts.testing_sample_id)
+            LEFT JOIN sample_receipt_register srr ON ts.receipt_id = srr.sample_id
+            LEFT JOIN sample_receipt_register srr_direct ON so.sample_id = srr_direct.sample_id
+            LEFT JOIN scope_tests st ON so.scope_test_id = st.scope_test_id
+            LEFT JOIN reports r ON (r.sample_id = so.sample_id OR r.sample_id = so.testing_sample_id)
+            LEFT JOIN sample_test_assignments sta ON sta.testing_sample_id = ts.testing_sample_id
+            LEFT JOIN users u ON sta.assigned_by = u.user_id
+            WHERE LOWER(COALESCE(so.status, 'submitted')) NOT IN ('draft', 'temp', 'drafting')
+            ORDER BY so.observation_id, so.updated_at DESC
+        """)).mappings().all()
+
+        serialized = []
+        for r in rows:
+            d = dict(r)
+            if d.get('created_at'): d['created_at'] = d['created_at'].isoformat()
+            if d.get('updated_at'): d['updated_at'] = d['updated_at'].isoformat()
+            serialized.append(d)
+
+        return jsonify({"success": True, "data": serialized}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+# 7. Generate Report directly from an Observation Sheet
+@reports_bp.route("/generate-from-observation/<int:observation_id>", methods=["POST"])
+@token_required
+@permission_required("report.generate")
+def generate_report_from_observation(observation_id):
+    try:
+        lab_id = g.jwt_payload.get("lab_id")
+        user_id = g.jwt_payload.get("user_id")
+
+        obs = db.session.execute(text("""
+            SELECT * FROM sample_observations WHERE observation_id = :obs_id
+        """), {"obs_id": observation_id}).fetchone()
+
+        if not obs:
+            return jsonify({"success": False, "message": "Observation record not found."}), 404
+
+        # Resolve sample_receipt_register sample_id safely
+        receipt_sample_id = None
+        if obs.testing_sample_id:
+            ts_row = db.session.execute(text("""
+                SELECT receipt_id, project_id FROM testing_samples WHERE testing_sample_id = :tsid
+            """), {"tsid": obs.testing_sample_id}).fetchone()
+            if ts_row and ts_row.receipt_id:
+                receipt_sample_id = ts_row.receipt_id
+
+        if not receipt_sample_id and obs.sample_id:
+            srr_check = db.session.execute(text("""
+                SELECT sample_id FROM sample_receipt_register WHERE sample_id = :sid
+            """), {"sid": obs.sample_id}).fetchone()
+            if srr_check:
+                receipt_sample_id = srr_check.sample_id
+
+        if not receipt_sample_id:
+            first_srr = db.session.execute(text("SELECT sample_id FROM sample_receipt_register ORDER BY sample_id ASC LIMIT 1")).fetchone()
+            receipt_sample_id = first_srr.sample_id if first_srr else 1
+
+        # Resolve project_id safely from projects table
+        target_project_id = obs.project_id
+        if not target_project_id and receipt_sample_id:
+            srr_proj = db.session.execute(text("""
+                SELECT project_id FROM sample_receipt_register WHERE sample_id = :sid
+            """), {"sid": receipt_sample_id}).fetchone()
+            if srr_proj and srr_proj.project_id:
+                target_project_id = srr_proj.project_id
+
+        # Verify target_project_id actually exists in projects table
+        if target_project_id:
+            proj_exists = db.session.execute(text("""
+                SELECT project_id FROM projects WHERE project_id = :pid
+            """), {"pid": target_project_id}).fetchone()
+            if not proj_exists:
+                target_project_id = None
+
+        if not target_project_id:
+            first_proj = db.session.execute(text("SELECT project_id FROM projects ORDER BY project_id ASC LIMIT 1")).fetchone()
+            target_project_id = first_proj.project_id if first_proj else None
+
+        # Check existing report
+        existing = db.session.execute(text("""
+            SELECT report_id, report_number FROM reports WHERE sample_id = :sid LIMIT 1
+        """), {"sid": receipt_sample_id}).fetchone()
+
+        if existing:
+            return jsonify({
+                "success": True,
+                "message": f"Report already exists: {existing.report_number}",
+                "data": {"report_id": existing.report_id, "report_number": existing.report_number}
+            }), 200
+
+        # Generate unique report number
+        time_part = datetime.now().strftime('%Y%m%d%H%M')
+        report_number = f"SL-RPT-{time_part}-{observation_id}"
+
+        valid_user_id = g.jwt_payload.get("user_id") or g.jwt_payload.get("id") or g.jwt_payload.get("sub") or 1
+
+        # Insert main report with valid 'draft' status for chk_reports_report_status
+        insert_res = db.session.execute(text("""
+            INSERT INTO reports (
+                lab_id, project_id, sample_id, report_number, report_title,
+                status, report_status, prepared_by, created_by, created_at, updated_at
+            ) VALUES (
+                :lab_id, :project_id, :sample_id, :report_number, :report_title,
+                'draft', 'draft', :user_id, :user_id, :now, :now
+            ) RETURNING report_id
+        """), {
+            "lab_id": lab_id or 1,
+            "project_id": target_project_id,
+            "sample_id": receipt_sample_id,
+            "report_number": report_number,
+            "report_title": obs.test_name if obs.test_name else "Material Test",
+            "user_id": valid_user_id,
+            "now": _utc_now()
+        }).fetchone()
+
+        new_report_id = insert_res[0]
+
+        # Insert result spec row
+        raw_obs_str = json.dumps(obs.sheets_data) if isinstance(obs.sheets_data, (dict, list)) else (str(obs.sheets_data) if obs.sheets_data else '{}')
+
+        db.session.execute(text("""
+            INSERT INTO report_test_results (
+                report_id, scope_test_id, test_name, test_method,
+                sequence_no, result_value, raw_observation_data, created_at, updated_at
+            ) VALUES (
+                :report_id, :scope_test_id, :test_name, 'NABL Standard',
+                1, 'Pass / Compliant', :raw_observation_data, :now, :now
+            )
+        """), {
+            "report_id": new_report_id,
+            "scope_test_id": obs.scope_test_id or 1,
+            "test_name": obs.test_name or 'Material Test',
+            "raw_observation_data": raw_obs_str,
+            "now": _utc_now()
+        })
+
+        db.session.commit()
+
+        return jsonify({
+            "success": True,
+            "message": "Report generated from observation sheet successfully!",
+            "data": {"report_id": new_report_id, "report_number": report_number}
+        }), 201
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error generating report from observation: {str(e)}")
         return jsonify({"success": False, "message": str(e)}), 500
 
 

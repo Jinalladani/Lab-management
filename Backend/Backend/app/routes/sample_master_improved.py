@@ -3,6 +3,7 @@ from flask import Blueprint, request, jsonify, g
 from sqlalchemy import text
 from app.extensions import db
 from app.utils.auth_decorator import token_required
+from app.utils.permissions import permission_required
 import logging
 
 # Configure logging
@@ -55,6 +56,7 @@ def _handle_db_error(func_name, error):
 # Get all sample types
 @sample_master_bp.route("/sample-types", methods=["GET"])
 @token_required
+@permission_required("sample.view")
 def get_sample_types():
     try:
         lab_id = g.jwt_payload.get("lab_id")
@@ -132,6 +134,7 @@ def get_sample_types():
 # Create sample type
 @sample_master_bp.route("/sample-types", methods=["POST"])
 @token_required
+@permission_required("sample.manage")
 def create_sample_type():
     try:
         lab_id = g.jwt_payload.get("lab_id")
@@ -207,6 +210,7 @@ def create_sample_type():
 # Get all sample conditions
 @sample_master_bp.route("/sample-conditions", methods=["GET"])
 @token_required
+@permission_required("sample.view")
 def get_sample_conditions():
     try:
         lab_id = g.jwt_payload.get("lab_id")
@@ -284,6 +288,7 @@ def get_sample_conditions():
 # Create sample condition
 @sample_master_bp.route("/sample-conditions", methods=["POST"])
 @token_required
+@permission_required("sample.manage")
 def create_sample_condition():
     try:
         lab_id = g.jwt_payload.get("lab_id")
@@ -355,6 +360,7 @@ def create_sample_condition():
 # Update sample condition
 @sample_master_bp.route("/sample-conditions/<int:sample_condition_id>", methods=["PUT"])
 @token_required
+@permission_required("sample.manage")
 def update_sample_condition(sample_condition_id):
     try:
         lab_id = g.jwt_payload.get("lab_id")
@@ -446,6 +452,7 @@ def update_sample_condition(sample_condition_id):
 # Delete sample condition
 @sample_master_bp.route("/sample-conditions/<int:sample_condition_id>", methods=["DELETE"])
 @token_required
+@permission_required("sample.manage")
 def delete_sample_condition(sample_condition_id):
     try:
         lab_id = g.jwt_payload.get("lab_id")

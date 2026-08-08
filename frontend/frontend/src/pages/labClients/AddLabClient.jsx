@@ -19,8 +19,9 @@ import {
   SectionCard,
   Input,
   Select,
-  Button
+  Button,
 } from "../../components/ui";
+import { validateEmail, validatePhone } from "../../utils/validators";
 
 const AddLabClient = () => {
   const navigate = useNavigate();
@@ -55,9 +56,12 @@ const AddLabClient = () => {
     if (!formData.client_name.trim()) {
       newErrors.client_name = "Company name is required";
     }
-    if (formData.email.trim() && !/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = "Email format is invalid";
-    }
+    const emailErr = validateEmail(formData.email, { required: false });
+    if (emailErr) newErrors.email = emailErr;
+
+    const phoneErr = validatePhone(formData.phone, { required: false });
+    if (phoneErr) newErrors.phone = phoneErr;
+
     if (!formData.status.trim()) {
       newErrors.status = "Status is required";
     }
@@ -176,6 +180,7 @@ const AddLabClient = () => {
                       value={formData.phone}
                       onChange={handleChange}
                       placeholder="Enter contact phone"
+                      error={errors.phone}
                       icon={Phone}
                     />
                   </div>

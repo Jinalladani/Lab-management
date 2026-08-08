@@ -1,11 +1,15 @@
 from datetime import datetime, timezone
 import os
 import uuid
+# pyrefly: ignore [missing-import]
 from werkzeug.utils import secure_filename
+# pyrefly: ignore [missing-import]
 from flask import Blueprint, request, jsonify, g
+# pyrefly: ignore [missing-import]
 from sqlalchemy import text
 from app.extensions import db
 from app.utils.auth_decorator import token_required
+from app.utils.permissions import permission_required
 
 projects_bp = Blueprint("projects", __name__)
 
@@ -26,6 +30,7 @@ def test_projects():
 
 @projects_bp.route("/", methods=["GET"])
 @token_required
+@permission_required("project.view")
 def get_projects():
     try:
         lab_id = g.jwt_payload.get("lab_id")
@@ -125,6 +130,7 @@ def get_projects():
 
 @projects_bp.route("/", methods=["POST"])
 @token_required
+@permission_required("project.manage")
 def create_project():
     try:
         # Handle both JSON and FormData requests
@@ -581,6 +587,7 @@ def create_project():
 
 @projects_bp.route("/<int:project_id>", methods=["GET"])
 @token_required
+@permission_required("project.view")
 def get_project_by_id(project_id):
     try:
         lab_id = g.jwt_payload.get("lab_id")
@@ -714,6 +721,7 @@ def get_project_by_id(project_id):
 
 @projects_bp.route("/<int:project_id>", methods=["PUT"])
 @token_required
+@permission_required("project.manage")
 def update_project(project_id):
     try:
         # Handle both JSON and FormData requests
@@ -1186,6 +1194,7 @@ def update_project(project_id):
 
 @projects_bp.route("/<int:project_id>/status", methods=["PATCH"])
 @token_required
+@permission_required("project.manage")
 def update_project_status(project_id):
     try:
         data = request.get_json() or {}
@@ -1331,6 +1340,7 @@ def update_project_status(project_id):
 
 @projects_bp.route("/<int:project_id>/documents", methods=["GET"])
 @token_required
+@permission_required("project.view")
 def get_project_documents(project_id):
     try:
         lab_id = g.jwt_payload.get("lab_id")
@@ -1386,6 +1396,7 @@ def get_project_documents(project_id):
 
 @projects_bp.route("/<int:project_id>/documents", methods=["POST"])
 @token_required
+@permission_required("project.manage")
 def upload_project_document(project_id):
     try:
         lab_id = g.jwt_payload.get("lab_id")
@@ -1513,6 +1524,7 @@ def upload_project_document(project_id):
 
 @projects_bp.route("/<int:project_id>/documents/<int:doc_id>", methods=["DELETE"])
 @token_required
+@permission_required("project.manage")
 def delete_project_document(project_id, doc_id):
     try:
         lab_id = g.jwt_payload.get("lab_id")
@@ -1576,6 +1588,7 @@ def delete_project_document(project_id, doc_id):
 
 @projects_bp.route("/<int:project_id>/documents/<int:doc_id>/download", methods=["GET"])
 @token_required
+@permission_required("project.view")
 def download_project_document(project_id, doc_id):
     try:
         lab_id = g.jwt_payload.get("lab_id")
@@ -1631,6 +1644,7 @@ def download_project_document(project_id, doc_id):
 
 @projects_bp.route("/<int:project_id>/documents/<int:doc_id>/view", methods=["GET"])
 @token_required
+@permission_required("project.view")
 def view_project_document(project_id, doc_id):
     try:
         lab_id = g.jwt_payload.get("lab_id")
@@ -1688,6 +1702,7 @@ def view_project_document(project_id, doc_id):
 
 @projects_bp.route("/<int:project_id>/scopes", methods=["GET"])
 @token_required
+@permission_required("project.view")
 def get_project_scopes(project_id):
     try:
         lab_id = g.jwt_payload.get("lab_id")
@@ -1751,6 +1766,7 @@ def get_project_scopes(project_id):
 
 @projects_bp.route("/<int:project_id>/scopes", methods=["POST"])
 @token_required
+@permission_required("project.manage")
 def add_project_scope(project_id):
     try:
         lab_id = g.jwt_payload.get("lab_id")
@@ -1934,6 +1950,7 @@ def add_project_scope(project_id):
 
 @projects_bp.route("/<int:project_id>/scopes/<int:project_scope_test_id>", methods=["PUT"])
 @token_required
+@permission_required("project.manage")
 def update_project_scope(project_id, project_scope_test_id):
     try:
         lab_id = g.jwt_payload.get("lab_id")
@@ -2052,6 +2069,7 @@ def update_project_scope(project_id, project_scope_test_id):
 
 @projects_bp.route("/<int:project_id>/scopes/<int:project_scope_test_id>", methods=["DELETE"])
 @token_required
+@permission_required("project.manage")
 def delete_project_scope(project_id, project_scope_test_id):
     try:
         lab_id = g.jwt_payload.get("lab_id")
@@ -2138,6 +2156,7 @@ def delete_project_scope(project_id, project_scope_test_id):
 
 @projects_bp.route("/<int:project_id>/scopes/batch", methods=["POST"])
 @token_required
+@permission_required("project.manage")
 def add_project_scopes_batch(project_id):
     try:
         lab_id = g.jwt_payload.get("lab_id")
@@ -2325,7 +2344,8 @@ def add_project_scopes_batch(project_id):
 # Get project preview data
 @projects_bp.route("/<int:project_id>/preview", methods=["GET"])
 @token_required
-def get_project_preview(project_id):
+@permission_required("project.view")
+def preview_project(project_id):
     # try:
     if True:
         lab_id = g.jwt_payload.get("lab_id")

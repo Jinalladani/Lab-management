@@ -1,16 +1,18 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   UserPlus, Download, RefreshCw, Eye, Pencil,
-  MoreHorizontal, Users, Search, RotateCcw
+  MoreHorizontal, Users, Search, RotateCcw,
+  ArrowUp, ArrowDown, ArrowUpDown
 } from "lucide-react";
 import { usersAPI } from "../../api/users";
 import { rolesAPI } from "../../api/roles";
 import { MainLayout } from "../../components/layout";
 import { Avatar } from "../../components/ui";
 import { TableSkeleton } from "../../components/ui/Skeleton";
+import { TablePagination } from "../../components/ui/TablePagination";
 
 const stagger = {
   container: { hidden: {}, visible: { transition: { staggerChildren: 0.04 } } },
@@ -120,6 +122,13 @@ const UsersList = () => {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  // Sorting state (Default: full_name ascending)
+  const [sortConfig, setSortConfig] = useState({ key: "full_name", direction: "asc" });
+
   const [activeDropdownId, setActiveDropdownId] = useState(null);
   const [activeAnchorEl, setActiveAnchorEl] = useState(null);
 
@@ -135,7 +144,6 @@ const UsersList = () => {
       const response = await usersAPI.getLabUsers();
       const userData = response.data?.users || [];
       setAllUsers(userData);
-      setUsers(userData);
     } catch (error) {
       setErrorMessage(error?.response?.data?.message || "Failed to fetch users");
     } finally {
@@ -145,8 +153,20 @@ const UsersList = () => {
 
   useEffect(() => { fetchUsers(); }, [fetchUsers]);
 
+  const getUserRoleName = useCallback((roleId) => {
+    const role = roles.find(r => String(r.role_id) === String(roleId));
+    return role ? role.role_name : "User";
+  }, [roles]);
+
+  const handleSortChange = (key) => {
+    setSortConfig((prev) => ({
+      key,
+      direction: prev.key === key && prev.direction === "asc" ? "desc" : "asc",
+    }));
+  };
+
   useEffect(() => {
-    let filtered = allUsers;
+    let filtered = [...allUsers];
 
     if (search) {
       const q = search.toLowerCase();
@@ -154,6 +174,7 @@ const UsersList = () => {
         (u) =>
           u.first_name?.toLowerCase().includes(q) ||
           u.last_name?.toLowerCase().includes(q) ||
+          u.full_name?.toLowerCase().includes(q) ||
           u.email?.toLowerCase().includes(q)
       );
     }
@@ -164,8 +185,36 @@ const UsersList = () => {
       );
     }
 
+    filtered.sort((a, b) => {
+      const key = sortConfig.key || "full_name";
+      let valA, valB;
+      if (key === "full_name") {
+        valA = a.full_name || `${a.first_name} ${a.last_name}`;
+        valB = b.full_name || `${b.first_name} ${b.last_name}`;
+      } else if (key === "role") {
+        valA = getUserRoleName(a.role_id);
+        valB = getUserRoleName(b.role_id);
+      } else {
+        valA = a[key] ?? "";
+        valB = b[key] ?? "";
+      }
+
+      if (typeof valA === "string") valA = valA.toLowerCase();
+      if (typeof valB === "string") valB = valB.toLowerCase();
+
+      if (valA < valB) return sortConfig.direction === "asc" ? -1 : 1;
+      if (valA > valB) return sortConfig.direction === "asc" ? 1 : -1;
+      return 0;
+    });
+
     setUsers(filtered);
-  }, [search, statusFilter, allUsers]);
+    setCurrentPage(1);
+  }, [search, statusFilter, sortConfig, allUsers, getUserRoleName]);
+
+  const paginatedUsers = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return users.slice(start, start + pageSize);
+  }, [users, currentPage, pageSize]);
 
   const formatDate = (dateString) => {
     if (!dateString) return "—";
@@ -189,11 +238,6 @@ const UsersList = () => {
       {isVerified ? "Yes" : "No"}
     </span>
   );
-
-  const getUserRoleName = (roleId) => {
-    const role = roles.find(r => String(r.role_id) === String(roleId));
-    return role ? role.role_name : "User";
-  };
 
   const handleToggleDropdown = (userId, event) => {
     if (activeDropdownId === userId) {
@@ -329,19 +373,82 @@ const UsersList = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="border-b border-[#E2E8F0] bg-[#FAFBFD] text-[10px] font-bold text-[#64748B] uppercase tracking-wider">
-                    <th className="px-6 py-3.5">User</th>
-                    <th className="px-6 py-3.5">Email</th>
-                    <th className="px-6 py-3.5">Phone</th>
-                    <th className="px-6 py-3.5">Role</th>
-                    <th className="px-6 py-3.5">Status</th>
-                    <th className="px-6 py-3.5">Verified</th>
-                    <th className="px-6 py-3.5">Last Login</th>
-                    <th className="px-6 py-3.5 text-right">Actions</th>
+                  <tr className="border-b border-[#E2E8F0] bg-[#FAFBFD] text-[10px] font-bold text-[#64748B] uppercase tracking-wider select-none">
+                    <th className="px-6 py-3.5 cursor-pointer hover:bg-slate-100/80 transition-colors" onClick={() => handleSortChange("full_name")}>
+                      <div className="flex items-center gap-1.5">
+                        <span>User</span>
+                        {sortConfig.key === "full_name" ? (
+                          sortConfig.direction === "asc" ? <ArrowUp size={13} className="text-[#243744]" /> : <ArrowDown size={13} className="text-[#243744]" />
+                        ) : (
+                          <ArrowUpDown size={12} className="text-slate-400 opacity-60" />
+                        )}
+                      </div>
+                    </th>
+                    <th className="px-6 py-3.5 cursor-pointer hover:bg-slate-100/80 transition-colors" onClick={() => handleSortChange("email")}>
+                      <div className="flex items-center gap-1.5">
+                        <span>Email</span>
+                        {sortConfig.key === "email" ? (
+                          sortConfig.direction === "asc" ? <ArrowUp size={13} className="text-[#243744]" /> : <ArrowDown size={13} className="text-[#243744]" />
+                        ) : (
+                          <ArrowUpDown size={12} className="text-slate-400 opacity-60" />
+                        )}
+                      </div>
+                    </th>
+                    <th className="px-6 py-3.5 cursor-pointer hover:bg-slate-100/80 transition-colors" onClick={() => handleSortChange("phone")}>
+                      <div className="flex items-center gap-1.5">
+                        <span>Phone</span>
+                        {sortConfig.key === "phone" ? (
+                          sortConfig.direction === "asc" ? <ArrowUp size={13} className="text-[#243744]" /> : <ArrowDown size={13} className="text-[#243744]" />
+                        ) : (
+                          <ArrowUpDown size={12} className="text-slate-400 opacity-60" />
+                        )}
+                      </div>
+                    </th>
+                    <th className="px-6 py-3.5 cursor-pointer hover:bg-slate-100/80 transition-colors" onClick={() => handleSortChange("role")}>
+                      <div className="flex items-center gap-1.5">
+                        <span>Role</span>
+                        {sortConfig.key === "role" ? (
+                          sortConfig.direction === "asc" ? <ArrowUp size={13} className="text-[#243744]" /> : <ArrowDown size={13} className="text-[#243744]" />
+                        ) : (
+                          <ArrowUpDown size={12} className="text-slate-400 opacity-60" />
+                        )}
+                      </div>
+                    </th>
+                    <th className="px-6 py-3.5 cursor-pointer hover:bg-slate-100/80 transition-colors" onClick={() => handleSortChange("is_active")}>
+                      <div className="flex items-center gap-1.5">
+                        <span>Status</span>
+                        {sortConfig.key === "is_active" ? (
+                          sortConfig.direction === "asc" ? <ArrowUp size={13} className="text-[#243744]" /> : <ArrowDown size={13} className="text-[#243744]" />
+                        ) : (
+                          <ArrowUpDown size={12} className="text-slate-400 opacity-60" />
+                        )}
+                      </div>
+                    </th>
+                    <th className="px-6 py-3.5 cursor-pointer hover:bg-slate-100/80 transition-colors" onClick={() => handleSortChange("is_email_verified")}>
+                      <div className="flex items-center gap-1.5">
+                        <span>Verified</span>
+                        {sortConfig.key === "is_email_verified" ? (
+                          sortConfig.direction === "asc" ? <ArrowUp size={13} className="text-[#243744]" /> : <ArrowDown size={13} className="text-[#243744]" />
+                        ) : (
+                          <ArrowUpDown size={12} className="text-slate-400 opacity-60" />
+                        )}
+                      </div>
+                    </th>
+                    <th className="px-6 py-3.5 cursor-pointer hover:bg-slate-100/80 transition-colors" onClick={() => handleSortChange("last_login")}>
+                      <div className="flex items-center gap-1.5">
+                        <span>Last Login</span>
+                        {sortConfig.key === "last_login" ? (
+                          sortConfig.direction === "asc" ? <ArrowUp size={13} className="text-[#243744]" /> : <ArrowDown size={13} className="text-[#243744]" />
+                        ) : (
+                          <ArrowUpDown size={12} className="text-slate-400 opacity-60" />
+                        )}
+                      </div>
+                    </th>
+                    <th className="px-6 py-3.5 text-right w-[90px]">Actions</th>
                   </tr>
                 </thead>
                 <motion.tbody variants={stagger.container} initial="hidden" animate="visible" className="divide-y divide-[#F1F5F9]">
-                  {users.map((user) => {
+                  {paginatedUsers.map((user) => {
                     const fullNameVal = user.full_name || `${user.first_name} ${user.last_name}`;
                     return (
                       <motion.tr key={user.user_id} variants={stagger.item} className="hover:bg-[#FAF9FF] transition-colors">
@@ -394,31 +501,14 @@ const UsersList = () => {
           )}
 
           {/* Pagination Footer */}
-          <div className="flex items-center justify-between border-t border-[#E2E8F0] px-6 py-4 bg-white select-none">
-            <p className="text-xs font-semibold text-[#64748B]">
-              Showing <span className="text-[#1E293B]">{users.length}</span> of{" "}
-              <span className="text-[#1E293B]">{allUsers.length}</span> users
-            </p>
-            <div className="flex items-center gap-1.5">
-              <button
-                className="h-8 w-8 rounded-lg border border-[#E2E8F0] flex items-center justify-center text-xs font-semibold text-[#64748B] hover:bg-[#F8FAFC] transition-colors disabled:opacity-40"
-                disabled
-              >
-                &lt;
-              </button>
-              <button
-                className="h-8 w-8 rounded-lg bg-[#243744] text-white flex items-center justify-center text-xs font-bold shadow-sm"
-              >
-                1
-              </button>
-              <button
-                className="h-8 w-8 rounded-lg border border-[#E2E8F0] flex items-center justify-center text-xs font-semibold text-[#64748B] hover:bg-[#F8FAFC] transition-colors disabled:opacity-40"
-                disabled
-              >
-                &gt;
-              </button>
-            </div>
-          </div>
+          <TablePagination
+            totalItems={users.length}
+            pageSize={pageSize}
+            currentPage={currentPage}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={setPageSize}
+            itemLabel="users"
+          />
         </div>
 
         {/* Mobile View */}
@@ -434,7 +524,7 @@ const UsersList = () => {
             </div>
           ) : (
             <motion.div className="space-y-4" variants={stagger.container} initial="hidden" animate="visible">
-              {users.map((user) => {
+              {paginatedUsers.map((user) => {
                 const fullNameVal = user.full_name || `${user.first_name} ${user.last_name}`;
                 return (
                   <motion.div
@@ -451,49 +541,40 @@ const UsersList = () => {
                             bgClass={getAvatarBg()}
                           />
                           <div className="min-w-0">
-                            <h3 className="font-bold text-sm text-[#1E293B] truncate">
-                              {fullNameVal}
-                            </h3>
+                            <h4 className="font-bold text-sm text-[#1E293B] truncate">{fullNameVal}</h4>
                             <p className="text-xs text-[#64748B] truncate">{user.email}</p>
                           </div>
                         </div>
                         {getStatusBadge(user.is_active)}
                       </div>
 
-                      <div className="grid grid-cols-2 gap-3 mb-4 text-xs">
+                      <div className="grid grid-cols-2 gap-2 text-xs py-2 border-y border-[#F1F5F9] my-3">
                         <div>
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-[#8A97A4] mb-0.5">Phone</p>
-                          <p className="font-semibold text-[#1E293B]">{user.phone || "—"}</p>
+                          <span className="text-[#94A3B8] block text-[10px] uppercase font-bold">Role</span>
+                          <span className="font-semibold text-[#475569]">{getUserRoleName(user.role_id)}</span>
                         </div>
                         <div>
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-[#8A97A4] mb-0.5">Role</p>
-                          <p className="font-semibold text-[#1E293B]">{getUserRoleName(user.role_id)}</p>
-                        </div>
-                        <div>
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-[#8A97A4] mb-0.5">Verified</p>
-                          {getVerifiedBadge(user.is_email_verified)}
-                        </div>
-                        <div>
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-[#8A97A4] mb-0.5">Last Login</p>
-                          <p className="font-semibold text-[#57687A]">{formatDate(user.last_login)}</p>
+                          <span className="text-[#94A3B8] block text-[10px] uppercase font-bold">Phone</span>
+                          <span className="font-semibold text-[#475569]">{user.phone || "—"}</span>
                         </div>
                       </div>
 
-                      <div className="flex gap-2 pt-3 border-t border-[#F1F5F9]">
-                        <button
-                          onClick={() => navigate(`/users/${user.user_id}`)}
-                          className="flex-1 py-2 text-xs font-bold text-[#475569] hover:bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl flex items-center justify-center gap-1.5 transition-colors"
-                        >
-                          <Eye size={14} />
-                          View Details
-                        </button>
-                        <button
-                          onClick={() => navigate(`/users/${user.user_id}/edit`)}
-                          className="flex-1 py-2 text-xs font-bold text-[#243744] hover:bg-[#243744]/5 border border-[#243744]/20 rounded-xl flex items-center justify-center gap-1.5 transition-colors"
-                        >
-                          <Pencil size={14} />
-                          Edit User
-                        </button>
+                      <div className="flex items-center justify-between pt-1">
+                        <span className="text-[11px] text-[#94A3B8]">Last Login: {formatDate(user.last_login)}</span>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => navigate(`/users/${user.user_id}`)}
+                            className="p-1.5 text-[#475569] hover:bg-[#F1F5F9] rounded-lg transition-colors"
+                          >
+                            <Eye size={16} />
+                          </button>
+                          <button
+                            onClick={() => navigate(`/users/${user.user_id}/edit`)}
+                            className="p-1.5 text-[#475569] hover:bg-[#F1F5F9] rounded-lg transition-colors"
+                          >
+                            <Pencil size={16} />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </motion.div>
@@ -502,6 +583,7 @@ const UsersList = () => {
             </motion.div>
           )}
         </div>
+
       </div>
     </MainLayout>
   );

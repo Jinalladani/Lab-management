@@ -15,58 +15,59 @@ const EditLab = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [fetchLoading, setFetchLoading] = useState(true);
-  const [success, setSuccess] = useState(false);
-  const [errorMessage, setErrorMessage] = useState('');
-  const [successMessage, setSuccessMessage] = useState('');
-  const [errors, setErrors] = useState({});
-  const [labData, setLabData] = useState(null);
-  const [adminData, setAdminData] = useState(null);
 
   const [formData, setFormData] = useState({
     lab_name: '',
     contact_email: '',
     contact_phone: '',
     address: '',
+    description: '',
     status: 'active'
   });
 
+  const [adminData, setAdminData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [errors, setErrors] = useState({});
+  const [successMessage, setSuccessMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+
   useEffect(() => {
     fetchLabDetails();
-  }, [id]);
+  }, [labId]);
 
   const fetchLabDetails = async () => {
     try {
-      setFetchLoading(true);
-      const response = await getLabById(id);
-      if (response.data.success) {
-        const labDetails = response.data.data;
-        setLabData(labDetails); // Store original lab data for admin info
+      setLoading(true);
+      const response = await api.get(`/superadmin/labs/${labId}`);
+      if (response.data?.success) {
+        const lab = response.data.data;
         setFormData({
-          lab_name: labDetails.lab_name || '',
-          contact_email: labDetails.contact_email || '',
-          contact_phone: labDetails.contact_phone || '',
-          address: labDetails.address || '',
-          status: labDetails.status || 'active'
+          lab_name: lab.lab_name || '',
+          contact_email: lab.contact_email || '',
+          contact_phone: lab.contact_phone || '',
+          address: lab.address || '',
+          description: lab.description || '',
+          status: lab.status || 'active'
         });
-        
-        // Fetch admin data separately
-        await fetchAdminData();
+
+        // Also fetch admin user for this lab
+        fetchLabAdmin(labId);
       } else {
-        setErrorMessage(response.data.message || 'Failed to load lab details');
+        setErrorMessage('Failed to fetch laboratory details');
       }
-    } catch (err) {
-      setErrorMessage('Error loading lab details');
-      console.error('Error fetching lab:', err);
+    } catch (error) {
+      console.error('Error fetching lab details:', error);
+      setErrorMessage('Failed to load laboratory details');
     } finally {
-      setFetchLoading(false);
+      setLoading(false);
     }
   };
 
-  const fetchAdminData = async () => {
+  const fetchLabAdmin = async (id) => {
     try {
-      // Direct query to get admin user from users table
-      const response = await axiosInstance.get(`/superadmin/labs/${id}/admin`);
-      if (response.data.success) {
+      const response = await api.get(`/superadmin/labs/${id}/admin`);
+      if (response.data?.success && response.data.data) {
         setAdminData(response.data.data);
         console.log('Admin data found:', response.data.data);
       } else {
@@ -88,11 +89,6 @@ const EditLab = () => {
     setErrors(prev => ({ ...prev, [name]: '' }));
   };
 
-  const validateEmail = (email) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
-  };
-
   const validateForm = () => {
     const newErrors = {};
 
@@ -102,11 +98,8 @@ const EditLab = () => {
       newErrors.lab_name = 'Lab name must be at least 2 characters long';
     }
 
-    if (!formData.contact_email.trim()) {
-      newErrors.contact_email = 'Contact email is required';
-    } else if (!validateEmail(formData.contact_email)) {
-      newErrors.contact_email = 'Please enter a valid contact email';
-    }
+    const contactEmailErr = validateEmail(formData.contact_email, { required: true, fieldName: 'Contact email' });
+    if (contactEmailErr) newErrors.contact_email = contactEmailErr;
 
     if (!formData.address.trim()) {
       newErrors.address = 'Address is required';
@@ -115,12 +108,8 @@ const EditLab = () => {
     }
 
     // Phone validation (optional)
-    if (formData.contact_phone && formData.contact_phone.trim()) {
-      const phoneRegex = /^[+]?[\d\s\-\(\)]+$/;
-      if (!phoneRegex.test(formData.contact_phone.trim())) {
-        newErrors.contact_phone = 'Please enter a valid contact phone number';
-      }
-    }
+    const phoneErr = validatePhone(formData.contact_phone, { required: false, fieldName: 'Contact phone number' });
+    if (phoneErr) newErrors.contact_phone = phoneErr;
 
     // Status validation
     if (!formData.status || !['active', 'inactive'].includes(formData.status)) {

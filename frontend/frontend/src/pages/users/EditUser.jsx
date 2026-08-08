@@ -10,6 +10,7 @@ import { MainLayout } from "../../components/layout";
 import {
   PageHeader, SectionCard, Input, Select, Button,
 } from "../../components/ui";
+import { validateEmail, validatePhone } from "../../utils/validators";
 
 const EditUser = () => {
   const navigate = useNavigate();
@@ -25,7 +26,7 @@ const EditUser = () => {
   const [formData, setFormData] = useState({
     first_name: "", last_name: "", email: "", phone: "", role_id: "", is_active: true,
   });
-  const [originalData, setOriginalData] = useState({});
+  const [originalData, setOriginalData] = useState(null);
 
   useEffect(() => {
     fetchRoles();
@@ -48,25 +49,20 @@ const EditUser = () => {
   const fetchUserData = async () => {
     try {
       setUserLoading(true);
-      // Fetch users list and find the matched user dynamically
-      const response = await usersAPI.getLabUsers();
-      const usersList = response.data?.users || [];
-      const foundUser = usersList.find(u => String(u.user_id) === String(userId));
-      
-      if (foundUser) {
-        const uData = {
-          user_id: foundUser.user_id,
-          first_name: foundUser.first_name || "",
-          last_name: foundUser.last_name || "",
-          email: foundUser.email || "",
-          phone: foundUser.phone || "",
-          role_id: String(foundUser.role_id || ""),
-          is_active: foundUser.is_active !== false,
+      const response = await usersAPI.getUserById(userId);
+      const user = response.data?.user || response.data?.data;
+      if (user) {
+        const userData = {
+          first_name: user.first_name || "",
+          last_name: user.last_name || "",
+          email: user.email || "",
+          phone: user.phone || "",
+          role_id: String(user.role_id || ""),
+          is_active: user.is_active !== undefined ? user.is_active : true,
         };
-        setFormData(uData);
-        setOriginalData(uData);
+        setFormData(userData);
+        setOriginalData(userData);
       } else {
-        // Mock fallback if user list search returns empty
         const mockUser = {
           user_id: userId, first_name: "John", last_name: "Doe",
           email: "john.doe@example.com", phone: "1234567890", role_id: "", is_active: true,
@@ -92,8 +88,13 @@ const EditUser = () => {
     const newErrors = {};
     if (!formData.first_name.trim()) newErrors.first_name = "First name is required";
     if (!formData.last_name.trim()) newErrors.last_name = "Last name is required";
-    if (!formData.email.trim()) newErrors.email = "Email is required";
-    else if (!/\S+@\S+\.\S+/.test(formData.email)) newErrors.email = "Email is invalid";
+
+    const emailErr = validateEmail(formData.email, { required: true });
+    if (emailErr) newErrors.email = emailErr;
+
+    const phoneErr = validatePhone(formData.phone, { required: false });
+    if (phoneErr) newErrors.phone = phoneErr;
+
     if (!formData.role_id) newErrors.role_id = "Role is required";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -183,7 +184,7 @@ const EditUser = () => {
                   <Input label="Email Address" name="email" type="email" value={formData.email} onChange={handleChange} placeholder="user@example.com" error={errors.email} required icon={Mail} />
                 </div>
                 <div className="mt-4">
-                  <Input label="Phone Number" name="phone" type="tel" value={formData.phone} onChange={handleChange} placeholder="Enter phone number" helperText="Optional — used for notifications" icon={Phone} />
+                  <Input label="Phone Number" name="phone" type="tel" value={formData.phone} onChange={handleChange} placeholder="Enter phone number" error={errors.phone} helperText="Optional — used for notifications" icon={Phone} />
                 </div>
               </SectionCard>
             </div>

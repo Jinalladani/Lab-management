@@ -1,13 +1,15 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Plus, Eye, Pencil, Search, RefreshCw, Download, MoreHorizontal, Briefcase
+  Plus, Eye, Pencil, Search, RefreshCw, Download, MoreHorizontal, Briefcase,
+  ArrowUp, ArrowDown, ArrowUpDown
 } from "lucide-react";
 import { getClients } from "../../api/clients";
 import { MainLayout } from "../../components/layout";
 import { TableSkeleton } from "../../components/ui/Skeleton";
+import { TablePagination } from "../../components/ui/TablePagination";
 
 const stagger = {
   container: { hidden: {}, visible: { transition: { staggerChildren: 0.04 } } },
@@ -79,6 +81,7 @@ const PortalActionMenu = ({ anchorEl, open, onClose, actions }) => {
         onClose();
       }
     };
+
     document.addEventListener("mousedown", handleClickOutside);
 
     return () => {
@@ -104,9 +107,7 @@ const PortalActionMenu = ({ anchorEl, open, onClose, actions }) => {
               onClose();
               act.onClick();
             }}
-            className={`w-full px-4 py-2 text-xs font-semibold flex items-center gap-2 hover:bg-[#FAF9FF] transition-colors ${
-              act.danger ? "text-red-600 hover:text-red-700 hover:bg-red-50" : "text-[#475569] hover:text-[#243744]"
-            }`}
+            className="w-full px-4 py-2 text-xs font-semibold flex items-center gap-2 hover:bg-[#FAF9FF] text-[#475569] hover:text-[#243744] transition-colors"
           >
             {Icon && <Icon size={14} />}
             {act.label}
@@ -124,7 +125,14 @@ const LabClientsList = () => {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [search, setSearch] = useState("");
-  
+
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  // Sorting state (Default: client_name ascending)
+  const [sortConfig, setSortConfig] = useState({ key: "client_name", direction: "asc" });
+
   const [activeDropdownId, setActiveDropdownId] = useState(null);
   const [activeAnchorEl, setActiveAnchorEl] = useState(null);
 
@@ -144,6 +152,37 @@ const LabClientsList = () => {
   useEffect(() => {
     fetchClients();
   }, [fetchClients]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, sortConfig]);
+
+  const handleSortChange = (key) => {
+    setSortConfig((prev) => ({
+      key,
+      direction: prev.key === key && prev.direction === "asc" ? "desc" : "asc",
+    }));
+  };
+
+  const sortedClients = useMemo(() => {
+    return [...clients].sort((a, b) => {
+      const key = sortConfig.key || "client_name";
+      let valA = a[key] ?? "";
+      let valB = b[key] ?? "";
+
+      if (typeof valA === "string") valA = valA.toLowerCase();
+      if (typeof valB === "string") valB = valB.toLowerCase();
+
+      if (valA < valB) return sortConfig.direction === "asc" ? -1 : 1;
+      if (valA > valB) return sortConfig.direction === "asc" ? 1 : -1;
+      return 0;
+    });
+  }, [clients, sortConfig]);
+
+  const paginatedClients = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return sortedClients.slice(start, start + pageSize);
+  }, [sortedClients, currentPage, pageSize]);
 
   const handleExport = () => {
     alert("Client export will be available in the next release.");
@@ -178,8 +217,8 @@ const LabClientsList = () => {
             />
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex flex-wrap items-center gap-3">
+          {/* Action Row */}
+          <div className="flex items-center gap-3">
             <button
               onClick={fetchClients}
               className="flex h-10 items-center justify-center gap-1.5 rounded-xl border border-[#E2E8F0] bg-white hover:bg-[#F8FAFC] px-4 text-xs font-bold text-[#475569] transition-colors"
@@ -226,19 +265,82 @@ const LabClientsList = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="border-b border-[#E2E8F0] bg-[#FAFBFD] text-[10px] font-bold text-[#64748B] uppercase tracking-wider">
-                    <th className="px-6 py-3.5">Company Name</th>
-                    <th className="px-6 py-3.5">Contact Person</th>
-                    <th className="px-6 py-3.5">Email</th>
-                    <th className="px-6 py-3.5">Phone</th>
-                    <th className="px-6 py-3.5">City</th>
-                    <th className="px-6 py-3.5">GST No</th>
-                    <th className="px-6 py-3.5">Status</th>
+                  <tr className="border-b border-[#E2E8F0] bg-[#FAFBFD] text-[10px] font-bold text-[#64748B] uppercase tracking-wider select-none">
+                    <th className="px-6 py-3.5 cursor-pointer hover:bg-slate-100/80 transition-colors" onClick={() => handleSortChange("client_name")}>
+                      <div className="flex items-center gap-1.5">
+                        <span>Company Name</span>
+                        {sortConfig.key === "client_name" ? (
+                          sortConfig.direction === "asc" ? <ArrowUp size={13} className="text-[#243744]" /> : <ArrowDown size={13} className="text-[#243744]" />
+                        ) : (
+                          <ArrowUpDown size={12} className="text-slate-400 opacity-60" />
+                        )}
+                      </div>
+                    </th>
+                    <th className="px-6 py-3.5 cursor-pointer hover:bg-slate-100/80 transition-colors" onClick={() => handleSortChange("contact_person")}>
+                      <div className="flex items-center gap-1.5">
+                        <span>Contact Person</span>
+                        {sortConfig.key === "contact_person" ? (
+                          sortConfig.direction === "asc" ? <ArrowUp size={13} className="text-[#243744]" /> : <ArrowDown size={13} className="text-[#243744]" />
+                        ) : (
+                          <ArrowUpDown size={12} className="text-slate-400 opacity-60" />
+                        )}
+                      </div>
+                    </th>
+                    <th className="px-6 py-3.5 cursor-pointer hover:bg-slate-100/80 transition-colors" onClick={() => handleSortChange("email")}>
+                      <div className="flex items-center gap-1.5">
+                        <span>Email</span>
+                        {sortConfig.key === "email" ? (
+                          sortConfig.direction === "asc" ? <ArrowUp size={13} className="text-[#243744]" /> : <ArrowDown size={13} className="text-[#243744]" />
+                        ) : (
+                          <ArrowUpDown size={12} className="text-slate-400 opacity-60" />
+                        )}
+                      </div>
+                    </th>
+                    <th className="px-6 py-3.5 cursor-pointer hover:bg-slate-100/80 transition-colors" onClick={() => handleSortChange("phone")}>
+                      <div className="flex items-center gap-1.5">
+                        <span>Phone</span>
+                        {sortConfig.key === "phone" ? (
+                          sortConfig.direction === "asc" ? <ArrowUp size={13} className="text-[#243744]" /> : <ArrowDown size={13} className="text-[#243744]" />
+                        ) : (
+                          <ArrowUpDown size={12} className="text-slate-400 opacity-60" />
+                        )}
+                      </div>
+                    </th>
+                    <th className="px-6 py-3.5 cursor-pointer hover:bg-slate-100/80 transition-colors" onClick={() => handleSortChange("city")}>
+                      <div className="flex items-center gap-1.5">
+                        <span>City</span>
+                        {sortConfig.key === "city" ? (
+                          sortConfig.direction === "asc" ? <ArrowUp size={13} className="text-[#243744]" /> : <ArrowDown size={13} className="text-[#243744]" />
+                        ) : (
+                          <ArrowUpDown size={12} className="text-slate-400 opacity-60" />
+                        )}
+                      </div>
+                    </th>
+                    <th className="px-6 py-3.5 cursor-pointer hover:bg-slate-100/80 transition-colors" onClick={() => handleSortChange("gst_no")}>
+                      <div className="flex items-center gap-1.5">
+                        <span>GST No</span>
+                        {sortConfig.key === "gst_no" ? (
+                          sortConfig.direction === "asc" ? <ArrowUp size={13} className="text-[#243744]" /> : <ArrowDown size={13} className="text-[#243744]" />
+                        ) : (
+                          <ArrowUpDown size={12} className="text-slate-400 opacity-60" />
+                        )}
+                      </div>
+                    </th>
+                    <th className="px-6 py-3.5 cursor-pointer hover:bg-slate-100/80 transition-colors" onClick={() => handleSortChange("status")}>
+                      <div className="flex items-center gap-1.5">
+                        <span>Status</span>
+                        {sortConfig.key === "status" ? (
+                          sortConfig.direction === "asc" ? <ArrowUp size={13} className="text-[#243744]" /> : <ArrowDown size={13} className="text-[#243744]" />
+                        ) : (
+                          <ArrowUpDown size={12} className="text-slate-400 opacity-60" />
+                        )}
+                      </div>
+                    </th>
                     <th className="px-6 py-3.5 text-right w-[90px]">Actions</th>
                   </tr>
                 </thead>
                 <motion.tbody variants={stagger.container} initial="hidden" animate="visible" className="divide-y divide-[#F1F5F9]">
-                  {clients.map((client) => (
+                  {paginatedClients.map((client) => (
                     <motion.tr key={client.client_id} variants={stagger.item} className="hover:bg-[#FAF9FF] transition-colors">
                       <td className="px-6 py-4 text-xs font-bold text-[#1E293B]">{client.client_name}</td>
                       <td className="px-6 py-4 text-xs font-semibold text-[#475569]">{client.contact_person || "—"}</td>
@@ -272,25 +374,24 @@ const LabClientsList = () => {
             </div>
           )}
 
-          {/* Pagination */}
-          <div className="flex items-center justify-between border-t border-[#E2E8F0] px-6 py-4 bg-white select-none">
-            <p className="text-xs font-semibold text-[#64748B]">
-              Showing <span className="text-[#1E293B]">{clients.length}</span> of{" "}
-              <span className="text-[#1E293B]">{clients.length}</span> clients
-            </p>
-            <div className="flex items-center gap-1.5">
-              <button className="h-8 w-8 rounded-lg border border-[#E2E8F0] flex items-center justify-center text-xs font-semibold text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-40" disabled>&lt;</button>
-              <button className="h-8 w-8 rounded-lg bg-[#243744] text-white flex items-center justify-center text-xs font-bold shadow-sm">1</button>
-              <button className="h-8 w-8 rounded-lg border border-[#E2E8F0] flex items-center justify-center text-xs font-semibold text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-40" disabled>&gt;</button>
-            </div>
-          </div>
+          {/* Table Pagination */}
+          <TablePagination
+            totalItems={sortedClients.length}
+            pageSize={pageSize}
+            currentPage={currentPage}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={setPageSize}
+            itemLabel="clients"
+          />
         </div>
 
-        {/* Mobile View */}
+        {/* Mobile Cards */}
         <div className="lg:hidden">
           {loading ? (
             <div className="space-y-3">
-              {[0, 1, 2].map((i) => <div key={i} className="lab-skeleton h-44" />)}
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="lab-skeleton h-40" />
+              ))}
             </div>
           ) : clients.length === 0 ? (
             <div className="p-8 text-center bg-white border border-[#E2E8F0] rounded-2xl">
@@ -299,56 +400,52 @@ const LabClientsList = () => {
             </div>
           ) : (
             <motion.div className="space-y-4" variants={stagger.container} initial="hidden" animate="visible">
-              {clients.map((client) => (
+              {paginatedClients.map((client) => (
                 <motion.div
                   key={client.client_id}
                   className="bg-white border border-[#E2E8F0] rounded-2xl shadow-sm overflow-hidden"
                   variants={stagger.item}
                 >
                   <div className="p-4">
-                    <div className="flex justify-between items-start mb-3 gap-3">
-                      <div className="min-w-0">
-                        <h3 className="font-bold text-sm text-[#1E293B] truncate">
-                          {client.client_name}
-                        </h3>
-                        <p className="text-xs text-[#64748B] truncate mt-0.5">{client.contact_person || "No contact person"}</p>
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <h4 className="font-bold text-sm text-[#1E293B]">{client.client_name}</h4>
+                        <p className="text-xs text-[#64748B]">{client.contact_person || "No contact person"}</p>
                       </div>
                       {getStatusBadge(client.status)}
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3 mb-4 text-xs pt-2">
+                    <div className="grid grid-cols-2 gap-2 text-xs py-2 border-y border-[#F1F5F9] my-2">
                       <div>
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-[#8A97A4] mb-0.5">Email</p>
-                        <p className="font-semibold text-[#1E293B] truncate">{client.email || "—"}</p>
+                        <span className="text-[#94A3B8] block text-[10px] uppercase font-bold">Email</span>
+                        <span className="font-semibold text-[#475569] truncate block">{client.email || "—"}</span>
                       </div>
                       <div>
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-[#8A97A4] mb-0.5">Phone</p>
-                        <p className="font-semibold text-[#1E293B] truncate">{client.phone || "—"}</p>
+                        <span className="text-[#94A3B8] block text-[10px] uppercase font-bold">Phone</span>
+                        <span className="font-semibold text-[#475569]">{client.phone || "—"}</span>
                       </div>
                       <div>
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-[#8A97A4] mb-0.5">City</p>
-                        <p className="font-semibold text-[#1E293B] truncate">{client.city || "—"}</p>
+                        <span className="text-[#94A3B8] block text-[10px] uppercase font-bold">City</span>
+                        <span className="font-semibold text-[#475569]">{client.city || "—"}</span>
                       </div>
                       <div>
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-[#8A97A4] mb-0.5">GST No</p>
-                        <p className="font-semibold text-[#1E293B] truncate">{client.gst_no || "—"}</p>
+                        <span className="text-[#94A3B8] block text-[10px] uppercase font-bold">GST No</span>
+                        <span className="font-semibold text-[#475569]">{client.gst_no || "—"}</span>
                       </div>
                     </div>
 
-                    <div className="flex gap-2 pt-3 border-t border-[#F1F5F9]">
+                    <div className="flex justify-end gap-2 pt-1">
                       <button
                         onClick={() => navigate(`/labClients/view/${client.client_id}`)}
-                        className="flex-1 py-2 text-xs font-bold text-[#475569] hover:bg-[#F8FAFC] border border-[#E2E8F0] rounded-xl flex items-center justify-center gap-1.5 transition-colors"
+                        className="p-1.5 text-[#475569] hover:bg-[#F1F5F9] rounded-lg transition-colors"
                       >
-                        <Eye size={14} />
-                        View
+                        <Eye size={16} />
                       </button>
                       <button
                         onClick={() => navigate(`/labClients/edit/${client.client_id}`)}
-                        className="flex-1 py-2 text-xs font-bold text-[#243744] hover:bg-[#243744]/5 border border-[#243744]/20 rounded-xl flex items-center justify-center gap-1.5 transition-colors"
+                        className="p-1.5 text-[#475569] hover:bg-[#F1F5F9] rounded-lg transition-colors"
                       >
-                        <Pencil size={14} />
-                        Edit
+                        <Pencil size={16} />
                       </button>
                     </div>
                   </div>
@@ -357,6 +454,7 @@ const LabClientsList = () => {
             </motion.div>
           )}
         </div>
+
       </div>
     </MainLayout>
   );
