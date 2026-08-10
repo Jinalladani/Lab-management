@@ -26,13 +26,11 @@ const MainLayout = ({
           onToggleCollapse={toggleSidebarCollapse}
         />
 
-        <motion.div
-          layout
+        <div
           className={[
             "flex h-full min-w-0 flex-1 flex-col overflow-hidden transition-[margin] duration-[250ms] ease-in-out",
             sidebarCollapsed ? "md:ml-[4.75rem]" : "md:ml-[17rem]",
           ].join(" ")}
-          transition={{ layout: { duration: 0.24, ease: "easeInOut" } }}
         >
           <Header
             onMenuClick={toggleSidebar}
@@ -44,7 +42,7 @@ const MainLayout = ({
               {children}
             </AnimatedPage>
           </main>
-        </motion.div>
+        </div>
       </div>
     </div>
   );

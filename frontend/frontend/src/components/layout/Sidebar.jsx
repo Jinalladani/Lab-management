@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect, useRef, useLayoutEffect } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -6,7 +6,7 @@ import {
   Microscope, CheckSquare, FileText, Wrench, Calendar,
   Table2, X, Building2, Menu, ChevronDown,
   CreditCard, ShieldCheck, Settings, ClipboardList,
-  FileStack, Database,
+  FileStack, Database, Award, FileCheck, History, FileSearch,
 } from "lucide-react";
 import { hasPermission } from "../../utils/permissions";
 
@@ -17,7 +17,8 @@ const iconComponents = {
   calendar: Calendar, table: Table2, building: Building2,
   creditCard: CreditCard, shield: ShieldCheck, settings: Settings,
   clipboard: ClipboardList, fileStack: FileStack,
-  database: Database,
+  database: Database, award: Award, fileCheck: FileCheck,
+  history: History, fileSearch: FileSearch,
 };
 
 const SidebarSection = ({ title, collapsed }) => (
@@ -34,11 +35,17 @@ const SidebarLink = ({ to, icon, label, collapsed, onClick, end = false, activeW
   const IconComp = iconComponents[icon] || LayoutDashboard;
   const location = useLocation();
 
+  const handleLinkClick = () => {
+    if (window.innerWidth < 768 && onClick) {
+      onClick();
+    }
+  };
+
   return (
     <NavLink
       to={to}
       end={end}
-      onClick={onClick}
+      onClick={handleLinkClick}
       className={({ isActive }) =>
         [
           "group relative flex items-center gap-3 rounded-xl text-sm font-medium transition-all duration-200 focus:outline-none w-full",
@@ -96,12 +103,12 @@ const SidebarSubmenu = ({ label, icon, subItems, collapsed, onClose, activeWhen,
   const handleHeaderClick = () => {
     if (collapsed) {
       navigate(path || subItems[0].path);
-      if (onClose) onClose();
+      if (window.innerWidth < 768 && onClose) onClose();
     } else {
       setIsOpen((prev) => !prev);
       if (path) {
         navigate(path);
-        if (onClose) onClose();
+        if (window.innerWidth < 768 && onClose) onClose();
       }
     }
   };
@@ -114,8 +121,8 @@ const SidebarSubmenu = ({ label, icon, subItems, collapsed, onClose, activeWhen,
         className={[
           "group relative flex items-center gap-3 rounded-xl text-sm font-medium transition-all duration-200 focus:outline-none w-full text-left",
           collapsed ? "h-11 justify-center px-2.5" : "h-11 px-3.5",
-          isChildActive && !isOpen
-            ? "bg-white/10 text-white"
+          isChildActive
+            ? "bg-white text-[#1A2733] shadow-[0_2px_8px_rgba(0,0,0,0.08)] font-semibold"
             : "text-white/70 hover:bg-white/[0.08] hover:text-white",
         ].join(" ")}
       >
@@ -131,7 +138,8 @@ const SidebarSubmenu = ({ label, icon, subItems, collapsed, onClose, activeWhen,
               <ChevronDown
                 size={14}
                 className={[
-                  "ml-auto transition-transform duration-200 text-white/50 group-hover:text-white",
+                  "ml-auto transition-transform duration-200",
+                  isChildActive ? "text-[#1A2733]" : "text-white/50 group-hover:text-white",
                   isOpen ? "rotate-180" : "",
                 ].join(" ")}
               />
@@ -150,16 +158,18 @@ const SidebarSubmenu = ({ label, icon, subItems, collapsed, onClose, activeWhen,
             className="mt-1 ml-4 border-l border-white/10 pl-3 space-y-1 overflow-hidden"
           >
             {subItems.map((subItem) => {
-              const isSubActive = location.pathname.startsWith(subItem.path);
+              const isSubActive = location.pathname === subItem.path || location.pathname.startsWith(subItem.path);
               return (
                 <NavLink
                   key={subItem.path}
                   to={subItem.path}
-                  onClick={onClose}
+                  onClick={() => {
+                    if (window.innerWidth < 768 && onClose) onClose();
+                  }}
                   className={[
                     "flex items-center h-8 rounded-lg px-3 text-xs font-semibold transition-all duration-200",
                     isSubActive
-                      ? "bg-white text-[#1A2733] shadow-[0_2px_4px_rgba(0,0,0,0.06)]"
+                      ? "bg-white/20 text-white shadow-[0_2px_4px_rgba(0,0,0,0.06)] font-bold"
                       : "text-white/60 hover:text-white hover:bg-white/[0.04]",
                   ].join(" ")}
                 >
@@ -175,6 +185,10 @@ const SidebarSubmenu = ({ label, icon, subItems, collapsed, onClose, activeWhen,
 };
 
 const Sidebar = ({ isOpen, isCollapsed, onClose, onToggleCollapse }) => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const scrollRef = useRef(null);
+
   const user = useMemo(() => {
     try {
       const raw = localStorage.getItem("user");
@@ -186,6 +200,18 @@ const Sidebar = ({ isOpen, isCollapsed, onClose, onToggleCollapse }) => {
 
   const userRole = user?.role || "Engineer";
   const isSuperAdmin = userRole === "superadmin" || userRole === "super_admin";
+
+  // Restore scroll position across route changes & menu clicks
+  useLayoutEffect(() => {
+    const savedPos = sessionStorage.getItem("sidebar_scroll_position");
+    if (savedPos !== null && scrollRef.current) {
+      scrollRef.current.scrollTop = Number(savedPos);
+    }
+  }, [location.pathname]);
+
+  const handleScroll = (e) => {
+    sessionStorage.setItem("sidebar_scroll_position", e.target.scrollTop);
+  };
 
   const navItems = useMemo(() => {
     const raw = isSuperAdmin
@@ -208,6 +234,17 @@ const Sidebar = ({ isOpen, isCollapsed, onClose, onToggleCollapse }) => {
       ];
     return raw.filter((item) => hasPermission(userRole, item.perm));
   }, [userRole, isSuperAdmin]);
+
+  const qualityItems = useMemo(() => {
+    const raw = [
+      { path: "/document-control/nabl-dashboard", label: "NABL Dashboard", icon: "award", perm: "document.view" },
+      { path: "/document-control", label: "Document Control", icon: "fileCheck", perm: "document.view", end: true, activeWhen: (pathname) => pathname === "/document-control" || pathname === "/document-control/" },
+      { path: "/document-control/review-approval", label: "Review & Approval", icon: "checkSquare", perm: "document.view" },
+      { path: "/document-control/staff-acknowledgement", label: "Staff Acknowledgement", icon: "users", perm: "document.view" },
+      { path: "/document-control/audit-trail", label: "Audit Trail", icon: "history", perm: "document.view" },
+    ];
+    return raw.filter((item) => hasPermission(userRole, item.perm));
+  }, [userRole]);
 
   const moduleItems = useMemo(() => {
     const raw = [
@@ -254,8 +291,7 @@ const Sidebar = ({ isOpen, isCollapsed, onClose, onToggleCollapse }) => {
         )}
       </AnimatePresence>
 
-      <motion.aside
-        layout
+      <aside
         className={[
           "fixed inset-y-0 left-0 z-50 flex h-screen flex-col overflow-hidden border-r border-[#1C2B36] bg-[#243744] text-white transition-[width,transform] duration-[250ms] ease-in-out md:translate-x-0",
           isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0",
@@ -264,55 +300,42 @@ const Sidebar = ({ isOpen, isCollapsed, onClose, onToggleCollapse }) => {
         style={{
           boxShadow: "8px 0 32px rgba(15, 25, 35, 0.15)",
         }}
-        transition={{ layout: { duration: 0.24, ease: "easeInOut" } }}
       >
-        {/* Logo */}
-        <motion.div
-          layout
+        {/* Logo Header */}
+        <div
           className={[
-            "border-b border-white/8 px-4 transition-[height,padding] duration-[250ms] ease-in-out",
+            "border-b border-white/10 transition-[height,padding] duration-[250ms] ease-in-out shrink-0",
             isCollapsed
-              ? "flex h-[116px] flex-col items-center justify-center gap-3 md:px-3"
-              : "flex h-[68px] items-center justify-between",
+              ? "flex h-[116px] flex-col items-center justify-center gap-3 px-2 md:px-3"
+              : "flex h-[76px] items-center justify-between px-4",
           ].join(" ")}
-          transition={{ layout: { duration: 0.24, ease: "easeInOut" } }}
         >
-          <motion.div
-            layout
-            className={`flex items-center gap-3 ${isCollapsed ? "md:justify-center" : "min-w-0"}`}
-            transition={{ layout: { duration: 0.24, ease: "easeInOut" } }}
+          <div
+            className={`flex items-center cursor-pointer ${isCollapsed ? "md:justify-center" : "min-w-0 flex-1 pr-2"}`}
+            onClick={() => navigate("/")}
           >
-            <motion.div
-              layout
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/12 bg-white/8"
-              transition={{ layout: { duration: 0.24, ease: "easeInOut" } }}
-            >
-              <FlaskConical size={20} strokeWidth={2} />
-            </motion.div>
-            {!isCollapsed && (
-              <motion.div
-                className="min-w-0"
-                initial={{ opacity: 0, x: -6 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -6 }}
-                transition={{ duration: 0.18, ease: "easeInOut" }}
-              >
-                <div className="text-sm font-bold tracking-tight">LabMate</div>
-                <div className="text-[10px] font-semibold uppercase tracking-widest text-white/45">LIMS</div>
-              </motion.div>
-            )}
-          </motion.div>
+            <div className="flex shrink-0 items-center justify-start w-full">
+              <img
+                src="/logoDark.png"
+                alt="LabMate Logo"
+                className={
+                  isCollapsed
+                    ? "h-11 w-11 object-contain transition-all duration-200"
+                    : "h-14 sm:h-[75px] w-auto max-w-[250px] object-contain object-left transition-all duration-200"
+                }
+              />
+            </div>
+          </div>
 
           <motion.button
-            layout
             type="button"
             onClick={onToggleCollapse}
-            className="app-icon-button-dark hidden md:inline-flex"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 hover:bg-white/15 text-white transition-all cursor-pointer border border-white/10 hidden md:inline-flex"
             aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
             animate={{ rotate: isCollapsed ? 90 : 0 }}
-            whileHover={{ scale: 1.04 }}
-            whileTap={{ scale: 0.96 }}
-            transition={{ duration: 0.2, ease: "easeInOut", layout: { duration: 0.24, ease: "easeInOut" } }}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            transition={{ duration: 0.2, ease: "easeInOut" }}
           >
             <Menu size={18} />
           </motion.button>
@@ -320,16 +343,20 @@ const Sidebar = ({ isOpen, isCollapsed, onClose, onToggleCollapse }) => {
           <button
             type="button"
             onClick={onClose}
-            className="app-icon-button-dark md:hidden"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 hover:bg-white/15 text-white transition-all cursor-pointer border border-white/10 md:hidden"
             aria-label="Close sidebar"
           >
             <X size={18} />
           </button>
-        </motion.div>
+        </div>
 
-        {/* Navigation */}
-        <div className="sidebar-scroll flex-1 overflow-y-auto overflow-x-hidden px-3 py-4">
-          <nav className="space-y-1.5 pb-4">
+        {/* Scrollable Navigation */}
+        <div
+          ref={scrollRef}
+          onScroll={handleScroll}
+          className="sidebar-scroll flex-1 overflow-y-auto overflow-x-hidden px-3 py-4"
+        >
+          <nav className="space-y-1.5 pb-8">
             {user?.role === "superadmin" || user?.role === "super_admin" ? (
               <>
                 <SidebarSection title="Command" collapsed={isCollapsed} />
@@ -345,12 +372,8 @@ const Sidebar = ({ isOpen, isCollapsed, onClose, onToggleCollapse }) => {
                   />
                 ))}
                 <SidebarSection title="Platform Configuration" collapsed={isCollapsed} />
-                {/* <SidebarLink to="/superadmin/master-data" label="Master Data" icon="database" collapsed={isCollapsed} onClick={onClose} /> */}
                 <SidebarLink to="/superadmin/observation-templates" label="Observation Templates" icon="clipboard" collapsed={isCollapsed} onClick={onClose} />
                 <SidebarLink to="/superadmin/report-templates" label="Report Templates" icon="fileStack" collapsed={isCollapsed} onClick={onClose} />
-                {/* <SidebarSection title="Governance" collapsed={isCollapsed} />
-                <SidebarLink to="/superadmin/audit-logs" label="Audit Logs" icon="shield" collapsed={isCollapsed} onClick={onClose} />
-                <SidebarLink to="/superadmin/settings" label="Settings" icon="settings" collapsed={isCollapsed} onClick={onClose} /> */}
               </>
             ) : navItems.map((item) => {
               if (item.subItems) {
@@ -381,23 +404,10 @@ const Sidebar = ({ isOpen, isCollapsed, onClose, onToggleCollapse }) => {
             })}
 
             {!(user?.role === "superadmin" || user?.role === "super_admin") && (
-              <div className="!mt-3 pt-3 border-t border-white/8 space-y-1.5">
-                {moduleItems.map((item) => {
-                  if (item.subItems) {
-                    return (
-                      <SidebarSubmenu
-                        key={item.label}
-                        label={item.label}
-                        icon={item.icon}
-                        subItems={item.subItems}
-                        collapsed={isCollapsed}
-                        onClose={onClose}
-                        activeWhen={item.activeWhen}
-                        path={item.path}
-                      />
-                    );
-                  }
-                  return (
+              <>
+                <div className="!mt-3 pt-3 border-t border-white/8 space-y-1.5">
+                  <SidebarSection title="QUALITY & COMPLIANCE" collapsed={isCollapsed} />
+                  {qualityItems.map((item) => (
                     <SidebarLink
                       key={item.path}
                       to={item.path}
@@ -405,36 +415,68 @@ const Sidebar = ({ isOpen, isCollapsed, onClose, onToggleCollapse }) => {
                       icon={item.icon}
                       collapsed={isCollapsed}
                       onClick={onClose}
+                      end={item.end}
                       activeWhen={item.activeWhen}
                     />
-                  );
-                })}
-              </div>
+                  ))}
+                </div>
+
+                <div className="!mt-3 pt-3 border-t border-white/8 space-y-1.5">
+                  <SidebarSection title="EQUIPMENT & CALIBRATION" collapsed={isCollapsed} />
+                  {moduleItems.map((item) => {
+                    if (item.subItems) {
+                      return (
+                        <SidebarSubmenu
+                          key={item.label}
+                          label={item.label}
+                          icon={item.icon}
+                          subItems={item.subItems}
+                          collapsed={isCollapsed}
+                          onClose={onClose}
+                          activeWhen={item.activeWhen}
+                          path={item.path}
+                        />
+                      );
+                    }
+                    return (
+                      <SidebarLink
+                        key={item.path}
+                        to={item.path}
+                        label={item.label}
+                        icon={item.icon}
+                        collapsed={isCollapsed}
+                        onClick={onClose}
+                        activeWhen={item.activeWhen}
+                      />
+                    );
+                  })}
+                </div>
+              </>
             )}
           </nav>
         </div>
 
         {/* Footer - User Account Details */}
-        <div className="border-t border-white/8 px-4 py-3.5">
+        <div className="border-t border-white/10 px-4 py-3.5 shrink-0 bg-[#243744]">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/10 text-white font-bold text-xs border border-white/10">
-              {(user?.first_name?.[0] || user?.name?.[0] || "U").toUpperCase()}
-              {(user?.last_name?.[0] || "").toUpperCase()}
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-white font-black text-xs border border-white/15 shadow-xs">
+              {(user?.first_name?.[0] || user?.full_name?.[0] || user?.name?.[0] || "U").toUpperCase()}
+              {(user?.last_name?.[0] || (user?.full_name?.split(" ")?.[1]?.[0]) || "").toUpperCase()}
             </div>
 
             {!isCollapsed && (
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-bold text-white truncate">
-                  {user?.first_name || user?.name || "User"} {user?.last_name || ""}
+                <p className="text-xs font-bold text-white truncate leading-tight">
+                  {user?.full_name || `${user?.first_name || "User"} ${user?.last_name || ""}`}
                 </p>
-                <p className="text-[11px] font-medium text-white/60 truncate capitalize mt-0.5">
+                <p className="text-[11px] font-medium text-white/60 truncate capitalize mt-0.5 leading-tight">
                   {user?.role_name || user?.role || "Staff"}
                 </p>
               </div>
             )}
           </div>
         </div>
-      </motion.aside>
+      </aside>
     </>
   );
 };

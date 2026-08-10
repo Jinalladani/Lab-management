@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { MainLayout } from '../../../components/layout';
 import { getLabById, updateLab } from '../../../api/labs';
+import { api } from '../../../api';
+import { validateEmail, validatePhone } from '../../../utils/validators';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SaveIcon from '@mui/icons-material/Save';
 import BusinessIcon from '@mui/icons-material/Business';
@@ -12,6 +14,7 @@ import axiosInstance from '../../../api/axios';
 
 const EditLab = () => {
   const { id } = useParams();
+  const labId = id;
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [fetchLoading, setFetchLoading] = useState(true);
@@ -26,9 +29,9 @@ const EditLab = () => {
   });
 
   const [adminData, setAdminData] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState({});
+  const [success, setSuccess] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
 

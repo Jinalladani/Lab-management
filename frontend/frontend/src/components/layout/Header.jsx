@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Menu, Search, Bell, Plus,
-  ArrowRight, User, LogOut, Settings,
+  ArrowRight, User, LogOut, Settings, ChevronDown,
 } from "lucide-react";
 import { api } from "../../api";
 
@@ -116,6 +116,27 @@ const Header = ({
 
   const accountName = user?.first_name || user?.full_name || user?.email || "Account";
 
+  const displayRoleTitle = useMemo(() => {
+    if (user?.role === "superadmin") return "Super Admin";
+    if (user?.full_name) return user.full_name;
+    if (user?.first_name) return `${user.first_name} ${user.last_name || ""}`;
+    return "Super Admin";
+  }, [user]);
+
+  const initials = useMemo(() => {
+    if (user?.full_name) {
+      const parts = user.full_name.trim().split(" ");
+      if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+      return parts[0].slice(0, 2).toUpperCase();
+    }
+    if (user?.first_name) {
+      return `${user.first_name[0]}${user.last_name ? user.last_name[0] : ""}`.toUpperCase();
+    }
+    if (user?.role === "superadmin") return "SO";
+    if (user?.email) return user.email.slice(0, 2).toUpperCase();
+    return "SO";
+  }, [user]);
+
   const handleLogout = async () => {
     try {
       await api.post("/auth/logout");
@@ -144,20 +165,10 @@ const Header = ({
         </button>
 
         <div className="min-w-0 flex-1">
-          <div className="hidden items-center gap-1.5 text-xs text-[#8A97A4] sm:flex">
-            {breadcrumb.map((crumb, index) => (
-              <React.Fragment key={crumb.path}>
-                {index > 0 && <span className="text-[#CDD4DB]">/</span>}
-                <span className={index === breadcrumb.length - 1 ? "font-semibold text-[#57687A]" : ""}>
-                  {crumb.label}
-                </span>
-              </React.Fragment>
-            ))}
-          </div>
-          <div className="flex min-w-0 items-baseline gap-3">
-            <h1 className="truncate text-lg font-bold text-[#1A2733] tracking-tight sm:text-xl">{title}</h1>
-            <p className="hidden truncate text-sm text-[#8A97A4] lg:block">{subtitle}</p>
-          </div>
+          <h1 className="truncate text-lg font-black text-[#243744] tracking-tight sm:text-xl">{title}</h1>
+          {subtitle && (
+            <p className="truncate text-xs font-semibold text-slate-400 mt-0.5">{subtitle}</p>
+          )}
         </div>
 
         {/* <label className="hidden h-10 min-w-[240px] max-w-[420px] flex-1 items-center gap-2.5 rounded-xl border border-[#DDE4EA] bg-[#F8FAFB] px-3.5 transition-all duration-200 focus-within:border-[#3F6E8C] focus-within:bg-white focus-within:ring-2 focus-within:ring-[#3F6E8C]/12 md:flex"
@@ -276,7 +287,7 @@ const Header = ({
           </AnimatePresence>
         </div> */}
 
-        {/* Account */}
+        {/* Account Profile Dropdown Pill (Exact design reference) */}
         <div className="relative">
           <motion.button
             type="button"
@@ -285,13 +296,32 @@ const Header = ({
               setQuickAddOpen(false);
               setNotificationsOpen(false);
             }}
-            className="app-icon-button"
+            className="flex items-center gap-2.5 rounded-full border border-slate-200/90 bg-white py-1 px-1.5 sm:pl-1.5 sm:pr-3 shadow-2xs hover:bg-slate-50 transition-all duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#243744]/10"
             aria-label="Open account menu"
             aria-expanded={accountOpen}
-            whileHover={{ scale: 1.04 }}
-            whileTap={{ scale: 0.96 }}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
           >
-            <User size={18} strokeWidth={2} />
+            {/* Dark Navy Avatar Circle with White Initials */}
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#243744] text-white text-xs font-black shadow-xs tracking-wide">
+              {initials}
+            </div>
+
+            {/* Name & Email Info Stack */}
+            <div className="hidden sm:flex flex-col text-left min-w-0 max-w-[160px]">
+              <span className="truncate text-xs font-bold text-[#1A2733] leading-tight">
+                {displayRoleTitle}
+              </span>
+              <span className="truncate text-[11px] font-medium text-[#8A97A4] leading-tight mt-0.5">
+                {user?.email || "superadmin@labmate.com"}
+              </span>
+            </div>
+
+            {/* Subtle Chevron Down */}
+            <ChevronDown
+              size={15}
+              className={`text-[#64748B] transition-transform duration-200 shrink-0 ml-0.5 ${accountOpen ? "rotate-180" : ""}`}
+            />
           </motion.button>
 
           <AnimatePresence>
