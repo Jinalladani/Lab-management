@@ -18,6 +18,7 @@ import {
 import { getProjectById, updateProject } from "../../api/projects";
 import { getClients } from "../../api/clients";
 import { getScopeHierarchy } from "../../api/scope";
+import { SERVER_URL } from "../../api/axios";
 import { usersAPI } from "../../api/users";
 import { MainLayout } from "../../components/layout";
 import { Input, Select, Button } from "../../components/ui";
@@ -742,7 +743,7 @@ const EditProject = () => {
                                 <span className="font-bold text-gray-800 truncate flex-1 pr-2">{doc.file_name}</span>
                               ) : (
                                 <a
-                                  href={`http://localhost:5000/uploads/projects/${doc.file_path}`}
+                                  href={`${SERVER_URL}/uploads/projects/${doc.file_path}`}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="font-bold text-[#243744] hover:underline truncate flex-1 pr-2"

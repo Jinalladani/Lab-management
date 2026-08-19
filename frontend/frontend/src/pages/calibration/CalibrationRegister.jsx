@@ -1,14 +1,16 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Search, Plus, X, Eye, Download, Printer, ChevronDown, CheckCircle, RefreshCw
+  Search, Plus, X, Eye, Download, Printer, ChevronDown, CheckCircle, RefreshCw,
+  Award, Calendar, AlertTriangle
 } from "lucide-react";
 import MainLayout from "../../components/layout/MainLayout";
 import { mockEquipmentDb } from "../../utils/mockEquipmentData";
 import { getCalibrationList, createCalibration, getEquipmentList } from "../../api";
 import { TableSkeleton } from "../../components/ui/Skeleton";
+import { TablePagination } from "../../components/ui/TablePagination";
 
 const stagger = {
   container: { hidden: {}, visible: { transition: { staggerChildren: 0.04 } } },
@@ -16,6 +18,78 @@ const stagger = {
     hidden: { opacity: 0, y: 8 },
     visible: { opacity: 1, y: 0, transition: { duration: 0.25, ease: [0.22, 0.68, 0, 1] } },
   },
+};
+
+// Count up animation hook (exact Super Admin Dashboard reference)
+const useCountUp = (value) => {
+  const [displayValue, setDisplayValue] = useState(0);
+  useEffect(() => {
+    const target = Number(value) || 0;
+    const duration = 600;
+    const start = performance.now();
+    const tick = (now) => {
+      const progress = Math.min((now - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setDisplayValue(Math.round(target * eased));
+      if (progress < 1) requestAnimationFrame(tick);
+    };
+    const frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [value]);
+  return displayValue;
+};
+
+// Summary KPI Card Component (Exact Super Admin Dashboard #243744 & #059669 Pattern & Style)
+const KpiCard = ({ title, value = 0, subtitle, icon: Icon, tone = "navy", percentage, meterLabel = "Utilization Rate" }) => {
+  const animatedValue = useCountUp(value);
+
+  const toneStyles = {
+    navy: { border: "border-slate-200/80", bg: "bg-white", iconBg: "bg-[#243744]/10 text-[#243744]", meter: "bg-[#243744]" },
+    emerald: { border: "border-emerald-200/80", bg: "bg-white", iconBg: "bg-emerald-50 text-[#059669]", meter: "bg-[#059669]" },
+    blue: { border: "border-slate-200/80", bg: "bg-white", iconBg: "bg-[#243744]/10 text-[#243744]", meter: "bg-[#243744]" },
+    amber: { border: "border-amber-200/80", bg: "bg-white", iconBg: "bg-amber-50 text-amber-600", meter: "bg-amber-600" },
+    purple: { border: "border-slate-200/80", bg: "bg-white", iconBg: "bg-[#243744]/10 text-[#243744]", meter: "bg-[#243744]" }
+  };
+
+  const style = toneStyles[tone] || toneStyles.navy;
+
+  return (
+    <motion.article
+      variants={stagger.item}
+      whileHover={{ y: -3, boxShadow: "0 14px 30px rgba(0,0,0,0.06)" }}
+      className={`relative overflow-hidden rounded-2xl border ${style.border} ${style.bg} p-5 shadow-sm transition-all duration-200`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400">{title}</p>
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className="text-3xl font-black tracking-tight text-[#243744]">{animatedValue.toLocaleString()}</span>
+          </div>
+          <p className="mt-1 text-xs font-semibold text-slate-500">{subtitle}</p>
+        </div>
+        <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${style.iconBg} shadow-inner`}>
+          <Icon size={22} strokeWidth={2.2} />
+        </div>
+      </div>
+
+      {percentage !== undefined && (
+        <div className="mt-4 pt-3 border-t border-slate-100">
+          <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 mb-1.5">
+            <span>{meterLabel}</span>
+            <span className="text-[#243744]">{percentage}%</span>
+          </div>
+          <div className="h-1.5 w-full rounded-full bg-slate-100 overflow-hidden">
+            <motion.div
+              className={`h-full rounded-full ${style.meter}`}
+              initial={{ width: 0 }}
+              animate={{ width: `${Math.min(100, Math.max(0, percentage))}%` }}
+              transition={{ duration: 0.8, ease: "easeOut" }}
+            />
+          </div>
+        </div>
+      )}
+    </motion.article>
+  );
 };
 
 const getStatusBadge = (status) => {
@@ -131,6 +205,14 @@ const CalibrationRegister = () => {
   const [selectedAgency, setSelectedAgency] = useState("all");
   const [selectedStatus, setSelectedStatus] = useState("all");
 
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedLab, selectedAgency, selectedStatus]);
+
   // Modals
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isCertModalOpen, setIsCertModalOpen] = useState(false);
@@ -150,7 +232,6 @@ const CalibrationRegister = () => {
     agency: "",
     certificateNo: "",
     cost: "",
-    performedBy: "",
     status: "Pass",
     remarks: ""
   });
@@ -253,15 +334,19 @@ const CalibrationRegister = () => {
   };
 
   const handleSaveCalibration = async () => {
-    if (!newCal.certificateNo || !newCal.performedBy || !newCal.cost) {
-      alert("Please fill in all required fields.");
+    if (!newCal.certificateNo || !newCal.cost || !certificateFile) {
+      alert("Please fill in all required fields and upload the Calibration Certificate file.");
       return;
     }
 
     const selectedEq = equipmentList.find(e => e.id === newCal.eqId);
     const calibrationRecord = {
       ...newCal,
-      eqName: selectedEq ? selectedEq.name : "Unknown Device",
+      eqCode: selectedEq ? (selectedEq.eqCode || selectedEq.id) : "EQ-CTM-001",
+      eqName: selectedEq ? selectedEq.name : "Compression Testing Machine",
+      makeAndModel: selectedEq ? `${selectedEq.manufacturer || "AIMIL"} / ${selectedEq.model || "CTM3200"}` : "AIMIL / CTM3200",
+      productMaterial: newCal.productMaterial || selectedEq?.category || "Concrete & Cement",
+      equipmentUseForTest: newCal.equipmentUseForTest || selectedEq?.description || "Material Testing",
       cost: parseFloat(newCal.cost)
     };
 
@@ -282,8 +367,9 @@ const CalibrationRegister = () => {
       nextDue: calculateNextDue(new Date().toISOString().substring(0, 10), "12 Months"),
       agency: "",
       certificateNo: "",
+      productMaterial: "",
+      equipmentUseForTest: "",
       cost: "",
-      performedBy: "",
       status: "Pass",
       remarks: ""
     });
@@ -316,8 +402,28 @@ const CalibrationRegister = () => {
     return matchesSearch && matchesLab && matchesAgency && matchesStatus;
   });
 
+  const paginatedCalibrations = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredCalibrations.slice(start, start + pageSize);
+  }, [filteredCalibrations, currentPage, pageSize]);
+
   const laboratories = ["Concrete Lab", "Steel Lab", "Soil Lab", "Chemical Lab", "QC Lab"];
   const agencies = ["ABC NABL Lab", "XYZ NABL Lab", "National Physical Laboratory"];
+
+  // Calculated Metrics for Summary Cards (Matching Super Admin Dashboard)
+  const totalCalibrationsCount = calibrations.length;
+  const validPassedCount = useMemo(() => calibrations.filter(c => c.status === "Pass").length, [calibrations]);
+  const dueSoonCount = useMemo(() => calibrations.filter(c => {
+    const due = new Date(c.nextDue);
+    const now = new Date();
+    const diff = Math.ceil((due - now) / (1000 * 60 * 60 * 24));
+    return diff > 0 && diff <= 60;
+  }).length, [calibrations]);
+  const overdueCount = useMemo(() => calibrations.filter(c => new Date(c.nextDue) < new Date()).length, [calibrations]);
+
+  const passedPercentage = totalCalibrationsCount > 0 ? Math.round((validPassedCount / totalCalibrationsCount) * 100) : 100;
+  const dueSoonPercentage = totalCalibrationsCount > 0 ? Math.round((dueSoonCount / totalCalibrationsCount) * 100) : 0;
+  const overduePercentage = totalCalibrationsCount > 0 ? Math.round((overdueCount / totalCalibrationsCount) * 100) : 0;
 
   const handleToggleDropdown = (id, event) => {
     if (activeDropdownId === id) {
@@ -333,13 +439,53 @@ const CalibrationRegister = () => {
     <MainLayout headerTitle="Calibration Audit Register" headerSubtitle="Chronological logbook of NABL certified equipment calibrations">
       <div className="mx-auto w-full max-w-[1800px] px-4 py-5 sm:px-5 lg:px-6">
 
-        {/* Search & Filters */}
+        {/* 4 Summary KPI Cards (Exact Super Admin Dashboard UI, Color Codes & Pattern) */}
+        <motion.div variants={stagger.container} initial="hidden" animate="visible" className="mb-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <KpiCard
+            title="Total Calibrations"
+            value={totalCalibrationsCount}
+            subtitle="Logbook Audit Entries"
+            icon={Award}
+            tone="navy"
+            percentage={100}
+            meterLabel="System Logged Rate"
+          />
+          <KpiCard
+            title="Valid & Passed"
+            value={validPassedCount}
+            subtitle="Active Compliant Instruments"
+            icon={CheckCircle}
+            tone="emerald"
+            percentage={passedPercentage}
+            meterLabel="Compliance Pass Rate"
+          />
+          <KpiCard
+            title="Due Soon"
+            value={dueSoonCount}
+            subtitle="Renewal Next 60 Days"
+            icon={Calendar}
+            tone="navy"
+            percentage={dueSoonPercentage}
+            meterLabel="Renewal Active Window"
+          />
+          <KpiCard
+            title="Overdue / Alert"
+            value={overdueCount}
+            subtitle="Attention Required"
+            icon={AlertTriangle}
+            tone="amber"
+            percentage={overduePercentage}
+            meterLabel="Inspection Overdue Rate"
+          />
+        </motion.div>
+
+        {/* Search & Filters Bar */}
         <div className="mb-6 flex flex-col xl:flex-row gap-4 items-stretch xl:items-center justify-between">
           <div className="flex-1 max-w-xl flex h-10 items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3 focus-within:border-[#243744] focus-within:ring-2 focus-within:ring-[#243744]/10 transition-all">
             <Search size={16} className="text-[#94A3B8] shrink-0" />
             <input
               type="text"
-              placeholder="Search by ID, instrument name, certificate no..."
+              placeholder="Search by EQ Code, instrument name, agency..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full bg-transparent text-sm text-[#0F172A] placeholder:text-[#94A3B8] outline-none"
@@ -401,14 +547,14 @@ const CalibrationRegister = () => {
 
             <button
               onClick={() => setIsAddModalOpen(true)}
-              className="flex h-10 items-center justify-center gap-1.5 rounded-xl bg-[#243744] hover:bg-[#1A2733] px-4 text-xs font-bold text-white shadow-sm transition-colors"
+              className="flex h-10 items-center justify-center gap-1.5 rounded-xl bg-[#243744] hover:bg-[#1A2733] px-4 text-xs font-bold text-white shadow-sm transition-colors w-full sm:w-auto"
             >
               <Plus size={14} /> Add Record
             </button>
           </div>
         </div>
 
-        {/* Register Table View */}
+        {/* Responsive Content Section: Desktop Table + Mobile Card Grid */}
         <div className="bg-white rounded-2xl shadow-sm border border-[#E2E8F0] overflow-hidden">
           {loading ? (
             <TableSkeleton rows={5} cols={9} />
@@ -419,77 +565,148 @@ const CalibrationRegister = () => {
               <p className="text-xs text-[#64748B] mt-1">Try adjusting your filters or search query.</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-[#E2E8F0] bg-[#FAFBFD] text-[10px] font-bold text-[#64748B] uppercase tracking-wider">
-                    <th className="px-6 py-3.5">EQ ID</th>
-                    <th className="px-6 py-3.5">Equipment Name</th>
-                    <th className="px-6 py-3.5">Last Calibration</th>
-                    <th className="px-6 py-3.5">Next Due</th>
-                    <th className="px-6 py-3.5">Frequency</th>
-                    <th className="px-6 py-3.5">Agency</th>
-                    <th className="px-6 py-3.5">Certificate No.</th>
-                    <th className="px-6 py-3.5">Status</th>
-                    <th className="px-6 py-3.5 text-right w-[90px]">Actions</th>
-                  </tr>
-                </thead>
-                <motion.tbody variants={stagger.container} initial="hidden" animate="visible" className="divide-y divide-[#F1F5F9]">
-                  {filteredCalibrations.map((cal) => (
-                    <motion.tr key={cal.id} variants={stagger.item} className="hover:bg-[#FAF9FF] transition-colors">
-                      <td className="px-6 py-4 text-xs font-bold text-[#475569]">{cal.eqId}</td>
-                      <td className="px-6 py-4 text-xs font-bold text-[#1E293B]">{cal.eqName}</td>
-                      <td className="px-6 py-4 text-xs font-semibold text-[#475569]">
-                        {new Date(cal.calibrationDate).toLocaleDateString("en-IN", { day: '2-digit', month: 'short', year: 'numeric' })}
-                      </td>
-                      <td className="px-6 py-4 text-xs font-bold text-[#1E293B]">
-                        {new Date(cal.nextDue).toLocaleDateString("en-IN", { day: '2-digit', month: 'short', year: 'numeric' })}
-                      </td>
-                      <td className="px-6 py-4 text-xs font-semibold text-[#475569]">{cal.frequency}</td>
-                      <td className="px-6 py-4 text-xs font-semibold text-[#475569]">{cal.agency}</td>
-                      <td
-                        onClick={() => handleOpenCertificate(cal)}
-                        className="px-6 py-4 text-xs font-extrabold text-[#243744] hover:underline cursor-pointer"
-                      >
-                        {cal.certificateNo}
-                      </td>
-                      <td className="px-6 py-4">{getStatusBadge(cal.status)}</td>
-                      <td className="px-6 py-4 text-right">
-                        <button
-                          onClick={(e) => handleToggleDropdown(cal.id, e)}
-                          className="p-1.5 hover:bg-[#F1F5F9] rounded-lg transition-colors text-[#8A97A4] hover:text-[#1A2733]"
-                        >
-                          <ChevronDown size={16} />
-                        </button>
+            <>
+              {/* Desktop Table View (Hidden on mobile) */}
+              <div className="hidden lg:block overflow-x-auto">
+                <table className="w-full text-left border-collapse min-w-[1200px]">
+                  <thead>
+                    <tr className="border-b border-[#E2E8F0] bg-[#FAFBFD] text-[10px] font-bold text-[#64748B] uppercase tracking-wider">
+                      <th className="px-4 py-3.5 whitespace-nowrap">EQ Code</th>
+                      <th className="px-4 py-3.5 whitespace-nowrap">Equipment Name</th>
+                      <th className="px-4 py-3.5 whitespace-nowrap">Make & Model</th>
+                      <th className="px-4 py-3.5 whitespace-nowrap">Date of Calibration</th>
+                      <th className="px-4 py-3.5 whitespace-nowrap">Due of Calibration</th>
+                      <th className="px-4 py-3.5 whitespace-nowrap">Calibration Agency</th>
+                      <th className="px-4 py-3.5 whitespace-nowrap">Product / Material</th>
+                      <th className="px-4 py-3.5 whitespace-nowrap">Equipment Use for Test</th>
+                      <th className="px-4 py-3.5 whitespace-nowrap">Status</th>
+                      <th className="px-4 py-3.5 text-right w-[90px] whitespace-nowrap">Actions</th>
+                    </tr>
+                  </thead>
+                  <motion.tbody variants={stagger.container} initial="hidden" animate="visible" className="divide-y divide-[#F1F5F9]">
+                    {paginatedCalibrations.map((cal) => (
+                      <motion.tr key={cal.id} variants={stagger.item} className="hover:bg-[#FAF9FF] transition-colors">
+                        <td className="px-4 py-4 text-xs font-bold text-[#243744] whitespace-nowrap">{cal.eqCode || cal.eqId}</td>
+                        <td className="px-4 py-4 text-xs font-bold text-[#1E293B] whitespace-nowrap">{cal.eqName}</td>
+                        <td className="px-4 py-4 text-xs font-semibold text-[#475569] whitespace-nowrap">{cal.makeAndModel || "AIMIL / CTM3200"}</td>
+                        <td className="px-4 py-4 text-xs font-semibold text-[#475569] whitespace-nowrap">
+                          {new Date(cal.calibrationDate).toLocaleDateString("en-IN", { day: '2-digit', month: 'short', year: 'numeric' })}
+                        </td>
+                        <td className="px-4 py-4 text-xs font-bold text-[#1E293B] whitespace-nowrap">
+                          {new Date(cal.nextDue).toLocaleDateString("en-IN", { day: '2-digit', month: 'short', year: 'numeric' })}
+                        </td>
+                        <td className="px-4 py-4 text-xs font-semibold text-[#475569] whitespace-nowrap">{cal.agency || "ABC NABL Lab"}</td>
+                        <td className="px-4 py-4 text-xs font-semibold text-[#475569] whitespace-nowrap">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-[#243744]">
+                            {cal.productMaterial || "Concrete & Cement"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4 text-xs font-medium text-[#475569] whitespace-nowrap">{cal.equipmentUseForTest || "Material Testing"}</td>
+                        <td className="px-4 py-4 whitespace-nowrap">{getStatusBadge(cal.status)}</td>
+                        <td className="px-4 py-4 text-right whitespace-nowrap">
+                          <button
+                            onClick={(e) => handleToggleDropdown(cal.id, e)}
+                            className="p-1.5 hover:bg-[#F1F5F9] rounded-lg transition-colors text-[#8A97A4] hover:text-[#1A2733]"
+                          >
+                            <ChevronDown size={16} />
+                          </button>
 
-                        <PortalActionMenu
-                          anchorEl={activeDropdownId === cal.id ? activeAnchorEl : null}
-                          open={activeDropdownId === cal.id}
-                          onClose={() => { setActiveDropdownId(null); setActiveAnchorEl(null); }}
-                          actions={[
-                            { label: "View Certificate", icon: Eye, onClick: () => handleOpenCertificate(cal) }
-                          ]}
-                        />
-                      </td>
-                    </motion.tr>
+                          <PortalActionMenu
+                            anchorEl={activeDropdownId === cal.id ? activeAnchorEl : null}
+                            open={activeDropdownId === cal.id}
+                            onClose={() => { setActiveDropdownId(null); setActiveAnchorEl(null); }}
+                            actions={[
+                              { label: "View Certificate", icon: Eye, onClick: () => handleOpenCertificate(cal) }
+                            ]}
+                          />
+                        </td>
+                      </motion.tr>
+                    ))}
+                  </motion.tbody>
+                </table>
+              </div>
+
+              {/* Mobile Card Grid View (Visible on screens below lg - Super Admin Dashboard Style) */}
+              <div className="block lg:hidden p-4">
+                <motion.div variants={stagger.container} initial="hidden" animate="visible" className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {paginatedCalibrations.map((cal) => (
+                    <motion.div
+                      key={cal.id}
+                      variants={stagger.item}
+                      whileHover={{ y: -3, boxShadow: "0 14px 30px rgba(0,0,0,0.06)" }}
+                      className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm transition-all duration-200 flex flex-col justify-between"
+                    >
+                      <div>
+                        {/* Top Code & Status */}
+                        <div className="flex items-center justify-between gap-2 mb-3">
+                          <span className="px-2.5 py-1 rounded-xl bg-[#243744] text-white text-[11px] font-extrabold tracking-wider shadow-xs">
+                            {cal.eqCode || cal.eqId}
+                          </span>
+                          {getStatusBadge(cal.status)}
+                        </div>
+
+                        {/* Title & Model */}
+                        <h4 className="text-sm font-black text-[#1E293B] tracking-tight line-clamp-1">{cal.eqName}</h4>
+                        <p className="text-xs font-semibold text-slate-500 mt-0.5">{cal.makeAndModel || "AIMIL / CTM3200"}</p>
+
+                        <div className="my-3.5 border-t border-slate-100" />
+
+                        {/* Dates & Agency */}
+                        <div className="space-y-2 text-xs text-slate-600">
+                          <div className="flex justify-between items-center">
+                            <span className="text-slate-400 font-extrabold text-[10px] uppercase tracking-wider">Calibrated:</span>
+                            <span className="font-bold text-[#1E293B]">
+                              {new Date(cal.calibrationDate).toLocaleDateString("en-IN", { day: '2-digit', month: 'short', year: 'numeric' })}
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-slate-400 font-extrabold text-[10px] uppercase tracking-wider">Next Due:</span>
+                            <span className="font-black text-[#243744]">
+                              {new Date(cal.nextDue).toLocaleDateString("en-IN", { day: '2-digit', month: 'short', year: 'numeric' })}
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-slate-400 font-extrabold text-[10px] uppercase tracking-wider">Agency:</span>
+                            <span className="font-bold text-[#059669]">{cal.agency || "ABC NABL Lab"}</span>
+                          </div>
+                        </div>
+
+                        {/* Tags */}
+                        <div className="mt-4 flex flex-wrap gap-1.5">
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-[#243744]/10 text-[#243744]">
+                            {cal.productMaterial || "Concrete & Cement"}
+                          </span>
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-[#059669] border border-emerald-200/60">
+                            {cal.equipmentUseForTest || "Material Testing"}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Card Action Footer */}
+                      <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-end">
+                        <button
+                          onClick={() => handleOpenCertificate(cal)}
+                          className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#243744] text-white text-xs font-bold hover:bg-[#1A2733] transition-all shadow-xs active:scale-95"
+                        >
+                          <Eye size={14} /> View Certificate
+                        </button>
+                      </div>
+                    </motion.div>
                   ))}
-                </motion.tbody>
-              </table>
-            </div>
+                </motion.div>
+              </div>
+            </>
           )}
 
-          {/* Pagination */}
-          <div className="flex items-center justify-between border-t border-[#E2E8F0] px-6 py-4 bg-white select-none">
-            <p className="text-xs font-semibold text-[#64748B]">
-              Showing <span className="text-[#1E293B]">{filteredCalibrations.length}</span> of{" "}
-              <span className="text-[#1E293B]">{calibrations.length}</span> entries
-            </p>
-            <div className="flex items-center gap-1.5">
-              <button disabled className="h-8 w-8 rounded-lg border border-[#E2E8F0] flex items-center justify-center text-xs font-semibold text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-40">&lt;</button>
-              <span className="h-8 w-8 rounded-lg bg-[#243744] text-white flex items-center justify-center text-xs font-bold shadow-sm">1</span>
-              <button disabled className="h-8 w-8 rounded-lg border border-[#E2E8F0] flex items-center justify-center text-xs font-semibold text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-40">&gt;</button>
-            </div>
-          </div>
+          {/* Table Pagination */}
+          <TablePagination
+            totalItems={filteredCalibrations.length}
+            pageSize={pageSize}
+            currentPage={currentPage}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={setPageSize}
+            itemLabel="calibrations"
+          />
         </div>
 
         {/* ADD CALIBRATION RECORD DRAWER (Screen 8) */}
@@ -593,28 +810,15 @@ const CalibrationRegister = () => {
             </div>
 
             <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Calibration Cost (₹) <span className="text-red-500">*</span></label>
-                  <input
-                    type="number"
-                    placeholder="Enter amount"
-                    value={newCal.cost}
-                    onChange={(e) => setNewCal({ ...newCal, cost: e.target.value })}
-                    className="px-3.5 py-2.5 w-full border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#243744] focus:ring-2 focus:ring-[#243744]/10 transition-all"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Performed By <span className="text-red-500">*</span></label>
-                  <input
-                    type="text"
-                    placeholder="Technician name"
-                    value={newCal.performedBy}
-                    onChange={(e) => setNewCal({ ...newCal, performedBy: e.target.value })}
-                    className="px-3.5 py-2.5 w-full border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#243744] focus:ring-2 focus:ring-[#243744]/10 transition-all"
-                  />
-                </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Calibration Cost (₹) <span className="text-red-500">*</span></label>
+                <input
+                  type="number"
+                  placeholder="Enter amount"
+                  value={newCal.cost}
+                  onChange={(e) => setNewCal({ ...newCal, cost: e.target.value })}
+                  className="px-3.5 py-2.5 w-full border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#243744] focus:ring-2 focus:ring-[#243744]/10 transition-all"
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -644,7 +848,7 @@ const CalibrationRegister = () => {
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Upload Certificate File</label>
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5">Upload Certificate File <span className="text-red-500">*</span></label>
               <input
                 type="file"
                 ref={fileInputRef}
@@ -661,9 +865,13 @@ const CalibrationRegister = () => {
                 <span className="text-xs font-semibold text-gray-700">Drag & drop certificate PDF here</span>
                 <span className="text-[10px] text-gray-400 mt-0.5">or click to browse • Maximum size: 10MB</span>
               </div>
-              {certificateFile && (
+              {certificateFile ? (
                 <div className="mt-3 text-xs text-emerald-600 font-bold bg-emerald-50 p-2 rounded-lg border border-emerald-100 truncate">
                   ✓ Selected: {certificateFile.name}
+                </div>
+              ) : (
+                <div className="mt-2 text-[11px] text-red-500 font-medium">
+                  * Calibration certificate file is required.
                 </div>
               )}
             </div>

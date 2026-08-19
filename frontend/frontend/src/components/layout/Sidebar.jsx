@@ -236,15 +236,16 @@ const Sidebar = ({ isOpen, isCollapsed, onClose, onToggleCollapse }) => {
   }, [userRole, isSuperAdmin]);
 
   const qualityItems = useMemo(() => {
-    const raw = [
-      { path: "/document-control/nabl-dashboard", label: "NABL Dashboard", icon: "award", perm: "document.view" },
-      { path: "/document-control", label: "Document Control", icon: "fileCheck", perm: "document.view", end: true, activeWhen: (pathname) => pathname === "/document-control" || pathname === "/document-control/" },
-      { path: "/document-control/review-approval", label: "Review & Approval", icon: "checkSquare", perm: "document.view" },
-      { path: "/document-control/staff-acknowledgement", label: "Staff Acknowledgement", icon: "users", perm: "document.view" },
-      { path: "/document-control/audit-trail", label: "Audit Trail", icon: "history", perm: "document.view" },
+    if (isSuperAdmin) {
+      return [
+        { path: "/document-control/nabl-references", label: "NABL References", icon: "award", perm: "*" },
+        { path: "/document-control/categories", label: "Document Categories", icon: "settings", perm: "*" },
+      ];
+    }
+    return [
+      { path: "/document-control", label: "My Documents", icon: "fileCheck", perm: "document.view", end: true, activeWhen: (pathname) => pathname === "/document-control" || pathname === "/document-control/" },
     ];
-    return raw.filter((item) => hasPermission(userRole, item.perm));
-  }, [userRole]);
+  }, [isSuperAdmin]);
 
   const moduleItems = useMemo(() => {
     const raw = [
@@ -371,40 +372,55 @@ const Sidebar = ({ isOpen, isCollapsed, onClose, onToggleCollapse }) => {
                     end={item.path === "/dashboard"}
                   />
                 ))}
+                <div className="!mt-3 pt-3 border-t border-white/8 space-y-1.5">
+                  <SidebarSection title="QUALITY & COMPLIANCE" collapsed={isCollapsed} />
+                  {qualityItems.map((item) => (
+                    <SidebarLink
+                      key={item.path}
+                      to={item.path}
+                      label={item.label}
+                      icon={item.icon}
+                      collapsed={isCollapsed}
+                      onClick={onClose}
+                      end={item.end}
+                      activeWhen={item.activeWhen}
+                    />
+                  ))}
+                </div>
                 <SidebarSection title="Platform Configuration" collapsed={isCollapsed} />
                 <SidebarLink to="/superadmin/observation-templates" label="Observation Templates" icon="clipboard" collapsed={isCollapsed} onClick={onClose} />
                 <SidebarLink to="/superadmin/report-templates" label="Report Templates" icon="fileStack" collapsed={isCollapsed} onClick={onClose} />
               </>
-            ) : navItems.map((item) => {
-              if (item.subItems) {
-                return (
-                  <SidebarSubmenu
-                    key={item.label}
-                    label={item.label}
-                    icon={item.icon}
-                    subItems={item.subItems}
-                    collapsed={isCollapsed}
-                    onClose={onClose}
-                    activeWhen={item.activeWhen}
-                    path={item.path}
-                  />
-                );
-              }
-              return (
-                <SidebarLink
-                  key={item.path}
-                  to={item.path}
-                  label={item.label}
-                  icon={item.icon}
-                  collapsed={isCollapsed}
-                  onClick={onClose}
-                  end={item.path === "/dashboard"}
-                />
-              );
-            })}
-
-            {!(user?.role === "superadmin" || user?.role === "super_admin") && (
+            ) : (
               <>
+                {navItems.map((item) => {
+                  if (item.subItems) {
+                    return (
+                      <SidebarSubmenu
+                        key={item.label}
+                        label={item.label}
+                        icon={item.icon}
+                        subItems={item.subItems}
+                        collapsed={isCollapsed}
+                        onClose={onClose}
+                        activeWhen={item.activeWhen}
+                        path={item.path}
+                      />
+                    );
+                  }
+                  return (
+                    <SidebarLink
+                      key={item.path}
+                      to={item.path}
+                      label={item.label}
+                      icon={item.icon}
+                      collapsed={isCollapsed}
+                      onClick={onClose}
+                      end={item.path === "/dashboard"}
+                    />
+                  );
+                })}
+
                 <div className="!mt-3 pt-3 border-t border-white/8 space-y-1.5">
                   <SidebarSection title="QUALITY & COMPLIANCE" collapsed={isCollapsed} />
                   {qualityItems.map((item) => (

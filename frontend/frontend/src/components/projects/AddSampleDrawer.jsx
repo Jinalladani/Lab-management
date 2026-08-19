@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import CloseIcon from "@mui/icons-material/Close";
 import SearchableSelect from "./SearchableSelect";
 import { createSampleEntry } from "../../api/sampleMaster";
+import { getProjects } from "../../api/projects";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -25,8 +26,10 @@ const Field = ({ label, required, children, className = "", error }) => (
 const inputClass =
   "w-full border border-gray-300 rounded-xl px-3.5 py-2.5 outline-none focus:ring-2 focus:ring-[#243744]/10 focus:border-[#243744] bg-white text-sm font-medium transition-all";
 
-const AddSampleDrawer = ({ open, project, projectOptions = [], onClose, onSaved }) => {
+const AddSampleDrawer = ({ open, isOpen, project, projectOptions = [], onClose, onSaved, onSuccess }) => {
+  const isDrawerOpen = Boolean(open !== undefined ? open : isOpen);
   const [selectedProject, setSelectedProject] = useState(project || null);
+  const [availableProjects, setAvailableProjects] = useState(projectOptions);
   const [loading, setLoading] = useState(false);
 
   const [form, setForm] = useState({
@@ -42,7 +45,17 @@ const AddSampleDrawer = ({ open, project, projectOptions = [], onClose, onSaved 
   });
 
   useEffect(() => {
-    if (!open) return;
+    if (projectOptions && projectOptions.length > 0) {
+      setAvailableProjects(projectOptions);
+    } else if (isDrawerOpen) {
+      getProjects()
+        .then((res) => setAvailableProjects(res.data?.data || []))
+        .catch((err) => console.error("Failed to fetch projects in AddSampleDrawer:", err));
+    }
+  }, [projectOptions, isDrawerOpen]);
+
+  useEffect(() => {
+    if (!isDrawerOpen) return;
     if (project) {
       setSelectedProject(project);
       setForm({
@@ -57,6 +70,7 @@ const AddSampleDrawer = ({ open, project, projectOptions = [], onClose, onSaved 
         remarks: ""
       });
     } else {
+      setSelectedProject(null);
       setForm({
         project_id: "",
         material_name: "",
@@ -72,12 +86,12 @@ const AddSampleDrawer = ({ open, project, projectOptions = [], onClose, onSaved 
 
     const handleKeyDown = (e) => {
       if (e.key === "Escape") {
-        onClose();
+        if (onClose) onClose();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [open, project, onClose]);
+  }, [isDrawerOpen, project, onClose]);
 
   const handleChange = (field, value) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -101,14 +115,15 @@ const AddSampleDrawer = ({ open, project, projectOptions = [], onClose, onSaved 
 
     try {
       setLoading(true);
-      await createSampleEntry({
+      const res = await createSampleEntry({
         ...form,
         project_id: pid,
         client_name: selectedProject?.client_name || "Client"
       });
       toast.success("Sample receipt No. recorded successfully!");
-      onSaved();
-      onClose();
+      if (onSaved) onSaved(res);
+      if (onSuccess) onSuccess(res);
+      if (onClose) onClose();
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to record sample receipt");
     } finally {
@@ -116,7 +131,7 @@ const AddSampleDrawer = ({ open, project, projectOptions = [], onClose, onSaved 
     }
   };
 
-  if (!open) return null;
+  if (!isDrawerOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden bg-slate-900/40 backdrop-blur-sm flex justify-end">
@@ -141,7 +156,7 @@ const AddSampleDrawer = ({ open, project, projectOptions = [], onClose, onSaved 
           
           <Field label="Project" required>
             <SearchableSelect
-              options={projectOptions.map((p) => ({
+              options={availableProjects.map((p) => ({
                 id: p.project_id,
                 title: `${p.project_code} - ${p.project_name}`,
                 subtitle: p.client_name,

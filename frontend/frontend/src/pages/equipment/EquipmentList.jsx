@@ -3,7 +3,8 @@ import { createPortal } from "react-dom";
 import { useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Search, Plus, QrCode, Eye, Pencil, Trash2, X, RefreshCw, Briefcase, ChevronDown, Printer, Calendar
+  Search, Plus, QrCode, Eye, Pencil, Trash2, X, RefreshCw, Briefcase, ChevronDown, Printer, Calendar,
+  FlaskConical, CheckCircle, AlertTriangle, Award, ShieldCheck
 } from "lucide-react";
 import MainLayout from "../../components/layout/MainLayout";
 import { mockEquipmentDb } from "../../utils/mockEquipmentData";
@@ -17,6 +18,78 @@ const stagger = {
     hidden: { opacity: 0, y: 8 },
     visible: { opacity: 1, y: 0, transition: { duration: 0.25, ease: [0.22, 0.68, 0, 1] } },
   },
+};
+
+// Count up animation hook (exact Super Admin Dashboard reference)
+const useCountUp = (value) => {
+  const [displayValue, setDisplayValue] = useState(0);
+  useEffect(() => {
+    const target = Number(value) || 0;
+    const duration = 600;
+    const start = performance.now();
+    const tick = (now) => {
+      const progress = Math.min((now - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setDisplayValue(Math.round(target * eased));
+      if (progress < 1) requestAnimationFrame(tick);
+    };
+    const frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [value]);
+  return displayValue;
+};
+
+// Summary KPI Card Component (Exact Super Admin Dashboard #243744 & #059669 Pattern & Style)
+const KpiCard = ({ title, value = 0, subtitle, icon: Icon, tone = "navy", percentage, meterLabel = "Utilization Rate" }) => {
+  const animatedValue = useCountUp(value);
+
+  const toneStyles = {
+    navy: { border: "border-slate-200/80", bg: "bg-white", iconBg: "bg-[#243744]/10 text-[#243744]", meter: "bg-[#243744]" },
+    emerald: { border: "border-emerald-200/80", bg: "bg-white", iconBg: "bg-emerald-50 text-[#059669]", meter: "bg-[#059669]" },
+    blue: { border: "border-slate-200/80", bg: "bg-white", iconBg: "bg-[#243744]/10 text-[#243744]", meter: "bg-[#243744]" },
+    amber: { border: "border-amber-200/80", bg: "bg-white", iconBg: "bg-amber-50 text-amber-600", meter: "bg-amber-600" },
+    purple: { border: "border-slate-200/80", bg: "bg-white", iconBg: "bg-[#243744]/10 text-[#243744]", meter: "bg-[#243744]" }
+  };
+
+  const style = toneStyles[tone] || toneStyles.navy;
+
+  return (
+    <motion.article
+      variants={stagger.item}
+      whileHover={{ y: -3, boxShadow: "0 14px 30px rgba(0,0,0,0.06)" }}
+      className={`relative overflow-hidden rounded-2xl border ${style.border} ${style.bg} p-5 shadow-sm transition-all duration-200`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400">{title}</p>
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className="text-3xl font-black tracking-tight text-[#243744]">{animatedValue.toLocaleString()}</span>
+          </div>
+          <p className="mt-1 text-xs font-semibold text-slate-500">{subtitle}</p>
+        </div>
+        <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${style.iconBg} shadow-inner`}>
+          <Icon size={22} strokeWidth={2.2} />
+        </div>
+      </div>
+
+      {percentage !== undefined && (
+        <div className="mt-4 pt-3 border-t border-slate-100">
+          <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 mb-1.5">
+            <span>{meterLabel}</span>
+            <span className="text-[#243744]">{percentage}%</span>
+          </div>
+          <div className="h-1.5 w-full rounded-full bg-slate-100 overflow-hidden">
+            <motion.div
+              className={`h-full rounded-full ${style.meter}`}
+              initial={{ width: 0 }}
+              animate={{ width: `${Math.min(100, Math.max(0, percentage))}%` }}
+              transition={{ duration: 0.8, ease: "easeOut" }}
+            />
+          </div>
+        </div>
+      )}
+    </motion.article>
+  );
 };
 
 const getStatusBadge = (status) => {
@@ -308,13 +381,45 @@ const EquipmentList = () => {
     <MainLayout headerTitle="Equipment Registry" headerSubtitle="Manage, inspect, and trace laboratory apparatus & calibration records">
       <div className="mx-auto w-full max-w-[1800px] px-4 py-5 sm:px-5 lg:px-6">
 
-        {/* KPI Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <StatTile label="Total Equipment" value={stats.total} icon="microscope" tone="primary" caption="Registry" />
-          <StatTile label="Active Equipment" value={stats.active} icon="check" tone="success" caption="Active" />
-          <StatTile label="Calibration Due" value={stats.dueSoon} icon="calendar" tone="warning" caption="30 Days" />
-          <StatTile label="Overdue" value={stats.overdue} icon="warning" tone="danger" caption="Critical" />
-        </div>
+        {/* 4 Summary KPI Cards (Exact Super Admin Dashboard UI, Color Codes & Pattern) */}
+        <motion.div variants={stagger.container} initial="hidden" animate="visible" className="mb-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <KpiCard
+            title="Total Equipment"
+            value={stats.total}
+            subtitle="Master Registry Assets"
+            icon={FlaskConical}
+            tone="navy"
+            percentage={100}
+            meterLabel="System Logged Rate"
+          />
+          <KpiCard
+            title="Active Equipment"
+            value={stats.active}
+            subtitle="Operational Instruments"
+            icon={CheckCircle}
+            tone="emerald"
+            percentage={stats.total > 0 ? Math.round((stats.active / stats.total) * 100) : 100}
+            meterLabel="Operational Rate"
+          />
+          <KpiCard
+            title="Calibration Due"
+            value={stats.dueSoon}
+            subtitle="Upcoming 30 Days Window"
+            icon={Calendar}
+            tone="navy"
+            percentage={stats.total > 0 ? Math.round((stats.dueSoon / stats.total) * 100) : 0}
+            meterLabel="Calibration Due Window"
+          />
+          <KpiCard
+            title="Overdue / Alert"
+            value={stats.overdue}
+            subtitle="Attention Required"
+            icon={AlertTriangle}
+            tone="amber"
+            percentage={stats.total > 0 ? Math.round((stats.overdue / stats.total) * 100) : 0}
+            meterLabel="Inspection Overdue Rate"
+          />
+        </motion.div>
 
         {/* Filters and Search Bar */}
         <div className="mb-6 flex flex-col xl:flex-row gap-4 items-stretch xl:items-center justify-between">
@@ -397,7 +502,7 @@ const EquipmentList = () => {
           </div>
         </div>
 
-        {/* Datatable */}
+        {/* Datatable & Mobile Card Grid */}
         <div className="bg-white rounded-2xl shadow-sm border border-[#E2E8F0] overflow-hidden">
           {loading ? (
             <TableSkeleton rows={5} cols={8} />
@@ -408,62 +513,135 @@ const EquipmentList = () => {
               <p className="text-xs text-[#64748B] mt-1">Try adjusting your filters or search query.</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-[#E2E8F0] bg-[#FAFBFD] text-[10px] font-bold text-[#64748B] uppercase tracking-wider">
-                    <th className="px-6 py-3.5">EQ Code</th>
-                    <th className="px-6 py-3.5">Equipment Name</th>
-                    <th className="px-6 py-3.5">Category</th>
-                    <th className="px-6 py-3.5">Location</th>
-                    <th className="px-6 py-3.5">Status</th>
-                    <th className="px-6 py-3.5">Calibration Status</th>
-                    <th className="px-6 py-3.5">Next Due</th>
-                    <th className="px-6 py-3.5 text-right w-[90px]">Actions</th>
-                  </tr>
-                </thead>
-                <motion.tbody variants={stagger.container} initial="hidden" animate="visible" className="divide-y divide-[#F1F5F9]">
-                  {filteredEquipments.map((eq) => (
-                    <motion.tr key={eq.id} variants={stagger.item} className="hover:bg-[#FAF9FF] transition-colors">
-                      <td className="px-6 py-4 text-xs font-bold text-[#243744] hover:underline cursor-pointer" onClick={() => navigate(`/equipment/view/${eq.id}`)}>
-                        {eq.equipmentCode || eq.id}
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="font-bold text-xs text-slate-900 block">{eq.name}</span>
-                        <span className="text-[10px] text-slate-400 font-semibold block mt-0.5">Model: {eq.model || "N/A"} • S/N: {eq.serialNo || "N/A"}</span>
-                      </td>
-                      <td className="px-6 py-4 text-xs font-semibold text-[#475569]">{eq.category}</td>
-                      <td className="px-6 py-4 text-xs font-semibold text-[#475569]">{eq.location || eq.laboratory || "—"}</td>
-                      <td className="px-6 py-4">{getStatusBadge(eq.status)}</td>
-                      <td className="px-6 py-4">{getCalibrationBadge(eq.nextDue)}</td>
-                      <td className="px-6 py-4 text-xs font-semibold text-[#475569]">
-                        {eq.nextDue ? new Date(eq.nextDue).toLocaleDateString("en-IN", { day: '2-digit', month: 'short', year: 'numeric' }) : "—"}
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <button
-                          onClick={(e) => handleToggleDropdown(eq.id, e)}
-                          className="p-1.5 hover:bg-[#F1F5F9] rounded-lg transition-colors text-[#8A97A4] hover:text-[#1A2733]"
-                        >
-                          <ChevronDown size={16} />
-                        </button>
+            <>
+              {/* Desktop Table View (Hidden on mobile) */}
+              <div className="hidden lg:block overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-[#E2E8F0] bg-[#FAFBFD] text-[10px] font-bold text-[#64748B] uppercase tracking-wider">
+                      <th className="px-6 py-3.5">EQ Code</th>
+                      <th className="px-6 py-3.5">Equipment Name</th>
+                      <th className="px-6 py-3.5">Category</th>
+                      <th className="px-6 py-3.5">Location</th>
+                      <th className="px-6 py-3.5">Status</th>
+                      <th className="px-6 py-3.5">Calibration Status</th>
+                      <th className="px-6 py-3.5">Next Due</th>
+                      <th className="px-6 py-3.5 text-right w-[90px]">Actions</th>
+                    </tr>
+                  </thead>
+                  <motion.tbody variants={stagger.container} initial="hidden" animate="visible" className="divide-y divide-[#F1F5F9]">
+                    {filteredEquipments.map((eq) => (
+                      <motion.tr key={eq.id} variants={stagger.item} className="hover:bg-[#FAF9FF] transition-colors">
+                        <td className="px-6 py-4 text-xs font-bold text-[#243744] hover:underline cursor-pointer" onClick={() => navigate(`/equipment/view/${eq.id}`)}>
+                          {eq.equipmentCode || eq.id}
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="font-bold text-xs text-slate-900 block">{eq.name}</span>
+                          <span className="text-[10px] text-slate-400 font-semibold block mt-0.5">Model: {eq.model || "N/A"} • S/N: {eq.serialNo || "N/A"}</span>
+                        </td>
+                        <td className="px-6 py-4 text-xs font-semibold text-[#475569]">{eq.category}</td>
+                        <td className="px-6 py-4 text-xs font-semibold text-[#475569]">{eq.location || eq.laboratory || "—"}</td>
+                        <td className="px-6 py-4">{getStatusBadge(eq.status)}</td>
+                        <td className="px-6 py-4">{getCalibrationBadge(eq.nextDue)}</td>
+                        <td className="px-6 py-4 text-xs font-semibold text-[#475569]">
+                          {eq.nextDue ? new Date(eq.nextDue).toLocaleDateString("en-IN", { day: '2-digit', month: 'short', year: 'numeric' }) : "—"}
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <button
+                            onClick={(e) => handleToggleDropdown(eq.id, e)}
+                            className="p-1.5 hover:bg-[#F1F5F9] rounded-lg transition-colors text-[#8A97A4] hover:text-[#1A2733]"
+                          >
+                            <ChevronDown size={16} />
+                          </button>
 
-                        <PortalActionMenu
-                          anchorEl={activeDropdownId === eq.id ? activeAnchorEl : null}
-                          open={activeDropdownId === eq.id}
-                          onClose={() => { setActiveDropdownId(null); setActiveAnchorEl(null); }}
-                          actions={[
-                            { label: "View Details", icon: Eye, onClick: () => navigate(`/equipment/view/${eq.id}`) },
-                            { label: "Edit Equipment", icon: Pencil, onClick: () => navigate(`/equipment/edit/${eq.id}`) },
-                            { label: "Print QR Label", icon: QrCode, onClick: () => handlePrintLabel(eq) },
-                            { label: "Delete Equipment", icon: Trash2, danger: true, onClick: () => handleDelete(eq.id) }
-                          ]}
-                        />
-                      </td>
-                    </motion.tr>
+                          <PortalActionMenu
+                            anchorEl={activeDropdownId === eq.id ? activeAnchorEl : null}
+                            open={activeDropdownId === eq.id}
+                            onClose={() => { setActiveDropdownId(null); setActiveAnchorEl(null); }}
+                            actions={[
+                              { label: "View Details", icon: Eye, onClick: () => navigate(`/equipment/view/${eq.id}`) },
+                              { label: "Edit Equipment", icon: Pencil, onClick: () => navigate(`/equipment/edit/${eq.id}`) },
+                              { label: "Print QR Label", icon: QrCode, onClick: () => handlePrintLabel(eq) },
+                              { label: "Delete Equipment", icon: Trash2, danger: true, onClick: () => handleDelete(eq.id) }
+                            ]}
+                          />
+                        </td>
+                      </motion.tr>
+                    ))}
+                  </motion.tbody>
+                </table>
+              </div>
+
+              {/* Mobile Card Grid View (Visible on screens below lg - Super Admin Dashboard Style) */}
+              <div className="block lg:hidden p-4">
+                <motion.div variants={stagger.container} initial="hidden" animate="visible" className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {filteredEquipments.map((eq) => (
+                    <motion.div
+                      key={eq.id}
+                      variants={stagger.item}
+                      whileHover={{ y: -3, boxShadow: "0 14px 30px rgba(0,0,0,0.06)" }}
+                      className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm transition-all duration-200 flex flex-col justify-between"
+                    >
+                      <div>
+                        {/* Top Code & Status */}
+                        <div className="flex items-center justify-between gap-2 mb-3">
+                          <span className="px-2.5 py-1 rounded-xl bg-[#243744] text-white text-[11px] font-extrabold tracking-wider shadow-xs">
+                            {eq.equipmentCode || eq.id}
+                          </span>
+                          {getStatusBadge(eq.status)}
+                        </div>
+
+                        {/* Title & Model */}
+                        <h4 className="text-sm font-black text-[#1E293B] tracking-tight line-clamp-1 cursor-pointer hover:text-[#243744]" onClick={() => navigate(`/equipment/view/${eq.id}`)}>
+                          {eq.name}
+                        </h4>
+                        <p className="text-xs font-semibold text-slate-500 mt-0.5">Model: {eq.model || "N/A"} • S/N: {eq.serialNo || "N/A"}</p>
+
+                        <div className="my-3.5 border-t border-slate-100" />
+
+                        {/* Details */}
+                        <div className="space-y-2 text-xs text-slate-600">
+                          <div className="flex justify-between items-center">
+                            <span className="text-slate-400 font-extrabold text-[10px] uppercase tracking-wider">Category:</span>
+                            <span className="font-bold text-[#1E293B]">{eq.category}</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-slate-400 font-extrabold text-[10px] uppercase tracking-wider">Location:</span>
+                            <span className="font-bold text-[#1E293B]">{eq.location || eq.laboratory || "—"}</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-slate-400 font-extrabold text-[10px] uppercase tracking-wider">Calibration:</span>
+                            <span>{getCalibrationBadge(eq.nextDue)}</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-slate-400 font-extrabold text-[10px] uppercase tracking-wider">Next Due:</span>
+                            <span className="font-black text-[#243744]">
+                              {eq.nextDue ? new Date(eq.nextDue).toLocaleDateString("en-IN", { day: '2-digit', month: 'short', year: 'numeric' }) : "—"}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Card Action Footer */}
+                      <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => handlePrintLabel(eq)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-[#243744] text-xs font-bold hover:bg-slate-50 transition-all active:scale-95"
+                        >
+                          <QrCode size={14} /> Label
+                        </button>
+                        <button
+                          onClick={() => navigate(`/equipment/view/${eq.id}`)}
+                          className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[#243744] text-white text-xs font-bold hover:bg-[#1A2733] transition-all shadow-xs active:scale-95"
+                        >
+                          <Eye size={14} /> View
+                        </button>
+                      </div>
+                    </motion.div>
                   ))}
-                </motion.tbody>
-              </table>
-            </div>
+                </motion.div>
+              </div>
+            </>
           )}
 
           {/* Pagination */}

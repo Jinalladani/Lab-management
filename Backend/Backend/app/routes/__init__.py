@@ -18,6 +18,7 @@ from .superadmin_observation_templates import superadmin_observation_templates_b
 from .sample_observation import sample_observations_bp
 from .equipment import equipment_bp
 from .calibration import calibration_bp
+from .document_control import document_control_bp
 
 def register_blueprints(app):
     app.register_blueprint(home_bp, url_prefix="/api")
@@ -40,3 +41,5 @@ def register_blueprints(app):
     app.register_blueprint(sample_observations_bp, url_prefix="/api/sample-observations")
     app.register_blueprint(equipment_bp, url_prefix="/api/equipment")
     app.register_blueprint(calibration_bp, url_prefix="/api/calibration")
+    app.register_blueprint(document_control_bp, url_prefix="/api/document-control")
+

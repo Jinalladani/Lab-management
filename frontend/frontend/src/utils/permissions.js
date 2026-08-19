@@ -38,6 +38,7 @@ export const ROLE_PERMISSIONS = {
     "report.view", "report.generate", "report.approve",
     "equipment.view", "equipment.manage",
     "calibration.view", "calibration.manage",
+    "document.view", "document.manage", "document.approve", "document.acknowledge",
     "user.view", "user.manage",
     "settings.manage"
   ],
@@ -54,6 +55,7 @@ export const ROLE_PERMISSIONS = {
     "report.view", "report.generate", "report.approve",
     "equipment.view", "equipment.manage",
     "calibration.view", "calibration.manage",
+    "document.view", "document.manage", "document.approve", "document.acknowledge",
     "user.view", "user.manage"
   ],
   
@@ -68,13 +70,15 @@ export const ROLE_PERMISSIONS = {
     "result.view",
     "report.view", "report.generate",
     "equipment.view", "equipment.manage",
-    "calibration.view", "calibration.manage"
+    "calibration.view", "calibration.manage",
+    "document.view", "document.manage", "document.acknowledge"
   ],
   
   helper: [
     "dashboard.view",
     "sample.receive", "sample.view",
-    "observation.view", "observation.fill", "observation.edit"
+    "observation.view", "observation.fill", "observation.edit",
+    "document.view", "document.acknowledge"
   ]
 };
 

@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, Edit, Paperclip, Download, Info, CheckCircle, XCircle, Briefcase, Settings, CheckSquare } from "lucide-react";
 import MainLayout from "../../components/layout/MainLayout";
 import { getEquipmentDetails } from "../../api";
+import { SERVER_URL } from "../../api/axios";
 import { Button } from "../../components/ui";
 import { getRuntimeCalibrationStatus, getCalibrationBadgeClass } from "../../components/equipment/EquipmentModuleShared";
 
@@ -340,14 +341,14 @@ const EquipmentDetails = () => {
                     {getDocByCategory("Photograph") ? (
                       <div className="rounded-xl overflow-hidden border border-gray-150 bg-gray-50">
                         <img
-                          src={`http://localhost:5000/${getDocByCategory("Photograph").filePath}`}
+                          src={`${SERVER_URL}/${getDocByCategory("Photograph").filePath}`}
                           alt={equipment.name}
                           className="w-full h-auto object-cover max-h-[300px]"
                         />
                         <div className="p-3 bg-white border-t border-gray-150 flex items-center justify-between text-xs">
                           <span className="text-gray-500 truncate font-semibold">{getDocByCategory("Photograph").fileName}</span>
                           <a
-                            href={`http://localhost:5000/${getDocByCategory("Photograph").filePath}`}
+                            href={`${SERVER_URL}/${getDocByCategory("Photograph").filePath}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-[#243744] hover:underline font-bold"

@@ -74,11 +74,15 @@ import CalibrationRegister from "./pages/calibration/CalibrationRegister";
 import CalibrationDueOverdue from "./pages/calibration/CalibrationDueOverdue";
 import MaintenanceHistory from "./pages/calibration/MaintenanceHistory";
 
-// import ReportList  from "./pages/reports/ReportList";
-// import ReportCreate from "./pages/reports/ReportCreate";
-// import ReportDetail from "./pages/reports/ReportDetail";
-
-
+import DocumentControlMain from "./components/DocumentControl/DocumentControlMain";
+import NablReferencesPage from "./components/DocumentControl/NablReferencesPage";
+import DocumentCategoriesPage from "./components/DocumentControl/DocumentCategoriesPage";
+import NablDashboardPage from "./components/DocumentControl/NablDashboardPage";
+import ReviewApprovalPage from "./components/DocumentControl/ReviewApprovalPage";
+import StaffAcknowledgementPage from "./components/DocumentControl/StaffAcknowledgementPage";
+import ReviewDuePage from "./components/DocumentControl/ReviewDuePage";
+import ObsoleteDocumentsPage from "./components/DocumentControl/ObsoleteDocumentsPage";
+import AuditTrailPage from "./components/DocumentControl/AuditTrailPage";
 
 function App() {
   return (
@@ -631,6 +635,88 @@ function App() {
         element={
           <ProtectedRoute requiredPermission="report.view">
             <ReportView />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Document Control Routes */}
+      <Route
+        path="/document-control"
+        element={
+          <ProtectedRoute requiredPermission="document.view">
+            <DocumentControlMain />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/document-control/nabl-references"
+        element={
+          <ProtectedRoute>
+            <NablReferencesPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/document-control/categories"
+        element={
+          <ProtectedRoute>
+            <DocumentCategoriesPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/document-control/nabl-dashboard"
+        element={
+          <ProtectedRoute requiredPermission="document.view">
+            <NablDashboardPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/nabl-dashboard"
+        element={
+          <ProtectedRoute requiredPermission="document.view">
+            <NablDashboardPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/document-control/review-approval"
+        element={
+          <ProtectedRoute requiredPermission="document.view">
+            <ReviewApprovalPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/document-control/staff-acknowledgement"
+        element={
+          <ProtectedRoute requiredPermission="document.view">
+            <StaffAcknowledgementPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/document-control/review-due"
+        element={
+          <ProtectedRoute requiredPermission="document.view">
+            <ReviewDuePage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/document-control/obsolete"
+        element={
+          <ProtectedRoute requiredPermission="document.view">
+            <ObsoleteDocumentsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/document-control/audit-trail"
+        element={
+          <ProtectedRoute requiredPermission="document.view">
+            <AuditTrailPage />
           </ProtectedRoute>
         }
       />

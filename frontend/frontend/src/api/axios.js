@@ -73,4 +73,6 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
+export const SERVER_URL = (api.defaults.baseURL || "http://localhost:5000/api").replace(/\/api\/?$/, "");
+
 export default api;

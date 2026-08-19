@@ -306,8 +306,8 @@ const ObservationTemplates = () => {
     }
     return {
       icon: IconComp,
-      bgColor: "bg-[#2563EB]/10",
-      iconColor: "text-[#2563EB]",
+      bgColor: "bg-[#243744]/10",
+      iconColor: "text-[#243744]",
     };
   };
 
@@ -1047,7 +1047,7 @@ const ObservationTemplates = () => {
             {/* Top Toolbar Bar */}
             <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm shrink-0">
               <div className="flex items-center gap-3">
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 text-[#2563EB] px-3 py-1 text-xs font-bold border border-blue-200">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 text-[#243744] px-3 py-1 text-xs font-bold border border-slate-200">
                   <Layers3 size={14} />
                   {createdOnlyHierarchy.length} Active Scope Groups
                 </span>
@@ -1065,7 +1065,7 @@ const ObservationTemplates = () => {
                     placeholder="Search created templates..."
                     value={listSearch}
                     onChange={(e) => setListSearch(e.target.value)}
-                    className="w-full rounded-xl border border-slate-300 bg-white pl-9 pr-3 py-2 text-xs text-slate-800 focus:border-[#2563EB] focus:outline-none"
+                    className="w-full rounded-xl border border-slate-300 bg-white pl-9 pr-3 py-2 text-xs text-slate-800 focus:border-[#243744] focus:outline-none"
                   />
                 </div>
 
@@ -1081,7 +1081,7 @@ const ObservationTemplates = () => {
                 <button
                   type="button"
                   onClick={handleStartNewTemplate}
-                  className="flex items-center gap-2 rounded-xl bg-[#2563EB] px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-blue-700 transition-colors"
+                  className="flex items-center gap-2 rounded-xl bg-[#243744] px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-[#1A2733] transition-colors"
                 >
                   <Plus size={16} />
                   <span>+ Create Observation Template</span>
@@ -1093,7 +1093,7 @@ const ObservationTemplates = () => {
             {loading ? (
               <div className="flex-1 flex items-center justify-center bg-white rounded-2xl border border-slate-200">
                 <div className="text-center text-slate-500 space-y-2">
-                  <Loader2 className="animate-spin mx-auto text-[#2563EB]" size={28} />
+                  <Loader2 className="animate-spin mx-auto text-[#243744]" size={28} />
                   <p className="text-xs font-bold">Loading created observation templates...</p>
                 </div>
               </div>
@@ -1108,7 +1108,7 @@ const ObservationTemplates = () => {
                   <button
                     type="button"
                     onClick={handleStartNewTemplate}
-                    className="inline-flex items-center gap-2 rounded-xl bg-[#2563EB] px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-blue-700"
+                    className="inline-flex items-center gap-2 rounded-xl bg-[#243744] px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-[#1A2733]"
                   >
                     <Plus size={15} />
                     <span>Create Template Now</span>
@@ -1138,8 +1138,8 @@ const ObservationTemplates = () => {
                           key={group.group_id}
                           onClick={() => setSelectedGroupId(group.group_id)}
                           className={`w-full p-3 rounded-xl border transition-all cursor-pointer flex items-center gap-3 ${isActive
-                              ? "bg-[#2563EB] border-[#2563EB] text-white shadow-sm"
-                              : "bg-white border-slate-200 hover:bg-slate-50"
+                            ? "bg-[#243744] border-[#243744] text-white shadow-sm"
+                            : "bg-white border-slate-200 hover:bg-slate-50"
                             }`}
                         >
                           <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${isActive ? "bg-white/20 text-white" : `${visuals.bgColor} ${visuals.iconColor}`
@@ -1201,7 +1201,7 @@ const ObservationTemplates = () => {
                                     size={15}
                                     className={`text-slate-600 transition-transform duration-200 ${isExpanded ? "" : "-rotate-90"}`}
                                   />
-                                  <CircleDot size={14} className="text-[#2563EB]" />
+                                  <CircleDot size={14} className="text-[#243744]" />
                                   <span className="text-xs font-bold text-slate-900">
                                     {material.material_name}
                                   </span>
@@ -1240,12 +1240,12 @@ const ObservationTemplates = () => {
                                             <td className="p-3 pl-6 font-bold text-slate-900">
                                               {test.test_name}
                                             </td>
-                                            <td className="p-3 font-mono font-semibold text-blue-700">
+                                            <td className="p-3 font-mono font-semibold text-[#243744]">
                                               {test.test_method || "IS Standard"}
                                             </td>
                                             <td className="p-3">
                                               <span className="font-bold text-slate-900 flex items-center gap-1.5">
-                                                <FileSpreadsheet size={14} className="text-[#2563EB]" />
+                                                <FileSpreadsheet size={14} className="text-[#243744]" />
                                                 {tmpl.name || tmpl.title}
                                                 <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">v{tmpl.version || "1.0"}</span>
                                               </span>
@@ -1269,7 +1269,7 @@ const ObservationTemplates = () => {
                                                 <button
                                                   type="button"
                                                   onClick={() => handleEditTemplate(tmpl)}
-                                                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-blue-50 border border-blue-200 text-[#2563EB] hover:bg-blue-100 font-bold text-[11px]"
+                                                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-100 border border-slate-200 text-[#243744] hover:bg-slate-200 font-bold text-[11px]"
                                                   title="Edit template layout"
                                                 >
                                                   <Edit3 size={13} />
@@ -1322,9 +1322,9 @@ const ObservationTemplates = () => {
                   <button
                     type="button"
                     onClick={() => setIsScopeDropdownOpen(!isScopeDropdownOpen)}
-                    className="flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-800 hover:border-[#2563EB] shadow-xs"
+                    className="flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-800 hover:border-[#243744] shadow-xs"
                   >
-                    <FlaskConical size={16} className="text-[#2563EB]" />
+                    <FlaskConical size={16} className="text-[#243744]" />
                     <span>
                       {selectedScopeTestIds.length === 0
                         ? "Select Test Scopes (Multi-select)"
@@ -1354,7 +1354,7 @@ const ObservationTemplates = () => {
                           value={scopeSearchQuery}
                           onChange={(e) => setScopeSearchQuery(e.target.value)}
                           placeholder="Search test scope..."
-                          className="w-full rounded-lg border border-slate-200 pl-8 pr-2.5 py-1 text-xs text-slate-800 focus:border-[#2563EB] focus:outline-none"
+                          className="w-full rounded-lg border border-slate-200 pl-8 pr-2.5 py-1 text-xs text-slate-800 focus:border-[#243744] focus:outline-none"
                         />
                       </div>
 
@@ -1371,7 +1371,7 @@ const ObservationTemplates = () => {
                                 type="checkbox"
                                 checked={isChecked}
                                 onChange={() => toggleScopeTestId(sId)}
-                                className="h-4 w-4 rounded border-slate-300 text-[#2563EB] focus:ring-blue-500"
+                                className="h-4 w-4 rounded border-slate-300 text-[#243744] focus:ring-[#243744]"
                               />
                               <div className="min-w-0 flex-1">
                                 <p className="font-bold text-slate-900 truncate">{s.test_name}</p>
@@ -1386,7 +1386,7 @@ const ObservationTemplates = () => {
                         <button
                           type="button"
                           onClick={() => setSelectedScopeTestIds(scopes.map((s) => s.scope_test_id || s.id))}
-                          className="text-[#2563EB] font-bold hover:underline"
+                          className="text-[#243744] font-bold hover:underline"
                         >
                           Select All
                         </button>
@@ -1434,7 +1434,7 @@ const ObservationTemplates = () => {
                   type="button"
                   disabled={isSaving}
                   onClick={() => handleSaveToDatabase("Active")}
-                  className="flex items-center gap-1.5 rounded-xl bg-[#2563EB] px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"
+                  className="flex items-center gap-1.5 rounded-xl bg-[#243744] px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-[#1A2733] disabled:opacity-50"
                 >
                   {isSaving ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}
                   <span>Save & Publish Template</span>
@@ -1444,8 +1444,8 @@ const ObservationTemplates = () => {
 
             {/* Selected Test Scope Badges Bar */}
             {selectedScopeTestIds.length > 0 && (
-              <div className="bg-blue-50/70 border-b border-blue-100 px-6 py-2 flex items-center gap-2 flex-wrap">
-                <span className="text-[11px] font-bold text-[#2563EB] uppercase">Assigned Test Scopes:</span>
+              <div className="bg-slate-100 border-b border-slate-200 px-6 py-2 flex items-center gap-2 flex-wrap">
+                <span className="text-[11px] font-bold text-[#243744] uppercase">Assigned Test Scopes:</span>
                 {selectedScopeTestIds.map((id) => {
                   const s = scopes.find((item) => String(item.scope_test_id || item.id) === String(id));
                   return (
@@ -1491,9 +1491,9 @@ const ObservationTemplates = () => {
                             draggable
                             onDragStart={(e) => handlePaletteDragStart(e, f)}
                             onClick={() => handleAddField(f)}
-                            className="flex flex-col items-start gap-1 rounded-xl border border-slate-200 bg-slate-50/50 p-2.5 text-left transition-all hover:border-[#2563EB] hover:bg-blue-50/50 hover:shadow-sm cursor-grab active:cursor-grabbing group"
+                            className="flex flex-col items-start gap-1 rounded-xl border border-slate-200 bg-slate-50/50 p-2.5 text-left transition-all hover:border-[#243744] hover:bg-slate-100/50 hover:shadow-sm cursor-grab active:cursor-grabbing group"
                           >
-                            <div className="flex items-center gap-1.5 text-slate-600 group-hover:text-[#2563EB]">
+                            <div className="flex items-center gap-1.5 text-slate-600 group-hover:text-[#243744]">
                               <IconComp size={15} />
                               <span className="text-xs font-medium truncate">{f.label}</span>
                             </div>
@@ -1527,7 +1527,7 @@ const ObservationTemplates = () => {
                       }}
                       className="rounded-2xl border-2 border-dashed border-slate-300 bg-white p-12 text-center shadow-sm space-y-4 my-6"
                     >
-                      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-[#2563EB]">
+                      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-[#243744]">
                         <Sparkles size={28} />
                       </div>
                       <div>
@@ -1539,7 +1539,7 @@ const ObservationTemplates = () => {
                       <button
                         type="button"
                         onClick={handleAddSection}
-                        className="inline-flex items-center gap-2 rounded-xl bg-[#2563EB] px-5 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-blue-700"
+                        className="inline-flex items-center gap-2 rounded-xl bg-[#243744] px-5 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-[#1A2733]"
                       >
                         <Plus size={16} />
                         <span>Add First Section</span>
@@ -1561,8 +1561,8 @@ const ObservationTemplates = () => {
                             onDragLeave={() => setDraggedOverSectionId(null)}
                             onDrop={(e) => handleDropOnSection(e, section.id, sIdx)}
                             onClick={() => setSelectedSectionId(section.id)}
-                            className={`rounded-2xl border bg-white shadow-sm transition-all ${isDraggedOver ? "border-[#2563EB] ring-4 ring-[#2563EB]/20 bg-blue-50/10" : ""
-                              } ${isSectionSelected ? "border-[#2563EB] ring-2 ring-[#2563EB]/10" : "border-slate-200"
+                            className={`rounded-2xl border bg-white shadow-sm transition-all ${isDraggedOver ? "border-[#243744] ring-4 ring-[#243744]/20 bg-slate-50/10" : ""
+                              } ${isSectionSelected ? "border-[#243744] ring-2 ring-[#243744]/10" : "border-slate-200"
                               }`}
                           >
                             <div
@@ -1581,7 +1581,7 @@ const ObservationTemplates = () => {
                                       prev.map((s) => (s.id === section.id ? { ...s, title: newTitle } : s))
                                     );
                                   }}
-                                  className="font-bold text-sm text-[#2563EB] bg-transparent focus:outline-none focus:bg-white focus:ring-1 focus:ring-blue-400 rounded px-1"
+                                  className="font-bold text-sm text-[#243744] bg-transparent focus:outline-none focus:bg-white focus:ring-1 focus:ring-[#243744] rounded px-1"
                                 />
                               </div>
                               <button
@@ -1628,19 +1628,19 @@ const ObservationTemplates = () => {
                                         }}
                                         className={`relative rounded-xl border p-3.5 transition-all cursor-grab active:cursor-grabbing ${isTable ? "col-span-full" : ""
                                           } ${isSelected
-                                            ? "border-[#2563EB] bg-blue-50/20 ring-2 ring-[#2563EB]/20"
+                                            ? "border-[#243744] bg-slate-100/20 ring-2 ring-[#243744]/20"
                                             : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50"
                                           }`}
                                       >
                                         <div className="flex items-center justify-between mb-2">
                                           <div className="flex items-center gap-2">
                                             <GripVertical size={14} className="text-slate-300" />
-                                            {isTable && <Table2 size={16} className="text-[#2563EB]" />}
+                                            {isTable && <Table2 size={16} className="text-[#243744]" />}
                                             <input
                                               type="text"
                                               value={f.label}
                                               onChange={(e) => handleUpdateFieldLabel(f.id, e.target.value)}
-                                              className="text-xs font-bold text-slate-800 bg-transparent focus:outline-none focus:bg-white focus:ring-1 focus:ring-blue-400 rounded px-1"
+                                              className="text-xs font-bold text-slate-800 bg-transparent focus:outline-none focus:bg-white focus:ring-1 focus:ring-[#243744] rounded px-1"
                                             />
                                           </div>
                                           <button
@@ -1665,7 +1665,7 @@ const ObservationTemplates = () => {
                                                     ? `${rangeBounds.topLeftRef}:${rangeBounds.bottomRightRef}`
                                                     : activeCellRef || "A1"}
                                                 </span>
-                                                <span className="font-extrabold text-[#2563EB]">fx</span>
+                                                <span className="font-extrabold text-[#243744]">fx</span>
                                                 <input
                                                   type="text"
                                                   value={activeCellRef ? (f.cellData?.[activeCellRef] || "") : ""}
@@ -1675,7 +1675,7 @@ const ObservationTemplates = () => {
                                                     }
                                                   }}
                                                   placeholder="Type text or =formula..."
-                                                  className="w-44 sm:w-56 bg-white border border-slate-200 rounded px-2 py-1 text-xs font-mono focus:outline-none focus:border-blue-500"
+                                                  className="w-44 sm:w-56 bg-white border border-slate-200 rounded px-2 py-1 text-xs font-mono focus:outline-none focus:border-[#243744]"
                                                 />
                                               </div>
 
@@ -1686,7 +1686,7 @@ const ObservationTemplates = () => {
                                                     e.stopPropagation();
                                                     handleToggleCellFormat(f.id, "bold");
                                                   }}
-                                                  className={`p-1.5 rounded border text-xs font-bold ${activeCellRef && f.cellStyles?.[activeCellRef]?.bold ? "bg-blue-600 text-white" : "bg-white"
+                                                  className={`p-1.5 rounded border text-xs font-bold ${activeCellRef && f.cellStyles?.[activeCellRef]?.bold ? "bg-[#243744] text-white" : "bg-white"
                                                     }`}
                                                 >
                                                   <Bold size={13} />
@@ -1697,7 +1697,7 @@ const ObservationTemplates = () => {
                                                     e.stopPropagation();
                                                     handleToggleCellFormat(f.id, "italic");
                                                   }}
-                                                  className={`p-1.5 rounded border text-xs ${activeCellRef && f.cellStyles?.[activeCellRef]?.italic ? "bg-blue-600 text-white" : "bg-white"
+                                                  className={`p-1.5 rounded border text-xs ${activeCellRef && f.cellStyles?.[activeCellRef]?.italic ? "bg-[#243744] text-white" : "bg-white"
                                                     }`}
                                                 >
                                                   <Italic size={13} />
@@ -1708,7 +1708,7 @@ const ObservationTemplates = () => {
                                                     e.stopPropagation();
                                                     handleToggleCellFormat(f.id, "center");
                                                   }}
-                                                  className={`p-1.5 rounded border text-xs ${activeCellRef && f.cellStyles?.[activeCellRef]?.center ? "bg-blue-600 text-white" : "bg-white"
+                                                  className={`p-1.5 rounded border text-xs ${activeCellRef && f.cellStyles?.[activeCellRef]?.center ? "bg-[#243744] text-white" : "bg-white"
                                                     }`}
                                                 >
                                                   <AlignCenter size={13} />
@@ -1726,7 +1726,7 @@ const ObservationTemplates = () => {
                                                       alert("Please drag to select cells to merge!");
                                                     }
                                                   }}
-                                                  className="px-3 py-1 bg-[#2563EB] text-white rounded text-[11px] font-bold flex items-center gap-1"
+                                                  className="px-3 py-1 bg-[#243744] text-white rounded text-[11px] font-bold flex items-center gap-1"
                                                 >
                                                   <Merge size={13} />
                                                   <span>Merge & Center</span>
@@ -1757,7 +1757,7 @@ const ObservationTemplates = () => {
                                                   <select
                                                     value={f.tableWidth || "100%"}
                                                     onChange={(e) => handleUpdateTableWidth(f.id, e.target.value)}
-                                                    className="bg-transparent font-bold text-[11px] text-[#2563EB]"
+                                                    className="bg-transparent font-bold text-[11px] text-[#243744]"
                                                   >
                                                     <option value="100%">100%</option>
                                                     <option value="75%">75%</option>
@@ -1821,7 +1821,7 @@ const ObservationTemplates = () => {
                                                               onMouseEnter={() => {
                                                                 if (isSelectingRange) setSelectedCellEnd(cellRef);
                                                               }}
-                                                              className={`p-1 border-r border-slate-200 relative ${isFocused ? "ring-[#2563EB] bg-blue-100/80 font-bold" : isSelected ? "bg-blue-50/80" : ""
+                                                              className={`p-1 border-r border-slate-200 relative ${isFocused ? "ring-[#243744] bg-slate-200/80 font-bold" : isSelected ? "bg-slate-100/80" : ""
                                                                 }`}
                                                             >
                                                               <textarea
@@ -1886,7 +1886,7 @@ const ObservationTemplates = () => {
             <div className="w-full max-w-5xl max-h-[90vh] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden">
               <div className="flex items-center justify-between border-b px-6 py-4 bg-slate-50">
                 <div className="flex items-center gap-2">
-                  <Eye className="text-[#2563EB]" size={20} />
+                  <Eye className="text-[#243744]" size={20} />
                   <h3 className="text-base font-bold text-slate-900">
                     Observation Template Preview - {previewTemplateData?.name || previewTemplateData?.title || sheetMeta.title}
                   </h3>
@@ -1904,7 +1904,7 @@ const ObservationTemplates = () => {
                   </div>
                   <div>
                     <span className="text-slate-400 font-bold block">STANDARD CODE:</span>
-                    <span className="font-mono font-bold text-blue-700">{previewTemplateData?.standard || previewTemplateData?.isCode || sheetMeta.isCode}</span>
+                    <span className="font-mono font-bold text-[#243744]">{previewTemplateData?.standard || previewTemplateData?.isCode || sheetMeta.isCode}</span>
                   </div>
                   <div>
                     <span className="text-slate-400 font-bold block">MATERIAL / SCOPE:</span>
@@ -1917,7 +1917,7 @@ const ObservationTemplates = () => {
                 ) : (
                   activePreviewSections.map((sec) => (
                     <div key={sec.id} className="rounded-xl border border-slate-200 p-5 bg-white space-y-4">
-                      <h4 className="text-sm font-bold text-[#2563EB] border-b pb-2">{sec.title}</h4>
+                      <h4 className="text-sm font-bold text-[#243744] border-b pb-2">{sec.title}</h4>
                       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                         {sec.fields.map((f) => {
                           const isTable = f.type === "table";

@@ -140,6 +140,12 @@ def get_existing_testing_samples():
             unit = r['depth_unit'] or 'm'
             dd = f"{df}–{dt} {unit}" if df is not None and dt is not None else (f"{df} {unit}" if df is not None else "")
 
+            # Fetch active assigned project scope test IDs for this physical sample
+            assigned_pst_ids = db.session.execute(text("""
+                SELECT DISTINCT project_scope_test_id FROM sample_test_assignments
+                WHERE testing_sample_id = :ts_id AND status NOT IN ('Cancelled')
+            """), {"ts_id": r['testing_sample_id']}).scalars().all()
+
             samples.append({
                 "testing_sample_id": r['testing_sample_id'],
                 "receipt_id": r['receipt_id'],
@@ -153,7 +159,8 @@ def get_existing_testing_samples():
                 "client_sample_reference": r['client_sample_reference'] or '',
                 "sample_description": r['sample_description'] or '',
                 "material_name": r['material_name'],
-                "assigned_test_count": r['assigned_test_count']
+                "assigned_test_count": r['assigned_test_count'],
+                "assigned_project_scope_test_ids": list(assigned_pst_ids)
             })
 
         return jsonify({"success": True, "data": samples})
@@ -240,8 +247,11 @@ def bulk_create_test_assignments():
 
         project_id = data.get("project_id")
         receipt_id = data.get("receipt_id")
-        project_scope_test_id = data.get("project_scope_test_id") or data.get("project_scope_test_ids", [None])[0]
-        
+        project_scope_test_ids = data.get("project_scope_test_ids") or []
+        if not project_scope_test_ids and data.get("project_scope_test_id"):
+            project_scope_test_ids = [data.get("project_scope_test_id")]
+        sample_test_map = data.get("sample_test_map") or {}
+
         # Mode: 'existing' vs 'new'
         assignment_mode = data.get("assignment_mode") or "existing"
         existing_testing_sample_ids = data.get("existing_testing_sample_ids") or data.get("testing_sample_ids") or []
@@ -252,8 +262,8 @@ def bulk_create_test_assignments():
         priority = data.get("priority") or "Normal"
         remarks = data.get("remarks") or ""
 
-        if not project_id or not project_scope_test_id:
-            return jsonify({"success": False, "message": "project_id and project_scope_test_id are required"}), 400
+        if not project_id:
+            return jsonify({"success": False, "message": "project_id is required"}), 400
 
         target_date = None
         if target_date_str:
@@ -264,24 +274,14 @@ def bulk_create_test_assignments():
 
         batch_id = f"BATCH-{datetime.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
 
-        # Scope Test Info
-        st_info = db.session.execute(text("""
-            SELECT pst.project_scope_test_id, pst.scope_test_id, st.test_name, st.test_method
-            FROM project_scope_tests pst
-            JOIN scope_tests st ON pst.scope_test_id = st.scope_test_id
-            WHERE pst.project_scope_test_id = :pst_id
-        """), {"pst_id": project_scope_test_id}).mappings().fetchone()
-
-        if not st_info:
-            return jsonify({"success": False, "message": "Project scope test not found"}), 404
-
-        target_testing_sample_ids = []
+        target_physical_samples = [] # List of dicts: {"ts_id": int, "key": str}
 
         # MODE A: EXISTING SAMPLES
         if assignment_mode == "existing" or (existing_testing_sample_ids and not new_samples):
             if not existing_testing_sample_ids:
                 return jsonify({"success": False, "message": "Please select at least one existing sample"}), 400
-            target_testing_sample_ids = existing_testing_sample_ids
+            for ts_id in existing_testing_sample_ids:
+                target_physical_samples.append({"ts_id": ts_id, "key": str(ts_id)})
 
         # MODE B: NEW SAMPLES FROM RECEIPT
         else:
@@ -339,89 +339,122 @@ def bulk_create_test_assignments():
                     "uid": user_id,
                     "now": _utc_now()
                 })
-                target_testing_sample_ids.append(res.fetchone()[0])
+                new_ts_id = res.fetchone()[0]
+                s_key = str(s.get("id") or idx)
+                target_physical_samples.append({"ts_id": new_ts_id, "key": s_key})
 
             _recalculate_receipt_allocation(receipt_id)
 
-        # Create Atomic Test Assignments for each physical testing_sample_id
+        # Create Atomic Test Assignments for EACH physical sample and EACH assigned test
         created_assignments = []
         skipped_count = 0
 
-        for ts_id in target_testing_sample_ids:
-            # Check for existing active assignment
-            exists = db.session.execute(text("""
-                SELECT 1 FROM sample_test_assignments
-                WHERE testing_sample_id = :ts_id AND project_scope_test_id = :pst_id AND status NOT IN ('Cancelled')
-            """), {"ts_id": ts_id, "pst_id": project_scope_test_id}).scalar()
+        for item in target_physical_samples:
+            ts_id = item["ts_id"]
+            s_key = item["key"]
 
-            if exists:
-                skipped_count += 1
-                continue
+            # Resolve tests for this specific sample
+            sample_tests = sample_test_map.get(s_key) or sample_test_map.get(str(ts_id)) or project_scope_test_ids
 
-            # Fetch receipt_id from testing_sample
-            ts_row = db.session.execute(text("SELECT receipt_id FROM testing_samples WHERE testing_sample_id = :ts_id"), {"ts_id": ts_id}).fetchone()
-            sample_id_ref = ts_row.receipt_id if ts_row else receipt_id
+            # If sample_tests contains objects, extract IDs
+            clean_test_ids = []
+            for t in sample_tests:
+                if isinstance(t, dict):
+                    t_id = t.get("project_scope_test_id")
+                else:
+                    t_id = t
+                if t_id and int(t_id) not in clean_test_ids:
+                    clean_test_ids.append(int(t_id))
 
-            res = db.session.execute(text("""
-                INSERT INTO sample_test_assignments (
-                    testing_sample_id, sample_id, project_scope_test_id, assigned_to, assigned_by,
-                    assigned_date, target_date, priority, status, remarks,
-                    assignment_batch_id, created_by, created_at, updated_at
-                ) VALUES (
-                    :ts_id, :sid, :pst_id, :assigned_to, :assigned_by,
-                    :assigned_date, :target_date, :priority, 'Assigned', :remarks,
-                    :batch_id, :created_by, :now, :now
-                ) RETURNING assignment_id
-            """), {
-                "ts_id": ts_id,
-                "sid": sample_id_ref,
-                "pst_id": project_scope_test_id,
-                "assigned_to": assigned_to,
-                "assigned_by": user_id,
-                "assigned_date": date.today(),
-                "target_date": target_date,
-                "priority": priority,
-                "remarks": remarks,
-                "batch_id": batch_id,
-                "created_by": user_id,
-                "now": _utc_now()
-            })
-            new_assign_id = res.fetchone()[0]
+            if not clean_test_ids:
+                clean_test_ids = [int(x) for x in project_scope_test_ids if x]
 
-            # Upsert sample_test_results
-            db.session.execute(text("""
-                INSERT INTO sample_test_results (
-                    lab_id, project_id, sample_id, project_scope_test_id, scope_test_id,
-                    test_name, test_method, entered_by, updated_by, created_at, updated_at
-                ) VALUES (
-                    :lab_id, :project_id, :sid, :pst_id, :mst_id,
-                    :test_name, :test_method, :uid, :uid, :now, :now
-                ) ON CONFLICT (sample_id, project_scope_test_id) WHERE project_scope_test_id IS NOT NULL
-                DO UPDATE SET is_active = TRUE, updated_by = EXCLUDED.updated_by, updated_at = EXCLUDED.updated_at
-            """), {
-                "lab_id": lab_id,
-                "project_id": project_id,
-                "sid": sample_id_ref,
-                "pst_id": project_scope_test_id,
-                "mst_id": st_info['scope_test_id'],
-                "test_name": st_info['test_name'],
-                "test_method": st_info['test_method'],
-                "uid": user_id,
-                "now": _utc_now()
-            })
+            for pst_id in clean_test_ids:
+                # Check for existing active assignment for this specific test
+                exists = db.session.execute(text("""
+                    SELECT 1 FROM sample_test_assignments
+                    WHERE testing_sample_id = :ts_id AND project_scope_test_id = :pst_id AND status NOT IN ('Cancelled')
+                """), {"ts_id": ts_id, "pst_id": pst_id}).scalar()
 
-            created_assignments.append(new_assign_id)
+                if exists:
+                    skipped_count += 1
+                    continue
+
+                # Scope Test Info
+                st_info = db.session.execute(text("""
+                    SELECT pst.project_scope_test_id, pst.scope_test_id, st.test_name, st.test_method
+                    FROM project_scope_tests pst
+                    JOIN scope_tests st ON pst.scope_test_id = st.scope_test_id
+                    WHERE pst.project_scope_test_id = :pst_id
+                """), {"pst_id": pst_id}).mappings().fetchone()
+
+                if not st_info:
+                    continue
+
+                # Fetch receipt_id from testing_sample
+                ts_row = db.session.execute(text("SELECT receipt_id FROM testing_samples WHERE testing_sample_id = :ts_id"), {"ts_id": ts_id}).fetchone()
+                sample_id_ref = ts_row.receipt_id if ts_row else receipt_id
+
+                res = db.session.execute(text("""
+                    INSERT INTO sample_test_assignments (
+                        testing_sample_id, sample_id, project_scope_test_id, assigned_to, assigned_by,
+                        assigned_date, target_date, priority, status, remarks,
+                        assignment_batch_id, created_by, created_at, updated_at
+                    ) VALUES (
+                        :ts_id, :sid, :pst_id, :assigned_to, :assigned_by,
+                        :assigned_date, :target_date, :priority, 'Assigned', :remarks,
+                        :batch_id, :created_by, :now, :now
+                    ) RETURNING assignment_id
+                """), {
+                    "ts_id": ts_id,
+                    "sid": sample_id_ref,
+                    "pst_id": pst_id,
+                    "assigned_to": assigned_to,
+                    "assigned_by": user_id,
+                    "assigned_date": date.today(),
+                    "target_date": target_date,
+                    "priority": priority,
+                    "remarks": remarks,
+                    "batch_id": batch_id,
+                    "created_by": user_id,
+                    "now": _utc_now()
+                })
+                new_assign_id = res.fetchone()[0]
+
+                # Upsert independent sample_test_results (Observation entry)
+                db.session.execute(text("""
+                    INSERT INTO sample_test_results (
+                        lab_id, project_id, sample_id, project_scope_test_id, scope_test_id,
+                        test_name, test_method, entered_by, updated_by, created_at, updated_at
+                    ) VALUES (
+                        :lab_id, :project_id, :sid, :pst_id, :mst_id,
+                        :test_name, :test_method, :uid, :uid, :now, :now
+                    ) ON CONFLICT (sample_id, project_scope_test_id) WHERE project_scope_test_id IS NOT NULL
+                    DO UPDATE SET is_active = TRUE, updated_by = EXCLUDED.updated_by, updated_at = EXCLUDED.updated_at
+                """), {
+                    "lab_id": lab_id,
+                    "project_id": project_id,
+                    "sid": sample_id_ref,
+                    "pst_id": pst_id,
+                    "mst_id": st_info['scope_test_id'],
+                    "test_name": st_info['test_name'],
+                    "test_method": st_info['test_method'],
+                    "uid": user_id,
+                    "now": _utc_now()
+                })
+
+                created_assignments.append(new_assign_id)
 
         db.session.commit()
 
         return jsonify({
             "success": True,
-            "message": f"Successfully created {len(created_assignments)} test assignment(s)",
+            "message": f"Successfully created {len(created_assignments)} separate test assignment entry(s)",
             "data": {
                 "batch_id": batch_id,
                 "created_count": len(created_assignments),
                 "skipped_count": skipped_count,
-                "physical_samples_count": len(target_testing_sample_ids)
+                "physical_samples_count": len(target_physical_samples)
             }
         }), 201
 

@@ -40,6 +40,14 @@ def create_app():
                 db.session.execute(text(eq_migration_sql))
                 db.session.commit()
                 print("Equipment System database tables verified/created successfully.")
+
+            doc_sql_path = os.path.join(os.path.dirname(__file__), 'models', 'document_control_module.sql')
+            if os.path.exists(doc_sql_path):
+                with open(doc_sql_path, 'r') as f:
+                    doc_migration_sql = f.read()
+                db.session.execute(text(doc_migration_sql))
+                db.session.commit()
+                print("Document Control database tables and seed data verified/created successfully.")
         except Exception as e:
             db.session.rollback()
             print("Failed to run database migrations:", e)

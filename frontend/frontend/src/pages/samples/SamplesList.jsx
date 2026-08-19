@@ -712,6 +712,7 @@ const SamplesList = () => {
         {/* Add Material Lot Drawer */}
         <AddSampleDrawer
           isOpen={isAddDrawerOpen}
+          projectOptions={projects}
           onClose={() => setIsAddDrawerOpen(false)}
           onSuccess={() => {
             setIsAddDrawerOpen(false);
