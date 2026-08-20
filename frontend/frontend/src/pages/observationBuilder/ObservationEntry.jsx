@@ -49,6 +49,17 @@ const getStatusBadge = (status) => {
   );
 };
 
+const formatDate = (dateStr) => {
+  if (!dateStr) return "—";
+  if (dateStr.includes("T")) {
+    return dateStr.split("T")[0];
+  }
+  if (dateStr.includes(" ")) {
+    return dateStr.split(" ")[0];
+  }
+  return dateStr;
+};
+
 // Portal-based scroll/resize safe action menu to match ProjectsList.jsx exactly
 const PortalActionMenu = ({ anchorEl, open, onClose, actions }) => {
   const [style, setStyle] = useState(null);
@@ -188,6 +199,19 @@ const ObservationEntry = () => {
   }, [fetchData]);
 
   useEffect(() => {
+    const queryParams = new URLSearchParams(location.search);
+    const sampleId = queryParams.get("sample_id");
+    const scopeTestId = queryParams.get("scope_test_id");
+    if (sampleId && scopeTestId) {
+      setFillerModal({
+        open: true,
+        mode: "fill",
+        sheetData: null,
+      });
+    }
+  }, [location.search]);
+
+  useEffect(() => {
     setCurrentPage(1);
   }, [debouncedSearch, statusFilter, sortConfig]);
 
@@ -254,6 +278,21 @@ const ObservationEntry = () => {
     const start = (currentPage - 1) * pageSize;
     return filteredSheets.slice(start, start + pageSize);
   }, [filteredSheets, currentPage, pageSize]);
+
+  if (fillerModal.open) {
+    return (
+      <ObservationSheetFiller
+        observationId={fillerModal.sheetData?.observation_id || fillerModal.sheetData?.id}
+        readOnly={fillerModal.mode === "view"}
+        onBack={() => {
+          setFillerModal({ open: false, mode: "fill", sheetData: null });
+          // Clear search params from URL so it returns to the clean list view
+          navigate("/observation-entry", { replace: true });
+          fetchData();
+        }}
+      />
+    );
+  }
 
   return (
     <MainLayout headerTitle="Observation Sheets" headerSubtitle="Record and review test observation data for samples">
@@ -454,7 +493,7 @@ const ObservationEntry = () => {
                       <td className="px-5 py-4 font-bold text-[#1E293B] whitespace-nowrap">{sheet.test_name || sheet.scope_test_name || "—"}</td>
                       <td className="px-5 py-4 whitespace-nowrap">{getStatusBadge(sheet.status)}</td>
                       <td className="px-5 py-4 font-semibold text-gray-700 whitespace-nowrap">{sheet.technician_name || sheet.created_by_name || "—"}</td>
-                      <td className="px-5 py-4 font-medium text-gray-600 whitespace-nowrap">{sheet.testing_date || sheet.created_at || "—"}</td>
+                      <td className="px-5 py-4 font-medium text-gray-600 whitespace-nowrap">{formatDate(sheet.testing_date || sheet.created_at)}</td>
                       <td className="px-5 py-4 text-right whitespace-nowrap">
                         <button
                           onClick={(e) => handleToggleDropdown(sheet.observation_id || sheet.id, e)}
@@ -549,18 +588,7 @@ const ObservationEntry = () => {
           )}
         </div>
 
-        {/* Observation Sheet Filler Modal */}
-        {fillerModal.open && (
-          <ObservationSheetFiller
-            mode={fillerModal.mode}
-            sheetData={fillerModal.sheetData}
-            onClose={() => setFillerModal({ open: false, mode: "fill", sheetData: null })}
-            onSuccess={() => {
-              setFillerModal({ open: false, mode: "fill", sheetData: null });
-              fetchData();
-            }}
-          />
-        )}
+
 
       </div>
     </MainLayout>

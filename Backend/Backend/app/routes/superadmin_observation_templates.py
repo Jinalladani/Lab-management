@@ -430,7 +430,6 @@ def create_template():
         "test_id": test.test_id,
         "standard_id": standard.standard_id,
     }
-
     template = ObservationTemplate(
         **template_data,
         description=normalize_name(data.get("description")) or None,
@@ -438,6 +437,7 @@ def create_template():
         status=data.get("status") or "Draft",
         created_by=str(current_user_label()),
         sheets_data=data.get("sheets_data") or {},
+        sections_data=data.get("sections_data") or data.get("sections") or [],
         merges_data=data.get("merges_data") or [],
         scope_test_ids=data.get("scope_test_ids") or [],
     )
@@ -511,6 +511,8 @@ def update_template(template_id):
 
     if "sheets_data" in data:
         template.sheets_data = data["sheets_data"] or {}
+    if "sections_data" in data or "sections" in data:
+        template.sections_data = data.get("sections_data") or data.get("sections") or []
     if "merges_data" in data:
         template.merges_data = data["merges_data"] or []
 

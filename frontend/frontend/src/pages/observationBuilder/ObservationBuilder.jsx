@@ -1,5 +1,7 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
+import { evaluateExcelCell } from "../../utils/excelFormulaEvaluator";
 import { MainLayout } from "../../components/layout";
+import Button from "../../components/ui/Button";
 import {
   Undo as UndoIcon,
   Redo as RedoIcon,
@@ -59,7 +61,11 @@ import {
   Layers3,
   Activity,
   TestTube2,
-  HelpCircle
+  HelpCircle,
+  ArrowLeft,
+  Eye,
+  Save,
+  Check
 } from "lucide-react";
 import { getScopeTests, getScopeHierarchy } from "../../api/scope";
 import {
@@ -179,8 +185,12 @@ export default function ObservationBuilder() {
   // Active template reference for updates
   const [activeTemplateId, setActiveTemplateId] = useState(null);
 
-  const [templateName, setTemplateName] = useState("New Lab Observation Template");
+  const [templateName, setTemplateName] = useState("");
   const [version, setVersion] = useState("1.0.0");
+  const [category, setCategory] = useState("");
+  const [paperSize, setPaperSize] = useState("A4 (210 x 297 mm)");
+  const [orientation, setOrientation] = useState("Portrait");
+  const [isSaving, setIsSaving] = useState(false);
 
   // Drag Selection states for proper Excel range merges
   const [selectedCell, setSelectedCell] = useState({ row: 0, col: 0 });
@@ -190,13 +200,23 @@ export default function ObservationBuilder() {
   const [isEditing, setIsEditing] = useState(false); // Excel double-click edit mode
   const [borderMenuOpen, setBorderMenuOpen] = useState(false);
 
-  // Test Scopes from API
   const [scopes, setScopes] = useState([]);
   const [selectedScope, setSelectedScope] = useState("");
   const [selectedScopeIds, setSelectedScopeIds] = useState([]);
   const [testSelectorOpen, setTestSelectorOpen] = useState(false);
   const [searchTestQuery, setSearchTestQuery] = useState("");
   const [scopesLoading, setScopesLoading] = useState(false);
+  const testSelectorRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (testSelectorRef.current && !testSelectorRef.current.contains(event.target)) {
+        setTestSelectorOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // Spreadsheet canvas grid parameters
   const [colsCount, setColsCount] = useState(12);
@@ -529,22 +549,11 @@ export default function ObservationBuilder() {
     return { show: true, rowSpan: 1, colSpan: 1 };
   };
 
-  const evaluatePreviewCell = (label, cellData) => {
-    if (cellData.type === "formula" && cellData.formula) {
-      try {
-        const expression = cellData.formula.slice(1).toUpperCase();
-        const resolved = expression.replace(/[A-Z]\d+/g, (match) => {
-          const target = cells[match];
-          const val = target ? parseFloat(target.value) : 0;
-          return isNaN(val) ? 0 : val;
-        });
-        const result = new Function(`return ${resolved}`)();
-        return isNaN(result) ? "#VALUE!" : roundVal(result, 2);
-      } catch (err) {
-        return "#ERROR!";
-      }
+  const evaluatePreviewCell = (label, cellData, evaluating = new Set()) => {
+    if (cellData && cellData.type === "formula" && cellData.formula) {
+      return evaluateExcelCell(cellData.formula, cells, evaluating);
     }
-    return cellData.value;
+    return cellData ? evaluateExcelCell(cellData.value, cells, evaluating) : "";
   };
 
   // Load a template from backend DB for edit
@@ -627,7 +636,7 @@ export default function ObservationBuilder() {
 
   const handleCreateNew = (scopeTestId, testName) => {
     setActiveTemplateId(null);
-    setTemplateName(testName ? `${testName} Observation Sheet` : "New Lab Observation Template");
+    setTemplateName(testName ? `${testName} Observation Sheet` : "");
     setVersion("1.0.0");
     if (scopeTestId) {
       setSelectedScope(scopeTestId);
@@ -1078,129 +1087,271 @@ export default function ObservationBuilder() {
         <div className="flex flex-col h-[calc(100vh-64px)] overflow-hidden bg-[#F8FAFC]">
 
           {/* Top Header Toolbar */}
-          <div className="flex items-center justify-between px-6 py-3 bg-white border-b border-slate-200/80 gap-4 shrink-0 shadow-xs z-40">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4 border-b border-slate-200 bg-white px-4 sm:px-6 py-3 shadow-2xs z-40">
             <div className="flex items-center gap-3">
-              <button
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={ArrowLeft}
                 onClick={() => setView("list")}
-                className="p-1.5 text-slate-400 hover:text-slate-655 border rounded-lg bg-white shadow-2xs hover:scale-95 transition-all flex items-center justify-center"
               >
-                <ArrowBackIcon fontSize="small" />
-              </button>
-              <input
-                type="text"
-                value={templateName}
-                onChange={(e) => setTemplateName(e.target.value)}
-                className="text-sm font-black text-slate-900 outline-none border-b border-transparent hover:border-slate-350 focus:border-[#2562AA] bg-transparent w-72 px-1"
-                placeholder="Template Title"
-              />
+                Back
+              </Button>
             </div>
 
-            {/* Scope select */}
-            <div className="flex items-center gap-3 flex-1 max-w-xl justify-center select-none">
-              <ScienceIcon style={{ fontSize: 16 }} className="text-[#2562AA]" />
-              <span className="text-xs font-bold text-slate-450 uppercase tracking-wide">Map Tests</span>
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setTestSelectorOpen(!testSelectorOpen)}
-                  className="flex items-center justify-between w-80 px-3 py-1.5 border border-slate-200 bg-slate-50 rounded-lg font-bold text-xs outline-none text-slate-800"
-                >
-                  <span className="truncate pr-2">
-                    {selectedScopeIds.length === 0
-                      ? "Select Tests..."
-                      : `${selectedScopeIds.length} Test(s) Mapped`}
-                  </span>
-                  <ChevronDown size={14} className="shrink-0" />
-                </button>
-                {testSelectorOpen && (
-                  <div className="absolute left-0 mt-1.5 z-50 w-80 bg-white border border-slate-200 rounded-xl shadow-lg p-3 max-h-72 overflow-y-auto">
-                    <input
-                      type="text"
-                      placeholder="Search tests..."
-                      value={searchTestQuery}
-                      onChange={(e) => setSearchTestQuery(e.target.value)}
-                      className="w-full mb-2 p-1.5 border border-slate-200 rounded-lg text-xs outline-none focus:border-[#2562AA] font-semibold"
-                    />
-                    <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                      {scopesLoading ? (
-                        <div className="text-xs text-slate-400 italic p-2">Loading Scopes...</div>
-                      ) : scopes.length === 0 ? (
-                        <div className="text-xs text-slate-400 italic p-2">No Scope Tests Registered</div>
-                      ) : (
-                        scopes
-                          .filter((sc) =>
-                            sc.test_name.toLowerCase().includes(searchTestQuery.toLowerCase())
-                          )
-                          .map((sc) => {
-                            const isChecked = selectedScopeIds.includes(sc.scope_test_id);
-                            return (
-                              <label key={sc.scope_test_id} className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer hover:bg-slate-50 p-1.5 rounded-lg">
-                                <input
-                                  type="checkbox"
-                                  checked={isChecked}
-                                  onChange={() => {
-                                    if (isChecked) {
-                                      const nextIds = selectedScopeIds.filter(id => id !== sc.scope_test_id);
-                                      setSelectedScopeIds(nextIds);
-                                      if (nextIds.length > 0) setSelectedScope(nextIds[0]);
-                                    } else {
-                                      const nextIds = [...selectedScopeIds, sc.scope_test_id];
-                                      setSelectedScopeIds(nextIds);
-                                      setSelectedScope(nextIds[0]);
-                                    }
-                                  }}
-                                  className="rounded text-[#2562AA] focus:ring-[#2562AA]"
-                                />
-                                <span>{sc.test_name} ({sc.test_method})</span>
-                              </label>
-                            );
-                          })
-                      )}
-                    </div>
-                    <div className="mt-2 pt-2 border-t border-slate-100 flex justify-end">
-                      <button
-                        type="button"
-                        onClick={() => setTestSelectorOpen(false)}
-                        className="px-3 py-1 bg-[#243744] text-white rounded text-[10px] font-bold"
-                      >
-                        Done
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 justify-end">
               <button
                 onClick={handleUndo}
                 disabled={historyIndex <= 0}
-                className="p-2 border border-slate-200 rounded-lg bg-white hover:bg-slate-50 disabled:opacity-40"
+                className="p-2 border border-slate-200 rounded-lg bg-white hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
+                title="Undo"
               >
                 <UndoIcon style={{ fontSize: 15 }} />
               </button>
               <button
                 onClick={handleRedo}
                 disabled={historyIndex >= history.length - 1}
-                className="p-2 border border-slate-200 rounded-lg bg-white hover:bg-slate-50 disabled:opacity-40"
+                className="p-2 border border-slate-200 rounded-lg bg-white hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
+                title="Redo"
               >
                 <RedoIcon style={{ fontSize: 15 }} />
               </button>
-              <div className="h-4 w-px bg-slate-200" />
-              <button
+
+              <div className="h-4 w-px bg-slate-200 mx-1" />
+
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={Eye}
                 onClick={() => setMode(mode === "design" ? "preview" : "design")}
-                className="px-3.5 py-1.5 border border-slate-200 rounded-lg bg-white hover:bg-slate-50 text-[11px] font-bold flex items-center gap-1.5 text-slate-655"
               >
-                <PreviewIcon style={{ fontSize: 14 }} />
-                {mode === "design" ? "Preview Mode" : "Design Mode"}
-              </button>
-              <button
+                Preview
+              </Button>
+
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={Save}
+                loading={isSaving}
                 onClick={handlePublishTemplate}
-                className="px-4 py-1.5 bg-[#2562AA] text-white hover:bg-[#1e4f8a] rounded-lg text-[11px] font-bold shadow-xs flex items-center gap-1.5"
               >
-                <ExportIcon style={{ fontSize: 13 }} />
-                Save Template
-              </button>
+                Save Draft
+              </Button>
+
+              <Button
+                variant="primary"
+                size="sm"
+                icon={Check}
+                loading={isSaving}
+                onClick={handlePublishTemplate}
+              >
+                Publish
+              </Button>
+            </div>
+          </div>
+
+          {/* Header Metadata Fields Bar (Responsive Layout) */}
+          <div className="bg-white border-b border-slate-200 px-4 sm:px-6 py-3.5 shadow-2xs relative z-30">
+            <div className="flex flex-wrap items-center gap-3 sm:gap-4 lg:gap-5 min-w-max sm:min-w-0">
+              {/* Template Name * */}
+              <div className="flex flex-col gap-1 min-w-[200px] sm:min-w-[220px] flex-1 max-w-full sm:max-w-xs">
+                <label className="text-[11px] font-bold text-slate-700">
+                  Template Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={templateName}
+                  onChange={(e) => setTemplateName(e.target.value)}
+                  placeholder="Enter template name..."
+                  className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-800 focus:border-[#243744] focus:outline-none focus:ring-1 focus:ring-[#243744]"
+                />
+              </div>
+
+              {/* Test Name * Multi-Select Dropdown */}
+              <div ref={testSelectorRef} className="relative flex flex-col gap-1 min-w-[200px] sm:min-w-[240px] flex-1 max-w-full sm:max-w-xs">
+                <label className="text-[11px] font-bold text-slate-700">
+                  Test Name <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setTestSelectorOpen(!testSelectorOpen)}
+                    className="h-9 w-full flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-800 focus:border-[#243744] focus:outline-none focus:ring-1 focus:ring-[#243744] cursor-pointer shadow-2xs"
+                  >
+                    <span className="truncate pr-2">
+                      {selectedScopeIds.length === 0
+                        ? "Select Test Name..."
+                        : selectedScopeIds.length === 1
+                        ? (scopes.find((s) => String(s.scope_test_id) === String(selectedScopeIds[0]))?.test_name || `${selectedScopeIds.length} Test Selected`)
+                        : `${selectedScopeIds.length} Tests Selected`}
+                    </span>
+                    <ChevronDown size={14} className="text-slate-400 shrink-0 ml-1" />
+                  </button>
+
+                  {/* Dropdown Menu Popup */}
+                  {testSelectorOpen && (
+                    <div className="absolute left-0 top-full mt-1.5 z-50 w-80 sm:w-84 rounded-2xl border border-slate-200 bg-white p-3 shadow-xl space-y-2">
+                      {/* Dropdown Header */}
+                      <div className="flex items-center justify-between border-b pb-2">
+                        <span className="text-xs font-extrabold text-slate-800">Select Test(s)</span>
+                        <button
+                          type="button"
+                          onClick={() => setTestSelectorOpen(false)}
+                          className="text-slate-400 hover:text-slate-600 p-0.5 rounded-md hover:bg-slate-100 transition-colors"
+                        >
+                          <LucideTrash size={14} className="hidden" />
+                          <span className="text-sm font-bold">×</span>
+                        </button>
+                      </div>
+
+                      {/* Search inside Dropdown */}
+                      <div className="relative">
+                        <LucideSearch size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <input
+                          type="text"
+                          value={searchTestQuery}
+                          onChange={(e) => setSearchTestQuery(e.target.value)}
+                          placeholder="Search tests by name..."
+                          className="w-full rounded-lg border border-slate-200 pl-8 pr-2.5 py-1.5 text-xs text-slate-800 focus:border-[#243744] focus:outline-none font-medium"
+                        />
+                      </div>
+
+                      {/* List of Scopes with Checkboxes */}
+                      <div className="max-h-56 overflow-y-auto space-y-1.5 pr-1">
+                        {scopes
+                          .filter((sc) => sc.test_name.toLowerCase().includes(searchTestQuery.toLowerCase()))
+                          .map((sc) => {
+                            const isChecked = selectedScopeIds.includes(sc.scope_test_id);
+                            return (
+                              <label
+                                key={sc.scope_test_id}
+                                className={`flex items-center gap-2.5 rounded-lg border p-2 text-xs font-semibold cursor-pointer transition-colors ${
+                                  isChecked
+                                    ? "border-[#243744]/30 bg-[#243744]/5 text-[#243744]"
+                                    : "border-slate-100 hover:bg-slate-50 text-slate-800"
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={() => {
+                                    if (isChecked) {
+                                      const nextIds = selectedScopeIds.filter((id) => id !== sc.scope_test_id);
+                                      setSelectedScopeIds(nextIds);
+                                      if (nextIds.length > 0) setSelectedScope(nextIds[0]);
+                                    } else {
+                                      const nextIds = [...selectedScopeIds, sc.scope_test_id];
+                                      setSelectedScopeIds(nextIds);
+                                      setSelectedScope(nextIds[0]);
+                                      if (!templateName) setTemplateName(sc.test_name);
+                                    }
+                                  }}
+                                  className="h-4 w-4 rounded border-slate-300 text-[#243744] focus:ring-[#243744] cursor-pointer"
+                                />
+                                <div className="min-w-0 flex-1">
+                                  <p className="font-bold text-slate-900 truncate">{sc.test_name}</p>
+                                  {sc.test_method && (
+                                    <p className="text-[10px] text-slate-500 font-mono truncate">{sc.test_method}</p>
+                                  )}
+                                </div>
+                              </label>
+                            );
+                          })}
+                      </div>
+
+                      {/* Bottom Actions */}
+                      <div className="border-t pt-2.5 flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const allIds = scopes.map((s) => s.scope_test_id);
+                              setSelectedScopeIds(allIds);
+                              if (allIds.length > 0) setSelectedScope(allIds[0]);
+                            }}
+                            className="text-[#243744] font-bold hover:underline"
+                          >
+                            Select All
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedScopeIds([]);
+                              setSelectedScope("");
+                            }}
+                            className="text-slate-500 font-bold hover:underline"
+                          >
+                            Clear All
+                          </button>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setTestSelectorOpen(false)}
+                          className="px-3 py-1 bg-[#243744] text-white rounded-lg text-[11px] font-bold shadow-2xs hover:bg-[#1A2733]"
+                        >
+                          Done
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Template Category */}
+              <div className="flex flex-col gap-1 min-w-[160px] sm:min-w-[180px] flex-1 max-w-full sm:max-w-[220px]">
+                <label className="text-[11px] font-bold text-slate-700">
+                  Template Category
+                </label>
+                <select
+                  value={category || ""}
+                  onChange={(e) => setCategory(e.target.value)}
+                  className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-800 focus:border-[#243744] focus:outline-none focus:ring-1 focus:ring-[#243744] cursor-pointer"
+                >
+                  <option value="">Select Category...</option>
+                  <option value="Soil Testing">Soil Testing</option>
+                  <option value="Concrete Testing">Concrete Testing</option>
+                  <option value="Bitumen Testing">Bitumen Testing</option>
+                  <option value="Steel Testing">Steel Testing</option>
+                  <option value="Aggregate Testing">Aggregate Testing</option>
+                  <option value="Chemical Testing">Chemical Testing</option>
+                  <option value="General Testing">General Testing</option>
+                </select>
+              </div>
+
+              {/* Divider */}
+              <div className="hidden lg:block h-8 w-px bg-slate-200 self-end mb-1 mx-1" />
+
+              {/* Paper Size */}
+              <div className="flex flex-col gap-1 min-w-[150px] sm:min-w-[170px] flex-1">
+                <label className="text-[11px] font-bold text-slate-700">
+                  Paper Size
+                </label>
+                <select
+                  value={paperSize}
+                  onChange={(e) => setPaperSize(e.target.value)}
+                  className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-800 focus:border-[#243744] focus:outline-none focus:ring-1 focus:ring-[#243744] cursor-pointer"
+                >
+                  <option value="A4 (210 x 297 mm)">A4 (210 x 297 mm)</option>
+                  <option value="A3 (297 x 420 mm)">A3 (297 x 420 mm)</option>
+                  <option value="Letter (216 x 279 mm)">Letter (216 x 279 mm)</option>
+                  <option value="Legal (216 x 356 mm)">Legal (216 x 356 mm)</option>
+                </select>
+              </div>
+
+              {/* Orientation */}
+              <div className="flex flex-col gap-1 min-w-[120px] sm:min-w-[130px] flex-1">
+                <label className="text-[11px] font-bold text-slate-700">
+                  Orientation
+                </label>
+                <select
+                  value={orientation}
+                  onChange={(e) => setOrientation(e.target.value)}
+                  className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-800 focus:border-[#243744] focus:outline-none focus:ring-1 focus:ring-[#243744] cursor-pointer"
+                >
+                  <option value="Portrait">Portrait</option>
+                  <option value="Landscape">Landscape</option>
+                </select>
+              </div>
             </div>
           </div>
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   AlignLeft, Hash, ListFilter, FileText, Calendar, Clock, CheckSquare,
@@ -7,7 +7,7 @@ import {
   RotateCw, ChevronDown, GripVertical, X, Check, Sparkles, Sigma, Merge,
   Bold, Italic, AlignCenter, Maximize2, FlaskConical, CheckCircle2, Loader2,
   RefreshCw, Search, ArrowLeft, Layers3, FileSpreadsheet, MoreHorizontal,
-  ChevronRight, Beaker, Droplet, Settings, Activity, TestTube2, HelpCircle
+  ChevronRight, Beaker, Droplet, Settings, Activity, TestTube2, HelpCircle, ArrowDown
 } from "lucide-react";
 import { MainLayout } from "../../../components/layout";
 import { Button } from "../../../components/ui";
@@ -20,27 +20,7 @@ import {
   deleteObservationTemplate
 } from "../../../api/observationBuilder";
 
-// Helper to evaluate simple Excel formulas (e.g. =B1+B2, =100-C1, =B1*0.1)
-const evaluateExcelCell = (cellVal, allCellData) => {
-  if (!cellVal || typeof cellVal !== "string") return cellVal || "";
-  if (!cellVal.startsWith("=")) return cellVal;
-
-  try {
-    let expr = cellVal.substring(1).trim();
-    expr = expr.replace(/\b([A-Z])([1-9]\d*)\b/g, (match) => {
-      const refVal = allCellData?.[match];
-      const evalRef = evaluateExcelCell(refVal, allCellData);
-      const parsed = parseFloat(evalRef);
-      return isNaN(parsed) ? 0 : parsed;
-    });
-
-    // eslint-disable-next-line no-new-func
-    const result = Function(`"use strict"; return (${expr})`)();
-    return isNaN(result) ? "#VALUE!" : Math.round(result * 100) / 100;
-  } catch (err) {
-    return "#ERROR!";
-  }
-};
+import { evaluateExcelCell, normalizeCellValue, adjustFormulaForOffset, getColumnLetter, parseCellRef, extractReferencedCells } from "../../../utils/excelFormulaEvaluator";
 
 // Helper to robustly parse template section data from JSON string, array, or sheets_data fallback
 const parseSectionsData = (tmpl) => {
@@ -56,7 +36,19 @@ const parseSectionsData = (tmpl) => {
   }
 
   if (Array.isArray(sec) && sec.length > 0) {
-    return sec;
+    return sec.map((s) => ({
+      ...s,
+      fields: (s.fields || []).map((f) => {
+        if (f.type === "table" && f.cellData) {
+          const normCellData = {};
+          Object.entries(f.cellData).forEach(([k, v]) => {
+            normCellData[k] = normalizeCellValue(v);
+          });
+          return { ...f, cellData: normCellData };
+        }
+        return f;
+      }),
+    }));
   }
 
   // Legacy fallback if template was saved with sheets_data object
@@ -85,7 +77,7 @@ const parseSectionsData = (tmpl) => {
               tableWidth: "100%",
               colHeaders: ["Column A", "Column B", "Column C", "Column D", "Column E", "Column F"],
               cellData: Object.fromEntries(
-                Object.entries(sheet1Cells).map(([k, v]) => [k, typeof v === "object" ? (v.value || "") : (v || "")])
+                Object.entries(sheet1Cells).map(([k, v]) => [k, normalizeCellValue(v)])
               ),
               cellMerges: tmpl.merges_data || {},
               cellStyles: {},
@@ -146,10 +138,25 @@ const ObservationTemplates = () => {
   const [selectedGroupId, setSelectedGroupId] = useState(null);
   const [expandedMaterials, setExpandedMaterials] = useState({});
 
-  // MULTI-SELECT Scope Test IDs
   const [selectedScopeTestIds, setSelectedScopeTestIds] = useState([]);
   const [isScopeDropdownOpen, setIsScopeDropdownOpen] = useState(false);
   const [scopeSearchQuery, setScopeSearchQuery] = useState("");
+  const testDropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (testDropdownRef.current && !testDropdownRef.current.contains(event.target)) {
+        setIsScopeDropdownOpen(false);
+      }
+    };
+    const handleMouseUpGlobal = () => setIsSelectingRange(false);
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("mouseup", handleMouseUpGlobal);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("mouseup", handleMouseUpGlobal);
+    };
+  }, []);
 
   // Active template reference for editing/saving
   const [activeTemplateId, setActiveTemplateId] = useState(null);
@@ -162,14 +169,20 @@ const ObservationTemplates = () => {
   const [selectedCellEnd, setSelectedCellEnd] = useState(null);
   const [isSelectingRange, setIsSelectingRange] = useState(false);
   const [draggedOverSectionId, setDraggedOverSectionId] = useState(null);
+  const [dragEnabledFieldId, setDragEnabledFieldId] = useState(null);
+  const [dragEnabledSectionId, setDragEnabledSectionId] = useState(null);
+  const [isMobilePaletteOpen, setIsMobilePaletteOpen] = useState(false);
+  const [isMetadataExpanded, setIsMetadataExpanded] = useState(false);
 
   // Template Metadata
   const [sheetMeta, setSheetMeta] = useState({
-    title: "New Observation Template",
+    title: "",
     isCode: "IS Standard",
-    category: "Civil Testing",
+    category: "",
     status: "Active",
     version: "1.0.0",
+    paperSize: "A4 (210 x 297 mm)",
+    orientation: "Portrait",
   });
 
   // Sections & Fields state
@@ -290,6 +303,17 @@ const ObservationTemplates = () => {
     return found || visibleGroups[0];
   }, [visibleGroups, selectedGroupId]);
 
+  const filteredScopesForDropdown = useMemo(() => {
+    const q = scopeSearchQuery.toLowerCase().trim();
+    if (!q) return scopes;
+    return scopes.filter(
+      (s) =>
+        s.test_name?.toLowerCase().includes(q) ||
+        (s.test_method && s.test_method.toLowerCase().includes(q)) ||
+        (s.test_code && s.test_code.toLowerCase().includes(q))
+    );
+  }, [scopes, scopeSearchQuery]);
+
   const getGroupVisuals = (name = "") => {
     const norm = name.toLowerCase();
     let IconComp = Beaker;
@@ -328,16 +352,19 @@ const ObservationTemplates = () => {
     setActiveTemplateId(null);
     setSelectedScopeTestIds([]);
     setSheetMeta({
-      title: "New Observation Template",
+      title: "",
       isCode: "IS Standard",
-      category: "Civil Testing",
+      category: "",
       status: "Active",
       version: "1.0.0",
+      paperSize: "A4 (210 x 297 mm)",
+      orientation: "Portrait",
     });
 
     setSections([]);
     setSelectedSectionId(null);
     setSelectedFieldId(null);
+    setIsMetadataExpanded(false);
     setViewMode("editor");
   };
 
@@ -356,6 +383,7 @@ const ObservationTemplates = () => {
     setSections([]);
     setSelectedSectionId(null);
     setSelectedFieldId(null);
+    setIsMetadataExpanded(false);
     setViewMode("editor");
   };
 
@@ -402,6 +430,7 @@ const ObservationTemplates = () => {
       }
     }
 
+    setIsMetadataExpanded(false);
     setViewMode("editor");
   };
 
@@ -449,11 +478,8 @@ const ObservationTemplates = () => {
   // Range selection bounds helper
   const getSelectedRangeBounds = () => {
     if (!selectedCellStart || !selectedCellEnd) return null;
-    const colStart = selectedCellStart.charCodeAt(0) - 65;
-    const rowStart = parseInt(selectedCellStart.substring(1)) || 1;
-
-    const colEnd = selectedCellEnd.charCodeAt(0) - 65;
-    const rowEnd = parseInt(selectedCellEnd.substring(1)) || 1;
+    const { col: colStart, row: rowStart } = parseCellRef(selectedCellStart);
+    const { col: colEnd, row: rowEnd } = parseCellRef(selectedCellEnd);
 
     const minCol = Math.min(colStart, colEnd);
     const maxCol = Math.max(colStart, colEnd);
@@ -462,8 +488,8 @@ const ObservationTemplates = () => {
 
     const colSpan = maxCol - minCol + 1;
     const rowSpan = maxRow - minRow + 1;
-    const topLeftRef = `${String.fromCharCode(65 + minCol)}${minRow}`;
-    const bottomRightRef = `${String.fromCharCode(65 + maxCol)}${maxRow}`;
+    const topLeftRef = `${getColumnLetter(minCol)}${minRow}`;
+    const bottomRightRef = `${getColumnLetter(maxCol)}${maxRow}`;
 
     return { minCol, maxCol, minRow, maxRow, colSpan, rowSpan, topLeftRef, bottomRightRef };
   };
@@ -471,8 +497,7 @@ const ObservationTemplates = () => {
   const isCellInSelection = (cellRef) => {
     const bounds = getSelectedRangeBounds();
     if (!bounds) return false;
-    const col = cellRef.charCodeAt(0) - 65;
-    const row = parseInt(cellRef.substring(1)) || 1;
+    const { col, row } = parseCellRef(cellRef);
 
     return col >= bounds.minCol && col <= bounds.maxCol && row >= bounds.minRow && row <= bounds.maxRow;
   };
@@ -529,6 +554,7 @@ const ObservationTemplates = () => {
     });
 
     setSelectedFieldId(newField.id);
+    setIsMobilePaletteOpen(false);
   };
 
   // Drag and Drop
@@ -699,6 +725,121 @@ const ObservationTemplates = () => {
     );
   };
 
+  // Auto-fill active cell formula/value down to all remaining rows in current column with Excel relative reference adjustments (e.g. =100-I4 -> =100-I5, =100-I6...)
+  const handleFillDownColumn = (fieldId) => {
+    if (!activeCellRef) {
+      alert("Please click on a formula cell first (e.g. C4) to fill down!");
+      return;
+    }
+
+    const { colStr: colLetter, row: sourceRow } = parseCellRef(activeCellRef);
+
+    setSections((prevSections) =>
+      prevSections.map((sec) => ({
+        ...sec,
+        fields: sec.fields.map((f) => {
+          if (f.id === fieldId) {
+            const currentCellData = { ...(f.cellData || {}) };
+            const sourceFormula = currentCellData[activeCellRef] || currentCellData[activeCellRef.toLowerCase()] || "";
+
+            if (!sourceFormula) {
+              alert(`Cell ${activeCellRef} is empty! Please type a formula first (e.g. =100-I4).`);
+              return f;
+            }
+
+            const totalRows = f.rowCount || 10;
+            let updatedCount = 0;
+
+            for (let r = sourceRow + 1; r <= totalRows; r++) {
+              const targetRef = `${colLetter}${r}`;
+              const rowOffset = r - sourceRow;
+              const adjustedFormula = adjustFormulaForOffset(sourceFormula, rowOffset, 0);
+              currentCellData[targetRef] = adjustedFormula;
+              updatedCount++;
+            }
+
+            return {
+              ...f,
+              cellData: currentCellData,
+            };
+          }
+          return f;
+        }),
+      }))
+    );
+  };
+
+  const handleGridCellKeyDown = (e, fieldId, cellRef, colIndex, rowIndex, maxCols, maxRows) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      const nextRow = rowIndex + 2;
+      if (nextRow <= maxRows) {
+        const nextCellRef = `${getColumnLetter(colIndex)}${nextRow}`;
+        setActiveCellRef(nextCellRef);
+        setSelectedCellStart(nextCellRef);
+        setSelectedCellEnd(nextCellRef);
+      }
+    } else if (e.key === "Tab") {
+      e.preventDefault();
+      if (e.shiftKey) {
+        if (colIndex > 0) {
+          const prevCellRef = `${getColumnLetter(colIndex - 1)}${rowIndex + 1}`;
+          setActiveCellRef(prevCellRef);
+          setSelectedCellStart(prevCellRef);
+          setSelectedCellEnd(prevCellRef);
+        }
+      } else {
+        if (colIndex + 1 < maxCols) {
+          const nextCellRef = `${getColumnLetter(colIndex + 1)}${rowIndex + 1}`;
+          setActiveCellRef(nextCellRef);
+          setSelectedCellStart(nextCellRef);
+          setSelectedCellEnd(nextCellRef);
+        }
+      }
+    }
+  };
+
+  const getSelectionStats = (cellData) => {
+    const bounds = getSelectedRangeBounds();
+    const targetCells = [];
+
+    if (bounds) {
+      for (let r = bounds.minRow; r <= bounds.maxRow; r++) {
+        for (let c = bounds.minCol; c <= bounds.maxCol; c++) {
+          targetCells.push(`${getColumnLetter(c)}${r}`);
+        }
+      }
+    } else if (activeCellRef) {
+      targetCells.push(activeCellRef);
+    }
+
+    const values = [];
+    targetCells.forEach((cRef) => {
+      const rawVal = normalizeCellValue(cellData?.[cRef]);
+      const evalVal = evaluateExcelCell(rawVal, cellData);
+      const num = parseFloat(evalVal);
+      if (!isNaN(num)) {
+        values.push(num);
+      }
+    });
+
+    if (values.length === 0) return null;
+
+    const sum = values.reduce((a, b) => a + b, 0);
+    const avg = sum / values.length;
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const count = values.length;
+
+    return {
+      sum: sum.toFixed(2),
+      avg: avg.toFixed(2),
+      min: min.toFixed(2),
+      max: max.toFixed(2),
+      count,
+    };
+  };
+
   const handleToggleCellFormat = (fieldId, formatKey) => {
     const bounds = getSelectedRangeBounds();
     const targetCells = [];
@@ -706,7 +847,7 @@ const ObservationTemplates = () => {
     if (bounds) {
       for (let r = bounds.minRow; r <= bounds.maxRow; r++) {
         for (let c = bounds.minCol; c <= bounds.maxCol; c++) {
-          targetCells.push(`${String.fromCharCode(65 + c)}${r}`);
+          targetCells.push(`${getColumnLetter(c)}${r}`);
         }
       }
     } else if (activeCellRef) {
@@ -759,7 +900,7 @@ const ObservationTemplates = () => {
 
             for (let r = minRow; r <= maxRow; r++) {
               for (let c = minCol; c <= maxCol; c++) {
-                const cellKey = `${String.fromCharCode(65 + c)}${r}`;
+                const cellKey = `${getColumnLetter(c)}${r}`;
                 if (cellKey !== topLeftRef) {
                   merges[cellKey] = { hidden: true };
                 }
@@ -788,14 +929,13 @@ const ObservationTemplates = () => {
             if (existing) {
               const cSpan = existing.colSpan || 1;
               const rSpan = existing.rowSpan || 1;
-              const startColCode = startCellRef.charCodeAt(0);
-              const startRowNum = parseInt(startCellRef.substring(1)) || 1;
+              const { col: startCol, row: startRow } = parseCellRef(startCellRef);
 
               delete merges[startCellRef];
               for (let r = 0; r < rSpan; r++) {
                 for (let c = 0; c < cSpan; c++) {
-                  const colLetter = String.fromCharCode(startColCode + c);
-                  const cellKey = `${colLetter}${startRowNum + r}`;
+                  const colLetter = getColumnLetter(startCol + c);
+                  const cellKey = `${colLetter}${startRow + r}`;
                   delete merges[cellKey];
                 }
               }
@@ -841,7 +981,7 @@ const ObservationTemplates = () => {
         fields: sec.fields.map((f) => {
           if (f.id === fieldId) {
             const currentCols = f.colCount || 4;
-            const newColLetter = String.fromCharCode(65 + currentCols);
+            const newColLetter = getColumnLetter(currentCols);
             return {
               ...f,
               colCount: currentCols + 1,
@@ -956,18 +1096,6 @@ const ObservationTemplates = () => {
 
   const rangeBounds = getSelectedRangeBounds();
 
-  // Filtered scopes inside the multi-select dropdown
-  const filteredScopesForDropdown = useMemo(() => {
-    const q = scopeSearchQuery.toLowerCase();
-    if (!q) return scopes;
-    return scopes.filter(
-      (s) =>
-        s.test_name?.toLowerCase().includes(q) ||
-        (s.test_code && s.test_code.toLowerCase().includes(q)) ||
-        (s.material_name && s.material_name.toLowerCase().includes(q))
-    );
-  }, [scopes, scopeSearchQuery]);
-
   const activePreviewSections = previewTemplateData?.parsed_sections || (previewTemplateData ? parseSectionsData(previewTemplateData) : sections);
 
   // Render input according to exact field type in preview
@@ -1038,7 +1166,7 @@ const ObservationTemplates = () => {
       headerTitle={viewMode === "list" ? "Observation Templates" : "Observation Template Designer"}
       headerSubtitle={viewMode === "list" ? "Catalogue of created observation templates" : "Configure observation template layout"}
     >
-      <div className="flex h-[calc(100vh-4rem)] flex-col bg-[#F8FAFC]">
+      <div className="flex h-[calc(100vh-4rem)] flex-col bg-[#F8FAFC] overflow-hidden">
 
         {/* MODE 1: CREATED TEMPLATES SCOPE CATALOGUE LIST VIEW */}
         {viewMode === "list" ? (
@@ -1057,8 +1185,8 @@ const ObservationTemplates = () => {
                 </span>
               </div>
 
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="relative w-64">
+              <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto justify-between sm:justify-start">
+                <div className="relative w-full sm:w-64">
                   <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
                     type="text"
@@ -1084,7 +1212,7 @@ const ObservationTemplates = () => {
                   className="flex items-center gap-2 rounded-xl bg-[#243744] px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-[#1A2733] transition-colors"
                 >
                   <Plus size={16} />
-                  <span>+ Create Observation Template</span>
+                  <span>Create Observation Template</span>
                 </button>
               </div>
             </div>
@@ -1103,7 +1231,7 @@ const ObservationTemplates = () => {
                   <FileSpreadsheet size={40} className="mx-auto text-slate-300" />
                   <h3 className="text-sm font-bold text-slate-800">No Created Observation Templates Found</h3>
                   <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                    Click the "+ Create Observation Template" button to create and assign test scopes to your first template.
+                    Click the "Create Observation Template" button to create and assign test scopes to your first template.
                   </p>
                   <button
                     type="button"
@@ -1119,7 +1247,7 @@ const ObservationTemplates = () => {
               <div className="flex-1 flex flex-col lg:flex-row gap-6 min-h-0 overflow-hidden">
 
                 {/* LEFT PANE: Material Groups Sidebar */}
-                <div className="w-full lg:w-[320px] shrink-0 bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
+                <div className={`w-full lg:w-[320px] shrink-0 bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col overflow-hidden ${activeGroup ? "hidden lg:flex" : "flex"}`}>
                   <div className="p-4 border-b border-slate-100 bg-slate-50/50">
                     <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-700">Material Groups</h3>
                     <p className="text-[11px] text-slate-500 font-semibold mt-0.5">{visibleGroups.length} Active Groups</p>
@@ -1168,12 +1296,21 @@ const ObservationTemplates = () => {
                   <div className="flex-1 bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
 
                     {/* Header */}
-                    <div className="p-5 border-b border-slate-100 bg-white flex items-center justify-between">
-                      <div>
-                        <h2 className="text-lg font-bold text-slate-900">{activeGroup.group_name}</h2>
-                        <p className="text-xs font-semibold text-slate-500 mt-0.5">
-                          Created Observation Templates Catalogue
-                        </p>
+                    <div className="p-5 border-b border-slate-100 bg-white flex items-center gap-3.5 justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedGroupId(null)}
+                          className="lg:hidden p-1.5 hover:bg-slate-100 rounded-lg text-slate-500 transition-colors"
+                        >
+                          <ArrowLeft size={16} />
+                        </button>
+                        <div>
+                          <h2 className="text-lg font-bold text-slate-900">{activeGroup.group_name}</h2>
+                          <p className="text-xs font-semibold text-slate-500 mt-0.5">
+                            Created Observation Templates Catalogue
+                          </p>
+                        </div>
                       </div>
                     </div>
 
@@ -1305,146 +1442,289 @@ const ObservationTemplates = () => {
           /* MODE 2: TEMPLATE DESIGNER WORKSPACE */
           <div className="flex flex-col flex-1 overflow-hidden">
 
-            {/* Header */}
-            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 bg-white px-6 py-3 shadow-sm">
+            {/* Header Toolbar (Back button & Right Action buttons) */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4 border-b border-slate-200 bg-white px-4 sm:px-6 py-3 shadow-2xs">
               <div className="flex items-center gap-3">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  icon={ArrowLeft}
+                  onClick={() => setViewMode("list")}
+                >
+                  Back
+                </Button>
                 <button
                   type="button"
-                  onClick={() => setViewMode("list")}
-                  className="flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                  onClick={() => setIsMobilePaletteOpen(true)}
+                  className="lg:hidden flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold shadow-2xs transition-colors cursor-pointer"
                 >
-                  <ArrowLeft size={15} />
-                  <span>Back to Catalogue</span>
+                  <Plus size={14} className="text-[#243744]" />
+                  <span>Add Fields</span>
                 </button>
-
-                {/* MULTI-SELECT TEST SCOPE DROPDOWN */}
-                <div className="relative border-l border-slate-200 pl-3">
-                  <button
-                    type="button"
-                    onClick={() => setIsScopeDropdownOpen(!isScopeDropdownOpen)}
-                    className="flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-800 hover:border-[#243744] shadow-xs"
-                  >
-                    <FlaskConical size={16} className="text-[#243744]" />
-                    <span>
-                      {selectedScopeTestIds.length === 0
-                        ? "Select Test Scopes (Multi-select)"
-                        : `${selectedScopeTestIds.length} Test Scope${selectedScopeTestIds.length === 1 ? "" : "s"} Assigned`}
-                    </span>
-                    <ChevronDown size={14} className="text-slate-400 ml-1" />
-                  </button>
-
-                  {/* Multi-Select Dropdown Menu */}
-                  {isScopeDropdownOpen && (
-                    <div className="absolute left-3 top-full mt-1.5 z-50 w-80 rounded-2xl border border-slate-200 bg-white p-3 shadow-xl space-y-2">
-                      <div className="flex items-center justify-between border-b pb-2">
-                        <span className="text-xs font-extrabold text-slate-800">Assign Test Scopes</span>
-                        <button
-                          type="button"
-                          onClick={() => setIsScopeDropdownOpen(false)}
-                          className="text-slate-400 hover:text-slate-600"
-                        >
-                          <X size={15} />
-                        </button>
-                      </div>
-
-                      <div className="relative">
-                        <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                        <input
-                          type="text"
-                          value={scopeSearchQuery}
-                          onChange={(e) => setScopeSearchQuery(e.target.value)}
-                          placeholder="Search test scope..."
-                          className="w-full rounded-lg border border-slate-200 pl-8 pr-2.5 py-1 text-xs text-slate-800 focus:border-[#243744] focus:outline-none"
-                        />
-                      </div>
-
-                      <div className="max-h-56 overflow-y-auto space-y-1.5 pr-1">
-                        {filteredScopesForDropdown.map((s) => {
-                          const sId = s.scope_test_id || s.id;
-                          const isChecked = selectedScopeTestIds.map(String).includes(String(sId));
-                          return (
-                            <label
-                              key={sId}
-                              className="flex items-center gap-2.5 rounded-lg border border-slate-100 p-2 text-xs font-semibold hover:bg-slate-50 cursor-pointer"
-                            >
-                              <input
-                                type="checkbox"
-                                checked={isChecked}
-                                onChange={() => toggleScopeTestId(sId)}
-                                className="h-4 w-4 rounded border-slate-300 text-[#243744] focus:ring-[#243744]"
-                              />
-                              <div className="min-w-0 flex-1">
-                                <p className="font-bold text-slate-900 truncate">{s.test_name}</p>
-                                <p className="text-[10px] text-slate-500 font-mono truncate">{s.test_code || s.material_name}</p>
-                              </div>
-                            </label>
-                          );
-                        })}
-                      </div>
-
-                      <div className="border-t pt-2 flex items-center justify-between text-xs">
-                        <button
-                          type="button"
-                          onClick={() => setSelectedScopeTestIds(scopes.map((s) => s.scope_test_id || s.id))}
-                          className="text-[#243744] font-bold hover:underline"
-                        >
-                          Select All
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedScopeTestIds([])}
-                          className="text-slate-500 font-bold hover:underline"
-                        >
-                          Clear All
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
               </div>
 
-              {/* Actions */}
-              <div className="flex items-center gap-3">
+              {/* Actions on Right */}
+              <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 justify-start sm:justify-end w-full sm:w-auto">
                 {saveStatusMessage && (
-                  <span className="text-xs font-medium text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-200">
+                  <span className="text-xs font-medium text-emerald-600 bg-emerald-50 px-3 py-1 rounded-lg border border-emerald-200">
                     {saveStatusMessage}
                   </span>
                 )}
 
-                <button
-                  type="button"
-                  onClick={() => handleOpenPreview({ name: sheetMeta.title, standard: sheetMeta.isCode, material: sheetMeta.category, sections_data: sections })}
-                  className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  icon={Eye}
+                  onClick={() =>
+                    handleOpenPreview({
+                      name: sheetMeta.title,
+                      standard: sheetMeta.isCode,
+                      material: sheetMeta.category,
+                      sections_data: sections,
+                    })
+                  }
                 >
-                  <Eye size={15} />
-                  <span>Preview Template</span>
-                </button>
+                  Preview
+                </Button>
 
-                <button
-                  type="button"
-                  disabled={isSaving}
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  icon={Save}
+                  loading={isSaving}
                   onClick={() => handleSaveToDatabase("Draft")}
-                  className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
                 >
-                  {isSaving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
-                  <span>Save Draft</span>
-                </button>
+                  Save Draft
+                </Button>
 
+                <Button
+                  variant="primary"
+                  size="sm"
+                  icon={Check}
+                  loading={isSaving}
+                  onClick={() => handleSaveToDatabase("Active")}
+                >
+                  Publish
+                </Button>
+              </div>
+            </div>
+
+            {/* Template Creation Fields Bar (Responsive Layout) */}
+            <div className="bg-white border-b border-slate-200 px-4 sm:px-6 py-3 shadow-2xs relative z-30">
+              {/* Collapsible toggle for mobile view */}
+              <div className="lg:hidden flex items-center justify-between">
+                <div className="min-w-0 flex-1 pr-4">
+                  <h4 className="text-xs font-bold text-slate-900 truncate">
+                    {sheetMeta.title || "Untitled Template"}
+                  </h4>
+                  <p className="text-[10px] font-semibold text-slate-500 mt-0.5">
+                    {sheetMeta.paperSize || "A4"} • {sheetMeta.orientation || "Portrait"} • {sheetMeta.category || "No Category"}
+                  </p>
+                </div>
                 <button
                   type="button"
-                  disabled={isSaving}
-                  onClick={() => handleSaveToDatabase("Active")}
-                  className="flex items-center gap-1.5 rounded-xl bg-[#243744] px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-[#1A2733] disabled:opacity-50"
+                  onClick={() => setIsMetadataExpanded(!isMetadataExpanded)}
+                  className="flex items-center gap-1 text-[#243744] hover:bg-slate-50 text-[11px] font-bold px-2.5 py-1.5 rounded-lg border border-slate-200 shadow-2xs transition-colors shrink-0 cursor-pointer"
                 >
-                  {isSaving ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}
-                  <span>Save & Publish Template</span>
+                  <span>{isMetadataExpanded ? "Hide Settings" : "Configure"}</span>
+                  <ChevronDown size={13} className={`transform transition-transform duration-200 ${isMetadataExpanded ? "rotate-180" : ""}`} />
                 </button>
+              </div>
+
+              <div className={`${isMetadataExpanded ? "flex mt-3 pt-3 border-t border-slate-100" : "hidden lg:flex"} flex-wrap items-center gap-3 sm:gap-4 lg:gap-5 w-full`}>
+                {/* Template Name * */}
+                <div className="flex flex-col gap-1 min-w-[200px] sm:min-w-[220px] flex-1 max-w-full sm:max-w-xs">
+                  <label className="text-[11px] font-bold text-slate-700">
+                    Template Name <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={sheetMeta.title}
+                    onChange={(e) => setSheetMeta({ ...sheetMeta, title: e.target.value })}
+                    placeholder="Enter template name..."
+                    className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-800 focus:border-[#243744] focus:outline-none focus:ring-1 focus:ring-[#243744]"
+                  />
+                </div>
+
+                {/* Test Name * Multi-Select Dropdown */}
+                <div ref={testDropdownRef} className="relative flex flex-col gap-1 min-w-[200px] sm:min-w-[240px] flex-1 max-w-full sm:max-w-xs">
+                  <label className="text-[11px] font-bold text-slate-700">
+                    Test Name <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setIsScopeDropdownOpen(!isScopeDropdownOpen)}
+                      className="h-9 w-full flex items-center justify-between rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-800 focus:border-[#243744] focus:outline-none focus:ring-1 focus:ring-[#243744] cursor-pointer shadow-2xs"
+                    >
+                      <span className="truncate pr-2">
+                        {selectedScopeTestIds.length === 0
+                          ? "Select Test Name..."
+                          : selectedScopeTestIds.length === 1
+                            ? (scopes.find((s) => String(s.scope_test_id || s.id) === String(selectedScopeTestIds[0]))?.test_name || `${selectedScopeTestIds.length} Test Selected`)
+                            : `${selectedScopeTestIds.length} Tests Selected`}
+                      </span>
+                      <ChevronDown size={14} className="text-slate-400 shrink-0 ml-1" />
+                    </button>
+
+                    {/* Dropdown Menu Popup */}
+                    {isScopeDropdownOpen && (
+                      <div className="absolute left-0 top-full mt-1.5 z-50 w-80 sm:w-84 rounded-2xl border border-slate-200 bg-white p-3 shadow-xl space-y-2">
+                        {/* Dropdown Header */}
+                        <div className="flex items-center justify-between border-b pb-2">
+                          <span className="text-xs font-extrabold text-slate-800">Select Test(s)</span>
+                          <button
+                            type="button"
+                            onClick={() => setIsScopeDropdownOpen(false)}
+                            className="text-slate-400 hover:text-slate-600 p-0.5 rounded-md hover:bg-slate-100 transition-colors"
+                          >
+                            <X size={15} />
+                          </button>
+                        </div>
+
+                        {/* Search inside Dropdown */}
+                        <div className="relative">
+                          <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                          <input
+                            type="text"
+                            value={scopeSearchQuery}
+                            onChange={(e) => setScopeSearchQuery(e.target.value)}
+                            placeholder="Search tests by name or code..."
+                            className="w-full rounded-lg border border-slate-200 pl-8 pr-2.5 py-1.5 text-xs text-slate-800 focus:border-[#243744] focus:outline-none font-medium"
+                          />
+                        </div>
+
+                        {/* List of Scopes with Checkboxes */}
+                        <div className="max-h-56 overflow-y-auto space-y-1.5 pr-1">
+                          {filteredScopesForDropdown.length === 0 ? (
+                            <p className="p-3 text-center text-xs text-slate-400 italic">No tests found</p>
+                          ) : (
+                            filteredScopesForDropdown.map((s) => {
+                              const sId = s.scope_test_id || s.id;
+                              const isChecked = selectedScopeTestIds.map(String).includes(String(sId));
+                              return (
+                                <label
+                                  key={sId}
+                                  className={`flex items-center gap-2.5 rounded-lg border p-2 text-xs font-semibold cursor-pointer transition-colors ${isChecked
+                                      ? "border-[#243744]/30 bg-[#243744]/5 text-[#243744]"
+                                      : "border-slate-100 hover:bg-slate-50 text-slate-800"
+                                    }`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={() => {
+                                      toggleScopeTestId(sId);
+                                      if (!isChecked && !sheetMeta.title) {
+                                        setSheetMeta({ ...sheetMeta, title: s.test_name });
+                                      }
+                                    }}
+                                    className="h-4 w-4 rounded border-slate-300 text-[#243744] focus:ring-[#243744] cursor-pointer"
+                                  />
+                                  <div className="min-w-0 flex-1">
+                                    <p className="font-bold text-slate-900 truncate">{s.test_name}</p>
+                                    {s.test_method && (
+                                      <p className="text-[10px] text-slate-500 font-mono truncate">{s.test_method}</p>
+                                    )}
+                                  </div>
+                                </label>
+                              );
+                            })
+                          )}
+                        </div>
+
+                        {/* Bottom Actions */}
+                        <div className="border-t pt-2.5 flex items-center justify-between text-xs">
+                          <div className="flex items-center gap-3">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedScopeTestIds(scopes.map((s) => s.scope_test_id || s.id))}
+                              className="text-[#243744] font-bold hover:underline"
+                            >
+                              Select All
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedScopeTestIds([])}
+                              className="text-slate-500 font-bold hover:underline"
+                            >
+                              Clear All
+                            </button>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setIsScopeDropdownOpen(false)}
+                            className="px-3 py-1 bg-[#243744] text-white rounded-lg text-[11px] font-bold shadow-2xs hover:bg-[#1A2733]"
+                          >
+                            Done
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Template Category */}
+                <div className="flex flex-col gap-1 w-full sm:w-auto sm:min-w-[180px] sm:flex-1 sm:max-w-[220px]">
+                  <label className="text-[11px] font-bold text-slate-700">
+                    Template Category
+                  </label>
+                  <select
+                    value={sheetMeta.category || ""}
+                    onChange={(e) => setSheetMeta({ ...sheetMeta, category: e.target.value })}
+                    className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-800 focus:border-[#243744] focus:outline-none focus:ring-1 focus:ring-[#243744] cursor-pointer"
+                  >
+                    <option value="">Select Category...</option>
+                    <option value="Soil Testing">Soil Testing</option>
+                    <option value="Concrete Testing">Concrete Testing</option>
+                    <option value="Bitumen Testing">Bitumen Testing</option>
+                    <option value="Steel Testing">Steel Testing</option>
+                    <option value="Aggregate Testing">Aggregate Testing</option>
+                    <option value="Chemical Testing">Chemical Testing</option>
+                    <option value="General Testing">General Testing</option>
+                  </select>
+                </div>
+
+                {/* Divider */}
+                <div className="hidden lg:block h-8 w-px bg-slate-200 self-end mb-1 mx-1" />
+
+                {/* Paper Size */}
+                <div className="flex flex-col gap-1 w-full sm:w-auto sm:min-w-[170px] sm:flex-1 sm:max-w-[220px]">
+                  <label className="text-[11px] font-bold text-slate-700">
+                    Paper Size
+                  </label>
+                  <select
+                    value={sheetMeta.paperSize || "A4 (210 x 297 mm)"}
+                    onChange={(e) => setSheetMeta({ ...sheetMeta, paperSize: e.target.value })}
+                    className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-800 focus:border-[#243744] focus:outline-none focus:ring-1 focus:ring-[#243744] cursor-pointer"
+                  >
+                    <option value="A4 (210 x 297 mm)">A4 (210 x 297 mm)</option>
+                    <option value="A3 (297 x 420 mm)">A3 (297 x 420 mm)</option>
+                    <option value="Letter (216 x 279 mm)">Letter (216 x 279 mm)</option>
+                    <option value="Legal (216 x 356 mm)">Legal (216 x 356 mm)</option>
+                  </select>
+                </div>
+
+                {/* Orientation */}
+                <div className="flex flex-col gap-1 w-full sm:w-auto sm:min-w-[130px] sm:flex-1 sm:max-w-[180px]">
+                  <label className="text-[11px] font-bold text-slate-700">
+                    Orientation
+                  </label>
+                  <select
+                    value={sheetMeta.orientation || "Portrait"}
+                    onChange={(e) => setSheetMeta({ ...sheetMeta, orientation: e.target.value })}
+                    className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-800 focus:border-[#243744] focus:outline-none focus:ring-1 focus:ring-[#243744] cursor-pointer"
+                  >
+                    <option value="Portrait">Portrait</option>
+                    <option value="Landscape">Landscape</option>
+                  </select>
+                </div>
               </div>
             </div>
 
             {/* Selected Test Scope Badges Bar */}
             {selectedScopeTestIds.length > 0 && (
-              <div className="bg-slate-100 border-b border-slate-200 px-6 py-2 flex items-center gap-2 flex-wrap">
+              <div className="bg-slate-100 border-b border-slate-200 px-4 sm:px-6 py-2 flex items-center gap-2 flex-wrap">
                 <span className="text-[11px] font-bold text-[#243744] uppercase">Assigned Test Scopes:</span>
                 {selectedScopeTestIds.map((id) => {
                   const s = scopes.find((item) => String(item.scope_test_id || item.id) === String(id));
@@ -1468,13 +1748,34 @@ const ObservationTemplates = () => {
             )}
 
             {/* Designer Work Area */}
-            <div className="flex flex-1 overflow-hidden">
+            <div className="flex flex-col lg:flex-row flex-1 overflow-hidden">
 
-              {/* LEFT PALETTE */}
-              <aside className="w-72 border-r border-slate-200 bg-white flex flex-col overflow-y-auto p-4 space-y-6 flex-shrink-0">
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900">Add Template Fields</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">Drag fields or click to add to template</p>
+              {/* Backdrop overlay for mobile drawer */}
+              {isMobilePaletteOpen && (
+                <div
+                  className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-xs lg:hidden"
+                  onClick={() => setIsMobilePaletteOpen(false)}
+                />
+              )}
+
+              {/* LEFT PALETTE (Slide-over drawer on mobile/tablet) */}
+              <aside
+                className={`fixed inset-y-0 left-0 z-50 w-72 bg-white border-r border-slate-200 flex flex-col p-4 space-y-4 lg:space-y-6 shadow-xl transition-transform duration-300 transform lg:relative lg:translate-x-0 lg:shadow-none lg:z-auto overflow-y-auto shrink-0 h-full lg:h-auto ${
+                  isMobilePaletteOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+                }`}
+              >
+                <div className="flex items-center justify-between lg:block">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900">Add Template Fields</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">Drag fields or click to add to template</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsMobilePaletteOpen(false)}
+                    className="lg:hidden p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 transition-colors"
+                  >
+                    <X size={18} />
+                  </button>
                 </div>
 
                 {fieldCategories.map((cat) => (
@@ -1506,7 +1807,7 @@ const ObservationTemplates = () => {
               </aside>
 
               {/* CENTER CANVAS */}
-              <main className="flex-1 overflow-y-auto p-6 bg-[#F8FAFC]">
+              <main className="flex-1 overflow-y-auto p-3 sm:p-6 bg-[#F8FAFC]">
                 <div className={`mx-auto transition-all duration-200 ${deviceMode === "mobile" ? "max-w-md" : "w-full max-w-full px-2"}`}>
 
                   {/* Blank Template Canvas */}
@@ -1550,6 +1851,7 @@ const ObservationTemplates = () => {
                       {sections.map((section, sIdx) => {
                         const isSectionSelected = selectedSectionId === section.id;
                         const isDraggedOver = draggedOverSectionId === section.id;
+                        const isSectionDragActive = dragEnabledSectionId === section.id;
 
                         return (
                           <div
@@ -1561,17 +1863,17 @@ const ObservationTemplates = () => {
                             onDragLeave={() => setDraggedOverSectionId(null)}
                             onDrop={(e) => handleDropOnSection(e, section.id, sIdx)}
                             onClick={() => setSelectedSectionId(section.id)}
-                            className={`rounded-2xl border bg-white shadow-sm transition-all ${isDraggedOver ? "border-[#243744] ring-4 ring-[#243744]/20 bg-slate-50/10" : ""
+                            className={`rounded-2xl border bg-white shadow-sm transition-all min-w-0 w-full ${isDraggedOver ? "border-[#243744] ring-4 ring-[#243744]/20 bg-slate-50/10" : ""
                               } ${isSectionSelected ? "border-[#243744] ring-2 ring-[#243744]/10" : "border-slate-200"
                               }`}
                           >
                             <div
-                              draggable
+                              draggable={isSectionDragActive}
                               onDragStart={(e) => handleSectionDragStart(e, sIdx)}
-                              className="flex items-center justify-between border-b border-slate-100 bg-slate-50/50 px-5 py-3.5 rounded-t-2xl cursor-grab active:cursor-grabbing"
+                              className={`flex items-center justify-between border-b border-slate-100 bg-slate-50/50 px-4 py-2.5 sm:px-5 sm:py-3.5 rounded-t-2xl ${isSectionDragActive ? "cursor-grabbing" : "cursor-default"}`}
                             >
                               <div className="flex items-center gap-2">
-                                <GripVertical size={16} className="text-slate-400 cursor-move" />
+                                <GripVertical size={16} className="text-slate-400 cursor-grab active:cursor-grabbing shrink-0" onMouseEnter={() => setDragEnabledSectionId(section.id)} onMouseLeave={() => setDragEnabledSectionId(null)} />
                                 <input
                                   type="text"
                                   value={section.title}
@@ -1596,7 +1898,7 @@ const ObservationTemplates = () => {
                               </button>
                             </div>
 
-                            <div className="p-5">
+                            <div className="p-3 sm:p-5">
                               {section.fields.length === 0 ? (
                                 <div className="rounded-xl border border-dashed border-slate-200 p-8 text-center bg-slate-50/30">
                                   <p className="text-xs text-slate-400">Drag and drop fields here from the left palette</p>
@@ -1604,6 +1906,7 @@ const ObservationTemplates = () => {
                               ) : (
                                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                                   {section.fields.map((f, fIdx) => {
+                                    const isFieldDragActive = dragEnabledFieldId === f.id;
                                     const isSelected = selectedFieldId === f.id;
                                     const isTable = f.type === "table";
                                     const colCount = f.colCount || 6;
@@ -1617,7 +1920,7 @@ const ObservationTemplates = () => {
                                     return (
                                       <div
                                         key={f.id}
-                                        draggable
+                                        draggable={isFieldDragActive}
                                         onDragStart={(e) => handleFieldDragStart(e, section.id, f.id, fIdx)}
                                         onDragOver={(e) => e.preventDefault()}
                                         onDrop={(e) => handleDropOnFieldCard(e, section.id, f.id, fIdx)}
@@ -1626,7 +1929,7 @@ const ObservationTemplates = () => {
                                           setSelectedFieldId(f.id);
                                           setSelectedSectionId(section.id);
                                         }}
-                                        className={`relative rounded-xl border p-3.5 transition-all cursor-grab active:cursor-grabbing ${isTable ? "col-span-full" : ""
+                                        className={`relative rounded-xl border p-2.5 sm:p-3 transition-all min-w-0 w-full ${isFieldDragActive ? "cursor-grabbing" : "cursor-default"} ${isTable ? "col-span-full" : ""
                                           } ${isSelected
                                             ? "border-[#243744] bg-slate-100/20 ring-2 ring-[#243744]/20"
                                             : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50"
@@ -1634,7 +1937,7 @@ const ObservationTemplates = () => {
                                       >
                                         <div className="flex items-center justify-between mb-2">
                                           <div className="flex items-center gap-2">
-                                            <GripVertical size={14} className="text-slate-300" />
+                                            <GripVertical size={14} className="text-slate-300 cursor-grab active:cursor-grabbing shrink-0" onMouseEnter={() => setDragEnabledFieldId(f.id)} onMouseLeave={() => setDragEnabledFieldId(null)} />
                                             {isTable && <Table2 size={16} className="text-[#243744]" />}
                                             <input
                                               type="text"
@@ -1745,6 +2048,19 @@ const ObservationTemplates = () => {
                                                   </button>
                                                 )}
 
+                                                <button
+                                                  type="button"
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleFillDownColumn(f.id);
+                                                  }}
+                                                  className="px-3 py-1 bg-emerald-700 text-white hover:bg-emerald-800 rounded text-[11px] font-bold flex items-center gap-1 shadow-2xs transition-colors cursor-pointer"
+                                                  title="Auto-fill active formula down to all remaining rows in column (e.g. =100-I4 -> =100-I5, =100-I6...)"
+                                                >
+                                                  <ArrowDown size={13} />
+                                                  <span>Fill Down Column</span>
+                                                </button>
+
                                                 <div className="h-4 w-px bg-slate-300 mx-0.5" />
 
                                                 <button type="button" onClick={(e) => { e.stopPropagation(); handleAddExcelRow(f.id); }} className="px-2 py-1 bg-white border rounded text-[11px] font-bold">+ Row</button>
@@ -1774,31 +2090,64 @@ const ObservationTemplates = () => {
                                                 <thead>
                                                   <tr className="bg-slate-200/90 border-b border-slate-300 font-bold text-xs font-mono">
                                                     <th className="p-1.5 border-r border-slate-300 w-10 text-center bg-slate-300/60"></th>
-                                                    {Array.from({ length: colCount }).map((_, cIdx) => (
-                                                      <th key={cIdx} className="p-1.5 border-r border-slate-300 min-w-[120px] text-center">
-                                                        {String.fromCharCode(65 + cIdx)}
-                                                      </th>
-                                                    ))}
+                                                    {Array.from({ length: colCount }).map((_, cIdx) => {
+                                                      const colLetter = getColumnLetter(cIdx);
+                                                      const activeParsed = activeCellRef ? parseCellRef(activeCellRef) : null;
+                                                      const isColActive = activeParsed && activeParsed.colStr === colLetter;
+                                                      return (
+                                                        <th
+                                                          key={cIdx}
+                                                          className={`p-1.5 border-r border-slate-300 min-w-[120px] text-center transition-colors ${
+                                                            isColActive ? "bg-[#243744] text-white font-extrabold shadow-inner" : "text-slate-700"
+                                                          }`}
+                                                        >
+                                                          {colLetter}
+                                                        </th>
+                                                      );
+                                                    })}
                                                   </tr>
                                                 </thead>
                                                 <tbody>
                                                   {Array.from({ length: rowCount }).map((_, rIdx) => {
                                                     const rowNum = rIdx + 1;
+                                                    const activeParsed = activeCellRef ? parseCellRef(activeCellRef) : null;
+                                                    const isRowActive = activeParsed && activeParsed.row === rowNum;
                                                     return (
                                                       <tr key={rIdx} className="border-b border-slate-200">
-                                                        <td className="p-1.5 border-r border-slate-300 text-center font-mono text-[11px] font-bold text-slate-500 bg-slate-100/70">
+                                                        <td
+                                                          className={`p-1.5 border-r border-slate-300 text-center font-mono text-[11px] transition-colors ${
+                                                            isRowActive ? "bg-[#243744] text-white font-extrabold shadow-inner" : "font-bold text-slate-500 bg-slate-100/70"
+                                                          }`}
+                                                        >
                                                           {rowNum}
                                                         </td>
                                                         {Array.from({ length: colCount }).map((_, cIdx) => {
-                                                          const colLetter = String.fromCharCode(65 + cIdx);
+                                                          const colLetter = getColumnLetter(cIdx);
                                                           const cellRef = `${colLetter}${rowNum}`;
                                                           const mergeInfo = f.cellMerges?.[cellRef];
                                                           if (mergeInfo?.hidden) return null;
 
                                                           const isFocused = activeCellRef === cellRef;
                                                           const isSelected = isCellInSelection(cellRef);
-                                                          const rawCellVal = f.cellData?.[cellRef] || "";
+                                                          const rawCellVal = normalizeCellValue(f.cellData?.[cellRef]);
                                                           const evalVal = evaluateExcelCell(rawCellVal, f.cellData);
+
+                                                          const activeRawVal = normalizeCellValue(f.cellData?.[activeCellRef]);
+                                                          const activeRefs = extractReferencedCells(activeRawVal);
+                                                          const refIndex = activeRefs.indexOf(cellRef);
+                                                          const isReferenced = refIndex !== -1;
+
+                                                          const refHighlightClass = isReferenced
+                                                            ? refIndex === 0
+                                                              ? "ring-2 ring-blue-500 bg-blue-50/80 font-bold"
+                                                              : refIndex === 1
+                                                                ? "ring-2 ring-emerald-500 bg-emerald-50/80 font-bold"
+                                                                : refIndex === 2
+                                                                  ? "ring-2 ring-purple-500 bg-purple-50/80 font-bold"
+                                                                  : refIndex === 3
+                                                                    ? "ring-2 ring-amber-500 bg-amber-50/80 font-bold"
+                                                                    : "ring-2 ring-rose-500 bg-rose-50/80 font-bold"
+                                                            : "";
 
                                                           const cellStyle = f.cellStyles?.[cellRef];
                                                           const isBold = cellStyle?.bold;
@@ -1813,6 +2162,13 @@ const ObservationTemplates = () => {
                                                               rowSpan={mergeInfo?.rowSpan || 1}
                                                               onMouseDown={(e) => {
                                                                 e.stopPropagation();
+                                                                if (activeCellRef && activeCellRef !== cellRef) {
+                                                                  const activeVal = normalizeCellValue(f.cellData?.[activeCellRef]);
+                                                                  if (activeVal.startsWith("=")) {
+                                                                    handleUpdateExcelCell(f.id, activeCellRef, `${activeVal}${cellRef}`);
+                                                                    return;
+                                                                  }
+                                                                }
                                                                 setIsSelectingRange(true);
                                                                 if (!e.shiftKey) setSelectedCellStart(cellRef);
                                                                 setSelectedCellEnd(cellRef);
@@ -1821,13 +2177,14 @@ const ObservationTemplates = () => {
                                                               onMouseEnter={() => {
                                                                 if (isSelectingRange) setSelectedCellEnd(cellRef);
                                                               }}
-                                                              className={`p-1 border-r border-slate-200 relative ${isFocused ? "ring-[#243744] bg-slate-200/80 font-bold" : isSelected ? "bg-slate-100/80" : ""
-                                                                }`}
+                                                              className={`p-1 border-r border-slate-200 relative transition-all ${isFocused ? "ring-2 ring-[#243744] bg-slate-200/80 font-bold z-10" : isSelected ? "bg-blue-500/15 border border-blue-400 ring-1 ring-blue-400/50 shadow-inner" : ""
+                                                                } ${refHighlightClass}`}
                                                             >
                                                               <textarea
                                                                 rows={typeof displayVal === "string" && displayVal.includes("\n") ? 2 : 1}
                                                                 value={displayVal}
                                                                 onChange={(e) => handleUpdateExcelCell(f.id, cellRef, e.target.value)}
+                                                                onKeyDown={(e) => handleGridCellKeyDown(e, f.id, cellRef, cIdx, rIdx, colCount, rowCount)}
                                                                 onFocus={() => {
                                                                   setActiveCellRef(cellRef);
                                                                   if (!selectedCellStart) setSelectedCellStart(cellRef);
@@ -1835,6 +2192,16 @@ const ObservationTemplates = () => {
                                                                 className={`w-full bg-transparent px-1.5 py-1 text-xs focus:outline-none resize-none overflow-hidden whitespace-pre-wrap leading-tight ${isBold ? "font-extrabold text-slate-900" : "text-slate-800"
                                                                   } ${isItalic ? "italic" : ""} ${isCenter ? "text-center" : ""}`}
                                                               />
+                                                              {isFocused && (
+                                                                <div
+                                                                  className="absolute -bottom-1 -right-1 w-2.5 h-2.5 bg-[#243744] border border-white cursor-ns-resize z-20 shadow-xs hover:scale-125 transition-transform"
+                                                                  title="Double-click to Auto-Fill down column"
+                                                                  onDoubleClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleFillDownColumn(f.id);
+                                                                  }}
+                                                                />
+                                                              )}
                                                             </td>
                                                           );
                                                         })}
@@ -1843,6 +2210,25 @@ const ObservationTemplates = () => {
                                                   })}
                                                 </tbody>
                                               </table>
+                                              {(() => {
+                                                const stats = getSelectionStats(f.cellData);
+                                                if (!stats) return null;
+                                                return (
+                                                  <div className="bg-[#243744] text-white text-[11px] font-mono px-3 py-1.5 flex items-center justify-between gap-4 border-t border-[#34495E] rounded-b-lg shadow-inner">
+                                                    <div className="flex items-center gap-1.5 text-slate-300">
+                                                      <Activity size={13} className="text-emerald-400" />
+                                                      <span className="font-bold">Selection Stats:</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-4 flex-wrap text-xs">
+                                                      <span className="bg-[#1A2733] px-2 py-0.5 rounded border border-[#34495E]"><span className="text-slate-400">AVERAGE:</span> <strong className="text-emerald-300">{stats.avg}</strong></span>
+                                                      <span className="bg-[#1A2733] px-2 py-0.5 rounded border border-[#34495E]"><span className="text-slate-400">COUNT:</span> <strong className="text-sky-300">{stats.count}</strong></span>
+                                                      <span className="bg-[#1A2733] px-2 py-0.5 rounded border border-[#34495E]"><span className="text-slate-400">MIN:</span> <strong className="text-amber-300">{stats.min}</strong></span>
+                                                      <span className="bg-[#1A2733] px-2 py-0.5 rounded border border-[#34495E]"><span className="text-slate-400">MAX:</span> <strong className="text-purple-300">{stats.max}</strong></span>
+                                                      <span className="bg-[#1A2733] px-2 py-0.5 rounded border border-[#34495E]"><span className="text-slate-400">SUM:</span> <strong className="text-emerald-400 font-bold">{stats.sum}</strong></span>
+                                                    </div>
+                                                  </div>
+                                                );
+                                              })()}
                                             </div>
                                           </div>
                                         ) : (
@@ -1882,13 +2268,13 @@ const ObservationTemplates = () => {
 
         {/* Live Preview Modal */}
         {isPreviewOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-            <div className="w-full max-w-5xl max-h-[90vh] bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden">
-              <div className="flex items-center justify-between border-b px-6 py-4 bg-slate-50">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-2 sm:p-4">
+            <div className="w-full max-w-5xl h-full sm:h-auto max-h-[95vh] sm:max-h-[90vh] bg-white rounded-xl sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+              <div className="flex items-center justify-between border-b px-4 py-3 sm:px-6 sm:py-4 bg-slate-50">
                 <div className="flex items-center gap-2">
                   <Eye className="text-[#243744]" size={20} />
-                  <h3 className="text-base font-bold text-slate-900">
-                    Observation Template Preview - {previewTemplateData?.name || previewTemplateData?.title || sheetMeta.title}
+                  <h3 className="text-sm sm:text-base font-bold text-slate-900">
+                    Observation Template Preview
                   </h3>
                 </div>
                 <button type="button" onClick={() => setIsPreviewOpen(false)} className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200">
@@ -1896,29 +2282,14 @@ const ObservationTemplates = () => {
                 </button>
               </div>
 
-              <div className="p-6 overflow-y-auto space-y-6">
-                <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 grid grid-cols-3 gap-3 text-xs">
-                  <div>
-                    <span className="text-slate-400 font-bold block">TEMPLATE NAME:</span>
-                    <span className="font-extrabold text-slate-900">{previewTemplateData?.name || previewTemplateData?.title || sheetMeta.title}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 font-bold block">STANDARD CODE:</span>
-                    <span className="font-mono font-bold text-[#243744]">{previewTemplateData?.standard || previewTemplateData?.isCode || sheetMeta.isCode}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 font-bold block">MATERIAL / SCOPE:</span>
-                    <span className="font-bold text-slate-800">{previewTemplateData?.material || previewTemplateData?.category || sheetMeta.category}</span>
-                  </div>
-                </div>
-
+              <div className="p-4 sm:p-6 overflow-y-auto space-y-4 sm:space-y-6">
                 {activePreviewSections.length === 0 ? (
                   <p className="text-sm text-slate-400 text-center py-8">Observation Template layout is currently empty</p>
                 ) : (
                   activePreviewSections.map((sec) => (
-                    <div key={sec.id} className="rounded-xl border border-slate-200 p-5 bg-white space-y-4">
-                      <h4 className="text-sm font-bold text-[#243744] border-b pb-2">{sec.title}</h4>
-                      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                    <div key={sec.id} className="rounded-xl border border-slate-200 p-4 sm:p-5 bg-white space-y-3 sm:space-y-4">
+                      <h4 className="text-xs sm:text-sm font-bold text-[#243744] border-b pb-2">{sec.title}</h4>
+                      <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                         {sec.fields.map((f) => {
                           const isTable = f.type === "table";
                           const colCount = f.colCount || 6;
@@ -1963,7 +2334,7 @@ const ObservationTemplates = () => {
 
                                               if (mergeInfo?.hidden) return null;
 
-                                              const rawCellVal = f.cellData?.[cellRef] || "";
+                                              const rawCellVal = normalizeCellValue(f.cellData?.[cellRef]);
                                               const evalVal = evaluateExcelCell(rawCellVal, f.cellData);
 
                                               const cellStyle = f.cellStyles?.[cellRef];
@@ -1978,14 +2349,12 @@ const ObservationTemplates = () => {
                                                   rowSpan={mergeInfo?.rowSpan || 1}
                                                   className="p-1 border-r border-slate-200"
                                                 >
-                                                  <textarea
-                                                    rows={typeof evalVal === "string" && String(evalVal).includes("\n") ? 2 : 1}
-                                                    value={evalVal}
-                                                    placeholder=""
-                                                    readOnly
-                                                    className={`w-full bg-transparent px-1.5 py-1 text-xs focus:outline-none resize-none overflow-hidden whitespace-pre-wrap leading-tight ${isBold ? "font-extrabold text-slate-900" : "text-slate-800"
+                                                  <div
+                                                    className={`w-full bg-transparent px-1.5 py-1 text-xs whitespace-pre-wrap leading-tight break-words min-h-[1.25rem] ${isBold ? "font-extrabold text-slate-900" : "text-slate-800"
                                                       } ${isItalic ? "italic" : ""} ${isCenter ? "text-center" : ""}`}
-                                                  />
+                                                  >
+                                                    {evalVal}
+                                                  </div>
                                                 </td>
                                               );
                                             })}

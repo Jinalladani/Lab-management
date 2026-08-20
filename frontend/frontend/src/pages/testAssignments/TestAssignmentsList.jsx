@@ -22,6 +22,7 @@ import { PortalActionMenu } from "../../components/ui/PortalActionMenu";
 import { TablePagination } from "../../components/ui/TablePagination";
 import { useDebounce } from "../../hooks/useDebounce";
 import { toast, Toaster } from "sonner";
+import { getObservationTemplates } from "../../api/observationBuilder";
 
 const stagger = {
   container: { hidden: {}, visible: { transition: { staggerChildren: 0.04 } } },
@@ -229,11 +230,27 @@ const TestAssignmentsList = () => {
 
   const handleOpenObservationSheet = async (assignment) => {
     try {
+      // 1. Fetch templates to verify if a template has been created for this test
+      const tmplRes = await getObservationTemplates().catch(() => ({ data: { success: false, data: [] } }));
+      const allTemplates = tmplRes.data?.data || [];
+      
+      const hasTemplate = allTemplates.some((t) => {
+        if (t.scope_test_ids && Array.isArray(t.scope_test_ids)) {
+          return t.scope_test_ids.some((id) => String(id) === String(assignment.scope_test_id));
+        }
+        return String(t.scope_test_id) === String(assignment.scope_test_id);
+      });
+
+      if (!hasTemplate) {
+        toast.warning(`No Observation Template configured for test "${assignment.test_name}". Please create one in the Template Designer first.`);
+        return;
+      }
+
       if (assignment.status === "Assigned") {
         await changeAssignmentStatus(assignment.assignment_id, "In Progress").catch(() => { });
       }
       const sid = assignment.testing_sample_id || assignment.receipt_id;
-      const stid = assignment.project_scope_test_id;
+      const stid = assignment.scope_test_id; // Pass master scope_test_id for proper template matching
       const aid = assignment.assignment_id;
       navigate(`/observation-entry?sample_id=${sid}&scope_test_id=${stid}&assignment_id=${aid}`);
     } catch (err) {

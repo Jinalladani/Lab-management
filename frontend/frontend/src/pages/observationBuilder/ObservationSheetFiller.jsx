@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import {
   FileSpreadsheet, FlaskConical, CheckCircle2, UserCheck, Calendar, Clock,
   Save, Check, Eye, Loader2, ArrowLeft, Layers3, TestTube2, AlertCircle, Info,
-  Bold, Italic, AlignCenter, Plus, Minus, Lock
+  Bold, Italic, AlignCenter, Plus, Minus, Lock, ArrowDown
 } from "lucide-react";
 import { toast, Toaster } from "sonner";
 import { MainLayout } from "../../components/layout";
@@ -12,30 +12,81 @@ import { getObservationTemplates, getObservationTemplate } from "../../api/obser
 import { createSampleObservation, updateSampleObservation, getSampleObservation, getSampleObservations } from "../../api/sampleObservations";
 import { getScopeTests } from "../../api/scope";
 import { getSampleEntries } from "../../api/sampleEntries";
+import { getAllTestingSamples } from "../../api/sampleMaster";
 
-// Helper to evaluate simple Excel formulas (e.g. =B1+B2, =100-C1, =B1*0.1)
-const evaluateExcelCell = (cellVal, allCellData) => {
-  if (!cellVal || typeof cellVal !== "string") return cellVal || "";
-  if (!cellVal.startsWith("=")) return cellVal;
+import { evaluateExcelCell, normalizeCellValue, adjustFormulaForOffset, getColumnLetter, parseCellRef, extractReferencedCells } from "../../utils/excelFormulaEvaluator";
+import { exportObservationSheetToExcel } from "../../utils/excelExporter";
 
-  try {
-    let expr = cellVal.substring(1).trim();
-    expr = expr.replace(/\b([A-Z])([1-9]\d*)\b/g, (match) => {
-      const refVal = allCellData?.[match];
-      const evalRef = evaluateExcelCell(refVal, allCellData);
-      const parsed = parseFloat(evalRef);
-      return isNaN(parsed) ? 0 : parsed;
-    });
+// Helper to robustly parse template section data from JSON string, array, or sheets_data fallback
+const parseSectionsData = (tmpl) => {
+  if (!tmpl) return [];
+  let sec = tmpl.sections_data || tmpl.sections;
 
-    // eslint-disable-next-line no-new-func
-    const result = Function(`"use strict"; return (${expr})`)();
-    return isNaN(result) ? "#VALUE!" : Math.round(result * 100) / 100;
-  } catch (err) {
-    return "#ERROR!";
+  if (typeof sec === "string") {
+    try {
+      sec = JSON.parse(sec);
+    } catch (e) {
+      sec = [];
+    }
   }
+
+  if (Array.isArray(sec) && sec.length > 0) {
+    return sec.map((s) => ({
+      ...s,
+      fields: (s.fields || []).map((f) => {
+        if (f.type === "table" && f.cellData) {
+          const normCellData = {};
+          Object.entries(f.cellData).forEach(([k, v]) => {
+            normCellData[k] = normalizeCellValue(v);
+          });
+          return { ...f, cellData: normCellData };
+        }
+        return f;
+      }),
+    }));
+  }
+
+  // Legacy fallback if template was saved with sheets_data object
+  if (tmpl.sheets_data) {
+    let sheetsObj = tmpl.sheets_data;
+    if (typeof sheetsObj === "string") {
+      try {
+        sheetsObj = JSON.parse(sheetsObj);
+      } catch (e) {
+        sheetsObj = {};
+      }
+    }
+    const sheet1Cells = sheetsObj.sheet1 || {};
+    if (Object.keys(sheet1Cells).length > 0) {
+      return [
+        {
+          id: "sec_legacy",
+          title: "Section 1: Observation Table",
+          fields: [
+            {
+              id: "f_legacy",
+              type: "table",
+              label: "Observation Table Grid",
+              rowCount: 12,
+              colCount: 20,
+              tableWidth: "100%",
+              colHeaders: Array.from({ length: 26 }, (_, i) => getColumnLetter(i)),
+              cellData: Object.fromEntries(
+                Object.entries(sheet1Cells).map(([k, v]) => [k, normalizeCellValue(v)])
+              ),
+              cellMerges: tmpl.merges_data || {},
+              cellStyles: {},
+            },
+          ],
+        },
+      ];
+    }
+  }
+
+  return [];
 };
 
-export default function ObservationSheetFiller({ observationId, templateId, onBack }) {
+export default function ObservationSheetFiller({ observationId, templateId, onBack, readOnly }) {
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -68,12 +119,31 @@ export default function ObservationSheetFiller({ observationId, templateId, onBa
     remarks: "",
   });
 
+  // Dynamic cell dictionary across all sections for instant multi-cell/multi-table Excel formula evaluation
+  const allSheetCells = React.useMemo(() => {
+    const merged = {};
+    (sections || []).forEach((sec) => {
+      (sec.fields || []).forEach((f) => {
+        if (f.cellData) {
+          Object.entries(f.cellData).forEach(([k, v]) => {
+            const norm = normalizeCellValue(v);
+            merged[k] = norm;
+            merged[k.toUpperCase()] = norm;
+            merged[k.toLowerCase()] = norm;
+          });
+        }
+      });
+    });
+    return merged;
+  }, [sections]);
+
   // Load Observation Template or Saved Observation Entry from DB on mount
   useEffect(() => {
     const fetchTemplateData = async () => {
       try {
         setLoading(true);
         let loadedObsSections = null;
+        let activeSampleId = sampleIdParam;
 
         // 1. If editing/viewing existing observation record from DB, fetch observation details first
         if (activeObsId) {
@@ -82,6 +152,9 @@ export default function ObservationSheetFiller({ observationId, templateId, onBa
             if (obsRes.data?.success && obsRes.data.data) {
               const obsObj = obsRes.data.data;
               setSavedObservationId(obsObj.observation_id);
+              if (obsObj.sample_id || obsObj.testing_sample_id) {
+                activeSampleId = obsObj.sample_id || obsObj.testing_sample_id;
+              }
 
               let sData = obsObj.sheets_data;
               if (typeof sData === "string") {
@@ -125,6 +198,9 @@ export default function ObservationSheetFiller({ observationId, templateId, onBa
             if (existingRecords.length > 0) {
               const obsObj = existingRecords[0];
               setSavedObservationId(obsObj.observation_id);
+              if (obsObj.sample_id || obsObj.testing_sample_id) {
+                activeSampleId = obsObj.sample_id || obsObj.testing_sample_id;
+              }
 
               let sData = obsObj.sheets_data;
               if (typeof sData === "string") {
@@ -158,6 +234,28 @@ export default function ObservationSheetFiller({ observationId, templateId, onBa
           }
         }
 
+        // Fetch detailed testing sample info if we have a sample ID
+        let sampleDetails = null;
+        if (activeSampleId) {
+          try {
+            const sampleRes = await getAllTestingSamples();
+            const samples = sampleRes.data?.data || [];
+            const foundSample = samples.find((s) => String(s.testing_sample_id) === String(activeSampleId));
+            if (foundSample) {
+              sampleDetails = foundSample;
+              setSampleMeta((prev) => ({
+                ...prev,
+                sampleNo: foundSample.sample_code || `SAMPLE-${activeSampleId}`,
+                locationName: foundSample.location_name || "",
+                borelogNo: foundSample.borelog_no || "",
+                projectName: foundSample.project_name || "",
+              }));
+            }
+          } catch (e) {
+            console.warn("Could not load testing sample metadata:", e);
+          }
+        }
+
         let targetTmpl = null;
 
         // 2. Fetch template by explicit templateId prop if provided
@@ -181,66 +279,63 @@ export default function ObservationSheetFiller({ observationId, templateId, onBa
           });
         }
 
-        // Fallback to first available template if no exact match found
-        if (!targetTmpl && allTmpls.length > 0) {
-          targetTmpl = allTmpls[0];
-        }
-
         if (targetTmpl) {
           setTemplate(targetTmpl);
 
-          // Record all fixed SuperAdmin template cell texts so technicians CANNOT edit them
-          let secData = targetTmpl.sections_data || targetTmpl.sections;
-          if (typeof secData === "string") {
-            try {
-              secData = JSON.parse(secData);
-            } catch (e) {
-              secData = [];
-            }
-          }
+          // Record all fixed SuperAdmin template cell texts so technicians CANNOT edit text headers, but CAN edit input cells & compute formulas
+          const secData = parseSectionsData(targetTmpl);
 
-          if (Array.isArray(secData)) {
-            const fixedMap = {};
-            secData.forEach((sec) => {
-              (sec.fields || []).forEach((f) => {
-                if (f.type === "table" && f.cellData) {
-                  fixedMap[f.id] = {};
-                  Object.entries(f.cellData).forEach(([cRef, val]) => {
-                    if (val !== undefined && val !== null && String(val).trim() !== "") {
-                      fixedMap[f.id][cRef] = true;
-                    }
-                  });
-                }
-              });
+          const fixedMap = {};
+          secData.forEach((sec) => {
+            (sec.fields || []).forEach((f) => {
+              if (f.type === "table" && f.cellData) {
+                fixedMap[f.id] = {};
+                Object.entries(f.cellData).forEach(([cRef, val]) => {
+                  const normVal = normalizeCellValue(val).trim();
+                  if (normVal !== "" && !normVal.startsWith("=")) {
+                    fixedMap[f.id][cRef] = true;
+                  }
+                });
+              }
             });
-            setTemplateFixedCells(fixedMap);
-          }
+          });
+          setTemplateFixedCells(fixedMap);
 
           // Prioritize saved observation sections if editing existing record, else use blank template layout
+          let targetSections = [];
           if (loadedObsSections && loadedObsSections.length > 0) {
+            targetSections = loadedObsSections;
             setSections(loadedObsSections);
-          } else if (Array.isArray(secData)) {
+          } else {
+            targetSections = secData;
             setSections(secData);
+          }
+
+          // Auto-fill template metadata fields (Name of Work, Location, Borehole No, Date of Testing)
+          if (sampleDetails) {
+            setFieldValues((prev) => {
+              const autoVals = {};
+              targetSections.forEach((sec) => {
+                (sec.fields || []).forEach((f) => {
+                  if (f.label && f.id) {
+                    const lbl = f.label.toLowerCase().trim();
+                    if (lbl.includes("name of work") || lbl.includes("project name") || lbl === "work") {
+                      autoVals[f.id] = prev[f.id] || sampleDetails.project_name || "";
+                    } else if (lbl === "site" || lbl.includes("location") || lbl === "site location") {
+                      autoVals[f.id] = prev[f.id] || sampleDetails.location_name || "";
+                    } else if (lbl.includes("borehole") || lbl.includes("borelog") || lbl.includes("bh id") || lbl === "bh no") {
+                      autoVals[f.id] = prev[f.id] || sampleDetails.borelog_no || "";
+                    } else if (lbl.includes("date of testing") || lbl.includes("testing date") || lbl === "date") {
+                      autoVals[f.id] = prev[f.id] || new Date().toISOString().split("T")[0];
+                    }
+                  }
+                });
+              });
+              return { ...autoVals, ...prev };
+            });
           }
         } else if (loadedObsSections && loadedObsSections.length > 0) {
           setSections(loadedObsSections);
-        }
-
-        // 4. Try to fetch sample entry details if sample_id provided
-        if (sampleIdParam) {
-          try {
-            const sampleRes = await getSampleEntries();
-            const samples = sampleRes.data?.data || [];
-            const foundSample = samples.find((s) => String(s.sample_id) === String(sampleIdParam));
-            if (foundSample) {
-              setSampleMeta((prev) => ({
-                ...prev,
-                sampleNo: foundSample.sample_no || `SAMPLE-${sampleIdParam}`,
-              }));
-            }
-          } catch (e) {
-            console.warn("Could not load sample metadata:", e);
-          }
         }
       } catch (err) {
         console.error("Failed to load observation sheet template:", err);
@@ -276,6 +371,33 @@ export default function ObservationSheetFiller({ observationId, templateId, onBa
         }),
       }))
     );
+  };
+
+  const handleGridCellKeyDown = (e, fieldId, cellRef, colIndex, rowIndex, maxCols, maxRows) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      const nextRow = rowIndex + 2;
+      if (nextRow <= maxRows) {
+        const nextCellRef = `${getColumnLetter(colIndex)}${nextRow}`;
+        setActiveFieldId(fieldId);
+        setActiveCellRef(nextCellRef);
+      }
+    } else if (e.key === "Tab") {
+      e.preventDefault();
+      if (e.shiftKey) {
+        if (colIndex > 0) {
+          const prevCellRef = `${getColumnLetter(colIndex - 1)}${rowIndex + 1}`;
+          setActiveFieldId(fieldId);
+          setActiveCellRef(prevCellRef);
+        }
+      } else {
+        if (colIndex + 1 < maxCols) {
+          const nextCellRef = `${getColumnLetter(colIndex + 1)}${rowIndex + 1}`;
+          setActiveFieldId(fieldId);
+          setActiveCellRef(nextCellRef);
+        }
+      }
+    }
   };
 
   // Toggle cell text formatting (bold, italic, center) globally
@@ -323,6 +445,53 @@ export default function ObservationSheetFiller({ observationId, templateId, onBa
             const current = f.rowCount || 1;
             if (current <= 1) return f;
             return { ...f, rowCount: current - 1 };
+          }
+          return f;
+        }),
+      }))
+    );
+  };
+
+  // Auto-fill active cell formula/value down to all remaining rows in current column with Excel relative reference adjustments (e.g. =100-I4 -> =100-I5, =100-I6...)
+  const handleFillDownColumn = () => {
+    const targetId = activeFieldId || getFirstTableFieldId();
+    if (!targetId || !activeCellRef) {
+      toast.error("Please click on a formula cell first (e.g. C4) to fill down!");
+      return;
+    }
+
+    const { colStr: colLetter, row: sourceRow } = parseCellRef(activeCellRef);
+
+    setSections((prevSecs) =>
+      prevSecs.map((sec) => ({
+        ...sec,
+        fields: sec.fields.map((f) => {
+          if (f.id === targetId) {
+            const currentCellData = { ...(f.cellData || {}) };
+            const sourceFormula = normalizeCellValue(currentCellData[activeCellRef] || currentCellData[activeCellRef.toLowerCase()]);
+
+            if (!sourceFormula) {
+              toast.error(`Cell ${activeCellRef} is empty! Please enter a formula first (e.g. =100-I4).`);
+              return f;
+            }
+
+            const totalRows = f.rowCount || 12;
+            let updatedCount = 0;
+
+            for (let r = sourceRow + 1; r <= totalRows; r++) {
+              const targetRef = `${colLetter}${r}`;
+              const rowOffset = r - sourceRow;
+              const adjustedFormula = adjustFormulaForOffset(sourceFormula, rowOffset, 0);
+              currentCellData[targetRef] = adjustedFormula;
+              updatedCount++;
+            }
+
+            toast.success(`Auto-filled ${sourceFormula} down ${updatedCount} rows (${colLetter}${sourceRow + 1}:${colLetter}${totalRows})!`);
+
+            return {
+              ...f,
+              cellData: currentCellData,
+            };
           }
           return f;
         }),
@@ -404,6 +573,17 @@ export default function ObservationSheetFiller({ observationId, templateId, onBa
     }
   };
 
+  // Export filled observation sheet to Microsoft Excel (.xls)
+  const handleExportExcel = () => {
+    try {
+      exportObservationSheetToExcel(sections, sampleMeta, template?.name || "Observation Sheet");
+      toast.success("Observation Sheet exported to Excel (.xls) successfully!");
+    } catch (err) {
+      console.error("Export Excel error:", err);
+      toast.error("Failed to export Excel file. Please try again.");
+    }
+  };
+
   // Persist filled test readings into PostgreSQL sample_observations DB table (Save Draft vs Submit)
   const handleSubmitReadings = async (statusOverride = "Submitted") => {
     try {
@@ -467,8 +647,9 @@ export default function ObservationSheetFiller({ observationId, templateId, onBa
             <input
               type="date"
               value={val}
+              disabled={readOnly}
               onChange={(e) => handleUpdateFieldValue(f.id, e.target.value)}
-              className="w-full rounded-xl border border-[#CBD5E1] bg-white px-3.5 py-2.5 text-xs font-bold text-[#0F172A] focus:border-[#243744] focus:ring-2 focus:ring-[#243744]/10 outline-none cursor-pointer"
+              className="w-full rounded-xl border border-[#CBD5E1] bg-white px-3.5 py-2.5 text-xs font-bold text-[#0F172A] focus:border-[#243744] focus:ring-2 focus:ring-[#243744]/10 outline-none cursor-pointer disabled:opacity-75 disabled:cursor-not-allowed"
             />
           </div>
         );
@@ -478,8 +659,9 @@ export default function ObservationSheetFiller({ observationId, templateId, onBa
           <input
             type="time"
             value={val}
+            disabled={readOnly}
             onChange={(e) => handleUpdateFieldValue(f.id, e.target.value)}
-            className="w-full rounded-xl border border-[#CBD5E1] bg-white px-3.5 py-2.5 text-xs font-bold text-[#0F172A] focus:border-[#243744] focus:ring-2 focus:ring-[#243744]/10 outline-none cursor-pointer"
+            className="w-full rounded-xl border border-[#CBD5E1] bg-white px-3.5 py-2.5 text-xs font-bold text-[#0F172A] focus:border-[#243744] focus:ring-2 focus:ring-[#243744]/10 outline-none cursor-pointer disabled:opacity-75 disabled:cursor-not-allowed"
           />
         );
 
@@ -490,8 +672,9 @@ export default function ObservationSheetFiller({ observationId, templateId, onBa
             type="number"
             placeholder={f.placeholder || "Enter numeric reading"}
             value={val}
+            disabled={readOnly}
             onChange={(e) => handleUpdateFieldValue(f.id, e.target.value)}
-            className="w-full rounded-xl border border-[#CBD5E1] bg-white px-3.5 py-2.5 text-xs font-bold text-[#0F172A] focus:border-[#243744] focus:ring-2 focus:ring-[#243744]/10 outline-none"
+            className="w-full rounded-xl border border-[#CBD5E1] bg-white px-3.5 py-2.5 text-xs font-bold text-[#0F172A] focus:border-[#243744] focus:ring-2 focus:ring-[#243744]/10 outline-none disabled:opacity-75 disabled:cursor-not-allowed"
           />
         );
 
@@ -499,8 +682,9 @@ export default function ObservationSheetFiller({ observationId, templateId, onBa
         return (
           <select
             value={val}
+            disabled={readOnly}
             onChange={(e) => handleUpdateFieldValue(f.id, e.target.value)}
-            className="w-full rounded-xl border border-[#CBD5E1] bg-white px-3.5 py-2.5 text-xs font-bold text-[#0F172A] focus:border-[#243744] focus:ring-2 focus:ring-[#243744]/10 outline-none"
+            className="w-full rounded-xl border border-[#CBD5E1] bg-white px-3.5 py-2.5 text-xs font-bold text-[#0F172A] focus:border-[#243744] focus:ring-2 focus:ring-[#243744]/10 outline-none disabled:opacity-75 disabled:cursor-not-allowed"
           >
             <option value="">Select option...</option>
             {(f.options || ["Option 1", "Option 2", "Option 3"]).map((opt, idx) => (
@@ -517,19 +701,21 @@ export default function ObservationSheetFiller({ observationId, templateId, onBa
             rows={3}
             placeholder={f.placeholder || "Enter details..."}
             value={val}
+            disabled={readOnly}
             onChange={(e) => handleUpdateFieldValue(f.id, e.target.value)}
-            className="w-full rounded-xl border border-[#CBD5E1] bg-white px-3.5 py-2.5 text-xs font-medium text-[#0F172A] focus:border-[#243744] focus:ring-2 focus:ring-[#243744]/10 outline-none resize-y"
+            className="w-full rounded-xl border border-[#CBD5E1] bg-white px-3.5 py-2.5 text-xs font-medium text-[#0F172A] focus:border-[#243744] focus:ring-2 focus:ring-[#243744]/10 outline-none resize-y disabled:opacity-75 disabled:cursor-not-allowed"
           />
         );
 
       case "checkbox":
         return (
-          <label className="flex items-center gap-2.5 cursor-pointer pt-1 select-none">
+          <label className={`flex items-center gap-2.5 pt-1 select-none ${readOnly ? "cursor-not-allowed" : "cursor-pointer"}`}>
             <input
               type="checkbox"
               checked={!!val}
+              disabled={readOnly}
               onChange={(e) => handleUpdateFieldValue(f.id, e.target.checked)}
-              className="h-4 w-4 rounded border-[#CBD5E1] text-[#243744] focus:ring-[#243744]"
+              className="h-4 w-4 rounded border-[#CBD5E1] text-[#243744] focus:ring-[#243744] disabled:opacity-75"
             />
             <span className="text-xs font-bold text-[#1E293B]">{f.placeholder || f.label}</span>
           </label>
@@ -540,8 +726,9 @@ export default function ObservationSheetFiller({ observationId, templateId, onBa
         return (
           <input
             type="file"
+            disabled={readOnly}
             onChange={(e) => handleUpdateFieldValue(f.id, e.target.files?.[0]?.name || "")}
-            className="w-full rounded-xl border border-[#CBD5E1] bg-white px-3 py-1.5 text-xs text-[#0F172A] file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-[#243744]/10 file:text-[#243744] hover:file:bg-[#243744]/20 outline-none"
+            className="w-full rounded-xl border border-[#CBD5E1] bg-white px-3 py-1.5 text-xs text-[#0F172A] file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-[#243744]/10 file:text-[#243744] hover:file:bg-[#243744]/20 outline-none disabled:opacity-75 disabled:cursor-not-allowed"
           />
         );
 
@@ -593,14 +780,17 @@ export default function ObservationSheetFiller({ observationId, templateId, onBa
   const activeCellStyle = activeField && activeCellRef ? activeField.cellStyles?.[activeCellRef] : null;
 
   return (
-    <MainLayout headerTitle="Observation Entry" headerSubtitle="User / Lab Technician Test Readings Entry">
+    <MainLayout
+      headerTitle={template?.name || "Observation Entry"}
+      headerSubtitle={template?.standard ? `Standard/Method: ${template.standard}` : "User / Lab Technician Test Readings Entry"}
+    >
       <Toaster position="top-right" richColors />
       <div className="flex flex-col bg-[#F8FAFC] min-h-[calc(100vh-4rem)] p-4 sm:p-6 space-y-5">
         <div className="w-full max-w-full space-y-5">
 
           {/* SINGLE ROW TOP BAR: Back button (Left) + Actions right beside it (No Card Wrapper) */}
           <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
               <Button
                 variant="ghost"
                 size="sm"
@@ -609,85 +799,182 @@ export default function ObservationSheetFiller({ observationId, templateId, onBa
               >
                 Back
               </Button>
+              <button
+                type="button"
+                onClick={handleExportExcel}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded-xl shadow-2xs transition-colors cursor-pointer"
+                title="Export complete observation sheet to Microsoft Excel (.xls)"
+              >
+                <FileSpreadsheet size={15} />
+                <span>Export Excel</span>
+              </button>
+              {readOnly && (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 border border-amber-200 text-amber-800 text-xs font-bold rounded-xl shadow-2xs">
+                  <Info size={14} className="text-amber-600" />
+                  View Mode (Read-only)
+                </span>
+              )}
+              {sampleMeta.sampleNo && (
+                <div className="flex items-center gap-2 flex-wrap text-xs">
+                  <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-50 border border-blue-200 text-blue-800 font-extrabold rounded-xl shadow-2xs">
+                    <FlaskConical size={14} className="text-blue-600" />
+                    Sample: {sampleMeta.sampleNo}
+                  </span>
+                  {sampleMeta.borelogNo && (
+                    <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-50 border border-emerald-200 text-emerald-800 font-extrabold rounded-xl shadow-2xs font-mono">
+                      <Layers3 size={14} className="text-emerald-600" />
+                      Borehole: {sampleMeta.borelogNo}
+                    </span>
+                  )}
+                  {sampleMeta.locationName && (
+                    <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-purple-50 border border-purple-200 text-purple-800 font-extrabold rounded-xl shadow-2xs">
+                      Location: {sampleMeta.locationName}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Actions placed directly on the right side in the same row without card */}
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="font-mono text-xs font-bold text-[#243744] bg-white px-2.5 py-1.5 rounded-xl border border-slate-200 min-w-[42px] text-center shadow-2xs">
-                {activeCellRef || "A1"}
-              </span>
+            {!readOnly && (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-mono text-xs font-bold text-[#243744] bg-white px-2.5 py-1.5 rounded-xl border border-slate-200 min-w-[42px] text-center shadow-2xs">
+                  {activeCellRef || "A1"}
+                </span>
 
-              <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => handleToggleCellFormat("bold")}
+                    className={`p-2 rounded-xl border text-xs font-bold transition-colors ${activeCellStyle?.bold ? "bg-[#243744] text-white border-[#243744]" : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                      }`}
+                    title="Bold Text"
+                  >
+                    <Bold size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleToggleCellFormat("italic")}
+                    className={`p-2 rounded-xl border text-xs transition-colors ${activeCellStyle?.italic ? "bg-[#243744] text-white border-[#243744]" : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                      }`}
+                    title="Italic Text"
+                  >
+                    <Italic size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleToggleCellFormat("center")}
+                    className={`p-2 rounded-xl border text-xs transition-colors ${activeCellStyle?.center ? "bg-[#243744] text-white border-[#243744]" : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+                      }`}
+                    title="Align Center"
+                  >
+                    <AlignCenter size={14} />
+                  </button>
+                </div>
+
+                <div className="h-5 w-px bg-slate-300 mx-1" />
+
+                {/* Formula Bar (fx) & Live Evaluated Result */}
+                <div className="flex items-center gap-1.5 flex-1 min-w-[280px]">
+                  <span className="font-serif italic font-extrabold text-[#243744] text-xs px-2.5 py-1 bg-slate-100 rounded-lg border border-slate-200 shadow-2xs select-none">
+                    fx
+                  </span>
+                  {(() => {
+                    const targetId = activeFieldId || getFirstTableFieldId();
+                    let rawVal = "";
+                    let evalVal = "";
+                    if (targetId && activeCellRef) {
+                      for (const s of sections) {
+                        const foundF = (s.fields || []).find((f) => f.id === targetId);
+                        if (foundF) {
+                          rawVal = normalizeCellValue(foundF.cellData?.[activeCellRef]);
+                          evalVal = evaluateExcelCell(rawVal, allSheetCells);
+                          break;
+                        }
+                      }
+                    }
+
+                    return (
+                      <>
+                        <input
+                          type="text"
+                          placeholder="Formula or value (e.g. =A1+B1 or =SQRT(A1))"
+                          value={rawVal}
+                          onChange={(e) => {
+                            if (targetId && activeCellRef) {
+                              handleUpdateCellVal(targetId, activeCellRef, e.target.value);
+                            }
+                          }}
+                          className="w-full bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-mono font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#243744]/20 shadow-2xs"
+                        />
+                        {rawVal.startsWith("=") && (
+                          <div className="shrink-0 font-mono text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-xl border border-emerald-200/80 shadow-2xs flex items-center gap-1">
+                            <span className="text-[10px] text-emerald-600 uppercase tracking-wider font-sans font-semibold">Result:</span>
+                            <span>{evalVal}</span>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
+
                 <button
                   type="button"
-                  onClick={() => handleToggleCellFormat("bold")}
-                  className={`p-2 rounded-xl border text-xs font-bold transition-colors ${activeCellStyle?.bold ? "bg-[#243744] text-white border-[#243744]" : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-                    }`}
-                  title="Bold Text"
+                  onClick={handleFillDownColumn}
+                  className="px-3.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold transition-colors shadow-2xs flex items-center gap-1.5 cursor-pointer"
+                  title="Auto-fill active formula down to all rows in column with relative Excel index adjustment (e.g. =100-I4 -> =100-I5, =100-I6...)"
                 >
-                  <Bold size={14} />
+                  <ArrowDown size={14} />
+                  <span>Fill Down</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleAddGlobalRow}
+                  className="px-3.5 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl text-xs font-bold text-slate-700 transition-colors shadow-2xs"
+                >
+                  + Add Row
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleToggleCellFormat("italic")}
-                  className={`p-2 rounded-xl border text-xs transition-colors ${activeCellStyle?.italic ? "bg-[#243744] text-white border-[#243744]" : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-                    }`}
-                  title="Italic Text"
+                  onClick={handleRemoveGlobalRow}
+                  className="px-3.5 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl text-xs font-bold text-slate-700 transition-colors shadow-2xs"
                 >
-                  <Italic size={14} />
+                  - Remove Row
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleToggleCellFormat("center")}
-                  className={`p-2 rounded-xl border text-xs transition-colors ${activeCellStyle?.center ? "bg-[#243744] text-white border-[#243744]" : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
-                    }`}
-                  title="Align Center"
+                  onClick={handleAddGlobalCol}
+                  className="px-3.5 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl text-xs font-bold text-slate-700 transition-colors shadow-2xs"
                 >
-                  <AlignCenter size={14} />
+                  + Add Col
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRemoveGlobalCol}
+                  className="px-3.5 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl text-xs font-bold text-slate-700 transition-colors shadow-2xs"
+                >
+                  - Remove Col
                 </button>
               </div>
-
-              <div className="h-5 w-px bg-slate-300 mx-1" />
-
-              <button
-                type="button"
-                onClick={handleAddGlobalRow}
-                className="px-3.5 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl text-xs font-bold text-slate-700 transition-colors shadow-2xs"
-              >
-                + Add Row
-              </button>
-              <button
-                type="button"
-                onClick={handleRemoveGlobalRow}
-                className="px-3.5 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl text-xs font-bold text-slate-700 transition-colors shadow-2xs"
-              >
-                - Remove Row
-              </button>
-              <button
-                type="button"
-                onClick={handleAddGlobalCol}
-                className="px-3.5 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl text-xs font-bold text-slate-700 transition-colors shadow-2xs"
-              >
-                + Add Col
-              </button>
-              <button
-                type="button"
-                onClick={handleRemoveGlobalCol}
-                className="px-3.5 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl text-xs font-bold text-slate-700 transition-colors shadow-2xs"
-              >
-                - Remove Col
-              </button>
-            </div>
+            )}
           </div>
 
           {/* Interactive Full-Width Observation Tables Grid */}
           {sections.length === 0 ? (
             <div className="rounded-2xl border border-[#E2E8F0] bg-white p-14 text-center shadow-sm">
-              <FileSpreadsheet size={44} className="mx-auto text-[#94A3B8] mb-3" />
-              <h3 className="text-base font-bold text-[#1E293B]">No Observation Table Configured</h3>
+              <FileSpreadsheet size={44} className="mx-auto text-amber-500 mb-3" />
+              <h3 className="text-base font-bold text-[#1E293B]">No Observation Template Found</h3>
               <p className="text-xs text-[#64748B] mt-1 max-w-md mx-auto">
-                No table grid or reading fields have been assigned to this template section yet.
+                No matching observation template has been designed/created for this test yet. Please ask your administrator to design a template in the Template Designer first.
               </p>
+              <button
+                type="button"
+                onClick={handleGoBack}
+                className="mt-4 px-4 py-2 bg-[#243744] hover:bg-[#1A2733] text-white text-xs font-bold rounded-xl transition-all cursor-pointer shadow-sm"
+              >
+                Go Back
+              </button>
             </div>
           ) : (
             sections.map((sec) => (
@@ -725,9 +1012,16 @@ export default function ObservationSheetFiller({ observationId, templateId, onBa
                                 <tr className="bg-[#243744] text-white font-bold text-xs font-mono select-none">
                                   <th className="p-2 border-r border-[#34495E] w-10 text-center bg-[#1A2733]">#</th>
                                   {Array.from({ length: colCount }).map((_, cIdx) => {
-                                    const colLetter = String.fromCharCode(65 + cIdx);
+                                    const colLetter = getColumnLetter(cIdx);
+                                    const activeParsed = activeCellRef ? parseCellRef(activeCellRef) : null;
+                                    const isColActive = activeFieldId === f.id && activeParsed && activeParsed.colStr === colLetter;
                                     return (
-                                      <th key={cIdx} className="p-2 border-r border-[#34495E] text-center font-mono min-w-[90px]">
+                                      <th
+                                        key={cIdx}
+                                        className={`p-2 border-r border-[#34495E] text-center font-mono min-w-[90px] transition-colors ${
+                                          isColActive ? "bg-[#101D28] text-amber-300 font-extrabold ring-1 ring-amber-300/40" : "text-white"
+                                        }`}
+                                      >
                                         {colLetter}
                                       </th>
                                     );
@@ -737,13 +1031,19 @@ export default function ObservationSheetFiller({ observationId, templateId, onBa
                                 <tbody className="divide-y divide-[#E2E8F0]">
                                   {Array.from({ length: rowCount }).map((_, rIdx) => {
                                     const rowNum = rIdx + 1;
+                                    const activeParsed = activeCellRef ? parseCellRef(activeCellRef) : null;
+                                    const isRowActive = activeFieldId === f.id && activeParsed && activeParsed.row === rowNum;
                                     return (
                                       <tr key={rIdx} className="hover:bg-[#FAF9FF] transition-colors">
-                                        <td className="p-2 border-r border-[#E2E8F0] text-center font-mono text-[11px] font-bold text-[#64748B] bg-[#F8FAFC]">
+                                        <td
+                                          className={`p-2 border-r border-[#E2E8F0] text-center font-mono text-[11px] transition-colors ${
+                                            isRowActive ? "bg-[#243744] text-amber-300 font-extrabold ring-1 ring-amber-300/40" : "font-bold text-[#64748B] bg-[#F8FAFC]"
+                                          }`}
+                                        >
                                           {rowNum}
                                         </td>
                                         {Array.from({ length: colCount }).map((_, cIdx) => {
-                                          const colLetter = String.fromCharCode(65 + cIdx);
+                                          const colLetter = getColumnLetter(cIdx);
                                           const cellRef = `${colLetter}${rowNum}`;
                                           const mergeInfo = f.cellMerges?.[cellRef];
 
@@ -752,8 +1052,28 @@ export default function ObservationSheetFiller({ observationId, templateId, onBa
                                           }
 
                                           const isSuperAdminFixed = !!templateFixedCells[f.id]?.[cellRef];
-                                          const rawCellVal = f.cellData?.[cellRef] || "";
-                                          const evalVal = evaluateExcelCell(rawCellVal, f.cellData);
+                                          const rawCellVal = normalizeCellValue(f.cellData?.[cellRef]);
+                                          const evalVal = evaluateExcelCell(rawCellVal, allSheetCells);
+                                          const isFocused = activeFieldId === f.id && activeCellRef === cellRef;
+                                          const displayVal = isFocused ? rawCellVal : evalVal;
+
+                                          // Active formula reference cell highlighting
+                                          const activeRawVal = activeFieldId && activeCellRef ? normalizeCellValue(sections.find(s => s.fields.some(field => field.id === activeFieldId))?.fields.find(field => field.id === activeFieldId)?.cellData?.[activeCellRef]) : "";
+                                          const activeRefs = extractReferencedCells(activeRawVal);
+                                          const refIndex = activeRefs.indexOf(cellRef);
+                                          const isReferenced = refIndex !== -1;
+
+                                          const refHighlightClass = isReferenced
+                                            ? refIndex === 0
+                                              ? "ring-2 ring-blue-500 bg-blue-50/80 font-bold"
+                                              : refIndex === 1
+                                                ? "ring-2 ring-emerald-500 bg-emerald-50/80 font-bold"
+                                                : refIndex === 2
+                                                  ? "ring-2 ring-purple-500 bg-purple-50/80 font-bold"
+                                                  : refIndex === 3
+                                                    ? "ring-2 ring-amber-500 bg-amber-50/80 font-bold"
+                                                    : "ring-2 ring-rose-500 bg-rose-50/80 font-bold"
+                                            : "";
 
                                           const cellStyle = f.cellStyles?.[cellRef];
                                           const isBold = cellStyle?.bold;
@@ -765,27 +1085,61 @@ export default function ObservationSheetFiller({ observationId, templateId, onBa
                                               key={cIdx}
                                               colSpan={mergeInfo?.colSpan || 1}
                                               rowSpan={mergeInfo?.rowSpan || 1}
-                                              className={`p-1 border-r border-[#E2E8F0] ${isSuperAdminFixed ? "bg-[#F1F5F9]/80" : "focus-within:bg-blue-50/50"
-                                                }`}
+                                              onClick={(e) => {
+                                                if (activeFieldId && activeCellRef && activeCellRef !== cellRef) {
+                                                  const activeVal = normalizeCellValue(sections.find(s => s.fields.some(field => field.id === activeFieldId))?.fields.find(field => field.id === activeFieldId)?.cellData?.[activeCellRef]);
+                                                  if (activeVal.startsWith("=")) {
+                                                    e.stopPropagation();
+                                                    handleUpdateCellVal(activeFieldId, activeCellRef, `${activeVal}${cellRef}`);
+                                                    return;
+                                                  }
+                                                }
+                                                setActiveFieldId(f.id);
+                                                setActiveCellRef(cellRef);
+                                              }}
+                                              className={`p-1 border-r border-[#E2E8F0] relative ${isSuperAdminFixed ? "bg-[#F1F5F9]/80" : isFocused ? "ring-[#243744] bg-blue-50/70" : "focus-within:bg-blue-50/50"
+                                                } ${refHighlightClass}`}
                                             >
-                                              <textarea
-                                                rows={typeof evalVal === "string" && String(evalVal).includes("\n") ? 2 : 1}
-                                                value={evalVal}
-                                                readOnly={isSuperAdminFixed}
-                                                onChange={(e) => handleUpdateCellVal(f.id, cellRef, e.target.value)}
-                                                onFocus={() => {
-                                                  setActiveFieldId(f.id);
-                                                  setActiveCellRef(cellRef);
-                                                }}
-                                                placeholder=""
-                                                className={`w-full bg-transparent px-2 py-1.5 text-xs focus:outline-none resize-none overflow-hidden whitespace-pre-wrap leading-relaxed ${isSuperAdminFixed
-                                                  ? "font-bold text-[#243744] cursor-not-allowed select-none"
-                                                  : isBold
+                                              {isSuperAdminFixed || readOnly ? (
+                                                <div
+                                                  className={`w-full bg-transparent px-2 py-1.5 text-xs whitespace-pre-wrap break-words leading-relaxed ${isSuperAdminFixed
+                                                    ? "font-bold text-[#243744] select-none"
+                                                    : isBold
+                                                      ? "font-extrabold text-[#0F172A]"
+                                                      : "text-[#1E293B]"
+                                                    } ${isItalic ? "italic" : ""} ${isCenter ? "text-center" : ""}`}
+                                                  title={isSuperAdminFixed ? "Fixed template label set by SuperAdmin (Read-only)" : ""}
+                                                >
+                                                  {evalVal}
+                                                </div>
+                                              ) : (
+                                                <textarea
+                                                  rows={typeof displayVal === "string" && String(displayVal).includes("\n") ? 2 : 1}
+                                                  value={displayVal}
+                                                  onChange={(e) => handleUpdateCellVal(f.id, cellRef, e.target.value)}
+                                                  onKeyDown={(e) => handleGridCellKeyDown(e, f.id, cellRef, cIdx, rIdx, colCount, rowCount)}
+                                                  onFocus={() => {
+                                                    setActiveFieldId(f.id);
+                                                    setActiveCellRef(cellRef);
+                                                  }}
+                                                  placeholder=""
+                                                  className={`w-full bg-transparent px-2 py-1.5 text-xs focus:outline-none resize-none overflow-hidden whitespace-pre-wrap leading-relaxed ${isBold
                                                     ? "font-extrabold text-[#0F172A]"
                                                     : "text-[#1E293B]"
-                                                  } ${isItalic ? "italic" : ""} ${isCenter ? "text-center" : ""}`}
-                                                title={isSuperAdminFixed ? "Fixed template label set by SuperAdmin (Read-only)" : ""}
-                                              />
+                                                    } ${isItalic ? "italic" : ""} ${isCenter ? "text-center" : ""}`}
+                                                />
+                                              )}
+
+                                              {isFocused && !isSuperAdminFixed && !readOnly && (
+                                                <div
+                                                  className="absolute -bottom-1 -right-1 w-2.5 h-2.5 bg-[#243744] border border-white cursor-ns-resize z-20 shadow-xs hover:scale-125 transition-transform"
+                                                  title="Double-click to Auto-Fill down column"
+                                                  onDoubleClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleFillDownColumn();
+                                                  }}
+                                                />
+                                              )}
                                             </td>
                                           );
                                         })}
@@ -806,51 +1160,65 @@ export default function ObservationSheetFiller({ observationId, templateId, onBa
             ))
           )}
 
-          {/* TWO ACTIONS: SAVE DRAFT vs SUBMIT TEST READINGS */}
+          {/* ACTIONS: EXPORT TO EXCEL vs SAVE DRAFT vs SUBMIT TEST READINGS */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 rounded-2xl border border-[#E2E8F0] bg-[#FFFFFF] p-5 shadow-sm">
             <div className="flex items-center gap-2 text-xs font-semibold text-[#475569]">
               <UserCheck size={18} className="text-emerald-600" />
-              <span>Ensure all required test readings are filled before submitting for QA/QC approval.</span>
+              <span>{readOnly ? "View mode: You can review test readings or export the complete sheet to Excel." : "Ensure all required test readings are filled before submitting for QA/QC approval."}</span>
             </div>
 
-            <div className="flex items-center gap-3 w-full sm:w-auto shrink-0">
+            <div className="flex items-center gap-3 w-full sm:w-auto shrink-0 flex-wrap">
               <button
                 type="button"
-                disabled={submitting}
-                onClick={() => handleSubmitReadings("Draft")}
-                className="w-full sm:w-auto rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-xs font-bold text-slate-700 shadow-2xs hover:bg-slate-50 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5 cursor-pointer"
+                onClick={handleExportExcel}
+                className="w-full sm:w-auto rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 px-5 py-2.5 text-xs font-bold shadow-2xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                title="Export complete observation sheet to Microsoft Excel (.xls)"
               >
-                {submitting ? (
-                  <>
-                    <Loader2 size={15} className="animate-spin text-slate-500" />
-                    <span>Saving...</span>
-                  </>
-                ) : (
-                  <>
-                    <Save size={15} />
-                    <span>Save Draft</span>
-                  </>
-                )}
+                <FileSpreadsheet size={16} className="text-emerald-700" />
+                <span>Export to Excel</span>
               </button>
 
-              <button
-                type="button"
-                disabled={submitting}
-                onClick={() => handleSubmitReadings("Submitted")}
-                className="w-full sm:w-auto rounded-xl bg-[#243744] px-6 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-[#1A2733] transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5 cursor-pointer"
-              >
-                {submitting ? (
-                  <>
-                    <Loader2 size={15} className="animate-spin" />
-                    <span>Submitting...</span>
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle2 size={15} />
-                    <span>Submit Test Readings</span>
-                  </>
-                )}
-              </button>
+              {!readOnly && (
+                <>
+                  <button
+                    type="button"
+                    disabled={submitting}
+                    onClick={() => handleSubmitReadings("Draft")}
+                    className="w-full sm:w-auto rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-xs font-bold text-slate-700 shadow-2xs hover:bg-slate-50 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    {submitting ? (
+                      <>
+                        <Loader2 size={15} className="animate-spin text-slate-500" />
+                        <span>Saving...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Save size={15} />
+                        <span>Save Draft</span>
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={submitting}
+                    onClick={() => handleSubmitReadings("Submitted")}
+                    className="w-full sm:w-auto rounded-xl bg-[#243744] px-6 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-[#1A2733] transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    {submitting ? (
+                      <>
+                        <Loader2 size={15} className="animate-spin" />
+                        <span>Submitting...</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 size={15} />
+                        <span>Submit Test Readings</span>
+                      </>
+                    )}
+                  </button>
+                </>
+              )}
             </div>
           </div>
 
